@@ -1,0 +1,77 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-black: #0a0a0a;
+  --color-brand-charcoal: #121212;
+  --color-brand-surface: #1a1a1a;
+  --color-brand-gold: #c9a227;
+  --color-brand-gold-light: #d4af37;
+  --color-brand-gold-dark: #b8860b;
+  --color-brand-cream: #f5f0e6;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-body: "Inter", system-ui, sans-serif;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-brand-black text-white antialiased;
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    letter-spacing: 0.02em;
+  }
+}
+
+@layer utilities {
+  .text-gold-gradient {
+    background: linear-gradient(135deg, #e8c547 0%, #c9a227 45%, #b8860b 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .bg-gold-gradient {
+    background: linear-gradient(135deg, #e8c547 0%, #c9a227 45%, #b8860b 100%);
+  }
+
+  .border-gold-gradient {
+    border-image: linear-gradient(135deg, #e8c547, #b8860b) 1;
+  }
+
+  .gold-ring {
+    box-shadow: 0 0 0 1px rgba(201, 162, 39, 0.35);
+  }
+
+  .premium-card {
+    @apply border border-brand-gold/20 bg-brand-surface transition duration-300;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .premium-card:hover {
+    @apply border-brand-gold/45;
+    box-shadow: 0 8px 32px rgba(201, 162, 39, 0.08);
+  }
+
+  .section-cream {
+    @apply bg-brand-cream text-brand-black;
+  }
+
+  .section-dark {
+    @apply bg-brand-black text-white;
+  }
+
+  .diamond-divider::before,
+  .diamond-divider::after {
+    content: "◆";
+    @apply text-brand-gold/60 text-[8px];
+  }
+}

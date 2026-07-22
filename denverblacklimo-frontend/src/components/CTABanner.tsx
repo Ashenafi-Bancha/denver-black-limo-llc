@@ -1,0 +1,107 @@
+import { Link } from 'react-router-dom'
+import { Calendar, Check, MessageSquare, Phone } from 'lucide-react'
+import { PHONE, PHONE_HREF } from '../constants'
+
+type CTABannerProps = {
+  eyebrow?: string
+  title?: string
+  subtitle?: string
+  showPhone?: boolean
+  primaryLabel?: string
+  primaryTo?: string
+  secondaryLabel?: string
+  secondaryTo?: string
+  backgroundImage?: string
+}
+
+const highlights = [
+  'Quick & easy booking',
+  'Professional chauffeurs',
+  'Flight tracking available',
+  '24/7 customer support',
+]
+
+export function CTABanner({
+  eyebrow = 'Ready to Ride?',
+  title = 'Reserve Your Luxury Transportation Today',
+  subtitle,
+  showPhone = true,
+  primaryLabel = 'BOOK NOW',
+  primaryTo = '/book',
+  secondaryLabel = 'REQUEST A QUOTE',
+  secondaryTo = '/quote',
+  backgroundImage =
+    'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=80',
+}: CTABannerProps) {
+  return (
+    <section className="relative overflow-hidden border-y border-brand-gold/20">
+      <img
+        src={backgroundImage}
+        alt=""
+        className="absolute inset-0 h-full w-full object-cover opacity-25"
+        loading="lazy"
+      />
+      <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/95 to-brand-black/85" />
+
+      <div className="relative mx-auto max-w-7xl px-4 py-14 md:px-6 md:py-16">
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_auto_1fr] lg:gap-8">
+          {/* Left — message */}
+          <div>
+            <p className="text-xs tracking-[0.3em] text-brand-gold-light">{eyebrow}</p>
+            <h2 className="mt-3 font-display text-2xl font-semibold leading-snug text-white md:text-3xl">
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="mt-3 text-sm text-white/65">{subtitle}</p>
+            ) : (
+              <ul className="mt-5 space-y-2">
+                {highlights.map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-white/70">
+                    <Check className="h-4 w-4 shrink-0 text-brand-gold-light" strokeWidth={2} />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Center — phone */}
+          {showPhone && (
+            <div className="flex justify-center">
+              <a
+                href={PHONE_HREF}
+                className="group border border-brand-gold/50 bg-brand-black/60 px-8 py-6 text-center backdrop-blur-sm transition hover:border-brand-gold hover:bg-brand-gold/5"
+              >
+                <Phone className="mx-auto h-6 w-6 text-brand-gold-light transition group-hover:scale-110" />
+                <p className="mt-3 font-display text-3xl tracking-wide text-brand-gold-light md:text-4xl">
+                  {PHONE}
+                </p>
+                <p className="mt-1 text-[10px] tracking-[0.25em] text-white/50">
+                  24/7 CUSTOMER SUPPORT
+                </p>
+              </a>
+            </div>
+          )}
+
+          {/* Right — actions */}
+          <div className="flex flex-col items-center gap-3 lg:items-end">
+            <Link
+              to={primaryTo}
+              className="inline-flex w-full max-w-xs items-center justify-center gap-2 bg-gold-gradient px-8 py-3.5 text-xs font-bold tracking-[0.2em] text-brand-black transition hover:brightness-110 sm:w-auto lg:w-full lg:max-w-none"
+            >
+              <Calendar className="h-4 w-4" />
+              {primaryLabel}
+            </Link>
+            <Link
+              to={secondaryTo}
+              className="inline-flex w-full max-w-xs items-center justify-center gap-2 border border-brand-gold/60 px-8 py-3.5 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:bg-brand-gold/10 sm:w-auto lg:w-full lg:max-w-none"
+            >
+              <MessageSquare className="h-4 w-4" />
+              {secondaryLabel}
+            </Link>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
