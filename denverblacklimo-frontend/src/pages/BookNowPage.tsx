@@ -47,7 +47,12 @@ export function BookNowPage() {
         subtitle="Complete the form below and our team will confirm your luxury chauffeured transportation."
         image="/images/hero1.jpg"
       />
-      <section className="mx-auto max-w-3xl px-4 py-16 md:px-6">
+      <motion.section
+        className="mx-auto max-w-3xl px-4 py-16 md:px-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
         {submitted ? (
           <div className="border border-brand-gold/30 bg-brand-surface p-8 text-center">
             <h2 className="font-display text-3xl text-brand-gold-light">Request Received</h2>
@@ -119,7 +124,7 @@ export function BookNowPage() {
             </button>
           </form>
         )}
-      </section>
+      </motion.section>
     </>
   )
 }

@@ -71,10 +71,7 @@ export function ContactPage() {
               className="flex items-start gap-4 border border-brand-gold/25 bg-brand-surface p-5 transition-all duration-300 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-lg hover:shadow-brand-gold/25"
               whileHover={{ scale: 1.02 }}
             >
-              <svg className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-                <circle cx="12" cy="10" r="3" />
-              </svg>
+              <MapPin className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" strokeWidth={1.5} />
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">SERVICE AREA</p>
                 <p className="text-white/80">{ADDRESS}</p>
@@ -84,10 +81,7 @@ export function ContactPage() {
               className="flex items-start gap-4 border border-brand-gold/25 bg-brand-surface p-5 transition-all duration-300 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-lg hover:shadow-brand-gold/25"
               whileHover={{ scale: 1.02 }}
             >
-              <svg className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12,6 12,12 16,14" />
-              </svg>
+              <Clock className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" strokeWidth={1.5} />
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">SERVICE HOURS</p>
                 <p className="text-white/80">Available 24 hours a day, 7 days a week</p>

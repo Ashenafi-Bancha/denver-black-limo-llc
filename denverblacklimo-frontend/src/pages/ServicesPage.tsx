@@ -37,7 +37,12 @@ export function ServicesPage() {
         </div>
       </PageHero>
 
-      <TrustRow items={aboutTrust} />
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+      >
+        <TrustRow items={aboutTrust} />
 
       <section className="border-b border-brand-gold/15 bg-brand-charcoal/50 py-12 md:py-14">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
@@ -53,7 +58,8 @@ export function ServicesPage() {
         <ServiceSection key={service.slug} service={service} />
       ))}
 
-      <CTABanner title="Reserve Your Ride Now" />
+        <CTABanner title="Reserve Your Ride Now" />
+      </motion.div>
     </>
   )
 }
