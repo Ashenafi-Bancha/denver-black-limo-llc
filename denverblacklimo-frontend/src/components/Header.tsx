@@ -7,7 +7,7 @@ import { PHONE, PHONE_HREF } from '../constants'
 import { services } from '../data/services'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `text-xs font-medium tracking-[0.2em] transition ${
+  `whitespace-nowrap text-xs font-medium tracking-[0.2em] transition ${
     isActive ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'
   }`
 
@@ -20,7 +20,7 @@ export function Header() {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 md:px-6">
         <Logo />
 
-        <nav className="hidden items-center gap-6 lg:flex">
+        <nav className="hidden items-center gap-4 xl:gap-6 lg:flex">
           <NavLink to="/" className={navLinkClass}>
             HOME
           </NavLink>
@@ -31,7 +31,7 @@ export function Header() {
           >
             <button
               type="button"
-              className="flex items-center gap-1 text-xs font-medium tracking-[0.2em] text-white/80 transition hover:text-brand-gold-light"
+              className="flex whitespace-nowrap items-center gap-1 text-xs font-medium tracking-[0.2em] text-white/80 transition hover:text-brand-gold-light"
             >
               SERVICES
               <ChevronDown className="h-3.5 w-3.5" />

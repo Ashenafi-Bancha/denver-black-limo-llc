@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect } from 'react'
 import { ArrowRight, Check, Info, Map, Phone, Sparkles, Users } from 'lucide-react'
 import { CTABanner } from '../components/CTABanner'
 import { ReviewsCarousel } from '../components/ReviewsCarousel'
@@ -7,6 +8,14 @@ import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { homeCoverageList } from '../data/serviceAreas'
 import { services } from '../data/services'
+
+const heroImages = [
+  '/images/hero1.jpg',
+  '/images/hero2.jpg',
+  'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=2000',
+  'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=2000',
+  'https://images.unsplash.com/photo-1540962351504-03099e0a754b?auto=format&fit=crop&q=80&w=2000',
+]
 
 const quickNav = [
   { title: 'About Us', desc: 'Our story & values', to: '/about', icon: Info },
@@ -17,39 +26,56 @@ const quickNav = [
 ]
 
 export function HomePage() {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
+    }, 3000)
+    return () => clearInterval(timer)
+  }, [])
+
   return (
     <>
       <section className="relative min-h-[90vh] overflow-hidden flex flex-col md:block">
         {/* Mobile: Image at top */}
-        <motion.div
-          className="md:hidden relative w-full h-[45vh] shrink-0"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
-        >
-          <img
-            src="/images/hero1.jpg"
-            alt="Denver Black Limo luxury vehicle"
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-brand-black" />
-        </motion.div>
+        <div className="md:hidden relative w-full h-[45vh] shrink-0 bg-brand-black overflow-hidden">
+          <AnimatePresence initial={false}>
+            <motion.img
+              key={currentImageIndex}
+              src={heroImages[currentImageIndex]}
+              alt="Denver Black Limo luxury vehicle"
+              className="absolute inset-0 w-full h-full object-cover"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.8, ease: 'easeInOut' }}
+            />
+          </AnimatePresence>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-brand-black z-10" />
+        </div>
 
         {/* Desktop: Image behind text */}
-        <motion.img
-          src="/images/hero1.jpg"
-          alt="Denver Black Limo luxury vehicle"
-          className="absolute inset-0 h-full w-full object-cover hidden md:block"
-          initial={{ opacity: 0, x: -100 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 1, ease: "easeOut" }}
-        />
+        <div className="absolute inset-0 h-full w-full hidden md:block bg-brand-black overflow-hidden">
+          <AnimatePresence initial={false}>
+            <motion.img
+              key={currentImageIndex}
+              src={heroImages[currentImageIndex]}
+              alt="Denver Black Limo luxury vehicle"
+              className="absolute inset-0 h-full w-full object-cover"
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ duration: 0.8, ease: 'easeInOut' }}
+            />
+          </AnimatePresence>
+        </div>
         
         {/* Gradient overlay for desktop */}
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block" />
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
         
         {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-16 pt-8 md:min-h-[90vh] md:px-6 md:pt-28">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-16 pt-8 md:min-h-[90vh] md:px-6 md:pt-28">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
