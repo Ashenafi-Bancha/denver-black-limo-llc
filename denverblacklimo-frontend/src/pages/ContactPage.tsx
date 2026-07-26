@@ -1,19 +1,37 @@
 import { motion } from 'framer-motion'
 import { type FormEvent, useState } from 'react'
-import { Clock, MapPin } from 'lucide-react'
+import { Clock, MapPin, Loader2, CheckCircle2 } from 'lucide-react'
 import { CTABanner } from '../components/CTABanner'
 import { PageHero } from '../components/ui'
-import { ADDRESS, EMAIL, EMAIL_HREF, FACEBOOK_URL, PHONE, PHONE_HREF } from '../constants'
+import { IMAGES } from '../config/images'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { DEFAULT_BUSINESS, telHref, mailHref, type BusinessInfo } from '../content/defaults'
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 export function ContactPage() {
-  const [submitted, setSubmitted] = useState(false)
+  const { get } = useSiteSettings()
+  const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
 
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
+  const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' })
+  const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+
+  const onSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    const data = Object.fromEntries(new FormData(e.currentTarget))
-    console.log('Contact form:', data)
-    setSubmitted(true)
+    setStatus('sending')
+    try {
+      const res = await fetch(`${API_URL}/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'Contact', ...form }),
+      })
+      setStatus(res.ok ? 'sent' : 'error')
+    } catch {
+      setStatus('error')
+    }
   }
+
+  const setField = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }))
 
   return (
     <>
@@ -21,13 +39,13 @@ export function ContactPage() {
         eyebrow="Contact"
         title="We're Here 24/7"
         subtitle="Reach our team for reservations, quotes, corporate accounts, and special event planning."
-        image="/images/hero1.jpg"
+        image={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-12 lg:grid-cols-2">
           <div className="space-y-6">
             <motion.a
-              href={PHONE_HREF}
+              href={telHref(biz.phone)}
               className="flex items-start gap-4 border border-brand-gold/25 bg-brand-surface p-5 transition-all duration-300 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-lg hover:shadow-brand-gold/25"
               whileHover={{ scale: 1.02 }}
             >
@@ -36,12 +54,12 @@ export function ContactPage() {
               </svg>
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">PHONE</p>
-                <p className="font-display text-2xl text-white">{PHONE}</p>
+                <p className="font-display text-2xl text-white">{biz.phone}</p>
                 <p className="text-sm text-white/60">Click to call — 24/7 support</p>
               </div>
             </motion.a>
             <motion.a
-              href={EMAIL_HREF}
+              href={mailHref(biz.email)}
               className="flex items-start gap-4 border border-brand-gold/25 bg-brand-surface p-5 transition-all duration-300 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-lg hover:shadow-brand-gold/25"
               whileHover={{ scale: 1.02 }}
             >
@@ -51,11 +69,11 @@ export function ContactPage() {
               </svg>
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">EMAIL</p>
-                <p className="text-lg text-white">{EMAIL}</p>
+                <p className="text-lg text-white">{biz.email}</p>
               </div>
             </motion.a>
             <motion.a
-              href={FACEBOOK_URL}
+              href={biz.facebook}
               className="flex items-start gap-4 border border-brand-gold/25 bg-brand-surface p-5 transition-all duration-300 hover:border-brand-gold hover:bg-brand-gold/10 hover:shadow-lg hover:shadow-brand-gold/25"
               whileHover={{ scale: 1.02 }}
             >
@@ -64,7 +82,7 @@ export function ContactPage() {
               </svg>
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">FACEBOOK</p>
-                <p className="text-lg text-white">Denver Black Limo LLC</p>
+                <p className="text-lg text-white">{biz.companyName}</p>
               </div>
             </motion.a>
             <motion.div
@@ -74,7 +92,7 @@ export function ContactPage() {
               <MapPin className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" strokeWidth={1.5} />
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">SERVICE AREA</p>
-                <p className="text-white/80">{ADDRESS}</p>
+                <p className="text-white/80">{biz.address}</p>
               </div>
             </motion.div>
             <motion.div
@@ -84,40 +102,45 @@ export function ContactPage() {
               <Clock className="mt-1 h-5 w-5 text-brand-gold-light flex-shrink-0" strokeWidth={1.5} />
               <div>
                 <p className="text-xs tracking-widest text-brand-gold/80">SERVICE HOURS</p>
-                <p className="text-white/80">Available 24 hours a day, 7 days a week</p>
+                <p className="text-white/80">{biz.hours}</p>
                 <p className="text-sm text-white/60">Reservations accepted 24/7</p>
               </div>
             </motion.div>
-            <div className="flex aspect-video items-center justify-center border border-dashed border-brand-gold/30 bg-brand-surface text-sm text-white/45">
-              Map embed placeholder — Google Maps integration ready
-            </div>
           </div>
 
           <div className="border border-brand-gold/25 bg-brand-surface p-6 md:p-8">
             <h2 className="font-display text-2xl text-brand-gold-light">Send a Message</h2>
-            {submitted ? (
-              <p className="mt-6 text-white/80">
-                Thank you — your message has been received. Our team will respond shortly.
-              </p>
+            {status === 'sent' ? (
+              <div className="mt-6 flex flex-col items-center gap-3 rounded border border-green-500/30 bg-green-500/10 p-8 text-center">
+                <CheckCircle2 className="h-10 w-10 text-green-400" />
+                <p className="text-white/90">Thank you — your message has been received. Our team will respond shortly.</p>
+              </div>
             ) : (
               <form onSubmit={onSubmit} className="mt-6 space-y-4">
-                <Field label="Name" name="name" required />
-                <Field label="Email" name="email" type="email" required />
-                <Field label="Phone" name="phone" type="tel" required />
+                <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
+                <Field label="Email" type="email" value={form.email} onChange={(v) => setField('email', v)} required />
+                <Field label="Phone" type="tel" value={form.phone} onChange={(v) => setField('phone', v)} required />
                 <div>
                   <label className="text-xs tracking-widest text-brand-gold/80">Message</label>
                   <textarea
-                    name="message"
                     required
                     rows={5}
+                    value={form.message}
+                    onChange={(e) => setField('message', e.target.value)}
                     className="mt-2 w-full border border-white/10 bg-brand-black px-3 py-2 text-sm text-white outline-none focus:border-brand-gold/50"
                   />
                 </div>
+                {status === 'error' && (
+                  <p className="rounded border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                    Something went wrong. Please try again or call us at {biz.phone}.
+                  </p>
+                )}
                 <button
                   type="submit"
-                  className="w-full bg-gold-gradient py-3 text-xs font-bold tracking-[0.2em] text-brand-black"
+                  disabled={status === 'sending'}
+                  className="flex w-full items-center justify-center gap-2 bg-gold-gradient py-3 text-xs font-bold tracking-[0.2em] text-brand-black disabled:opacity-70"
                 >
-                  SEND MESSAGE
+                  {status === 'sending' ? <><Loader2 className="h-4 w-4 animate-spin" /> SENDING…</> : 'SEND MESSAGE'}
                 </button>
               </form>
             )}
@@ -131,12 +154,14 @@ export function ContactPage() {
 
 function Field({
   label,
-  name,
+  value,
+  onChange,
   type = 'text',
   required,
 }: {
   label: string
-  name: string
+  value: string
+  onChange: (v: string) => void
   type?: string
   required?: boolean
 }) {
@@ -144,9 +169,10 @@ function Field({
     <div>
       <label className="text-xs tracking-widest text-brand-gold/80">{label}</label>
       <input
-        name={name}
         type={type}
         required={required}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
         className="mt-2 w-full border border-white/10 bg-brand-black px-3 py-2 text-sm text-white outline-none focus:border-brand-gold/50"
       />
     </div>

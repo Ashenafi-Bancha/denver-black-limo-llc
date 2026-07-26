@@ -4,6 +4,7 @@ import { ArrowRight, Check } from 'lucide-react'
 import { CTABanner } from '../components/CTABanner'
 import { PageHero } from '../components/ui'
 import { serviceAreas } from '../data/serviceAreas'
+import { IMAGES } from '../config/images'
 
 export function ServiceAreasPage() {
   return (
@@ -12,7 +13,7 @@ export function ServiceAreasPage() {
         eyebrow="Coverage"
         title="Service Areas"
         subtitle="Premium chauffeured transportation across Denver, the Front Range, mountain resorts, and key destinations throughout Colorado."
-        image="/images/hero1.jpg"
+        image={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

@@ -10,6 +10,7 @@ import { ServiceAreaDetailPage } from './pages/ServiceAreaDetailPage'
 import { ServiceAreasPage } from './pages/ServiceAreasPage'
 import { ServiceDetailPage } from './pages/ServiceDetailPage'
 import { ServicesPage } from './pages/ServicesPage'
+import { AdminDashboard } from './pages/AdminDashboard'
 
 export default function App() {
   return (
@@ -27,6 +28,7 @@ export default function App() {
           <Route path="book" element={<BookNowPage />} />
           <Route path="quote" element={<RequestQuotePage />} />
         </Route>
+        <Route path="admin" element={<AdminDashboard />} />
       </Routes>
     </BrowserRouter>
   )

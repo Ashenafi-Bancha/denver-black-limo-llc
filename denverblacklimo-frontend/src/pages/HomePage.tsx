@@ -8,14 +8,9 @@ import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { homeCoverageList } from '../data/serviceAreas'
 import { services } from '../data/services'
+import { IMAGES } from '../config/images'
 
-const heroImages = [
-  '/images/hero1.jpg',
-  '/images/hero2.jpg',
-  'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=2000',
-  'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?auto=format&fit=crop&q=80&w=2000',
-  'https://images.unsplash.com/photo-1540962351504-03099e0a754b?auto=format&fit=crop&q=80&w=2000',
-]
+import { useSiteSettings } from '../context/SiteSettingsContext'
 
 const quickNav = [
   { title: 'About Us', desc: 'Our story & values', to: '/about', icon: Info },
@@ -27,6 +22,10 @@ const quickNav = [
 
 export function HomePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { settings } = useSiteSettings()
+  
+  const heroData = settings.home_hero;
+  const heroImages = heroData.images;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -89,9 +88,9 @@ export function HomePage() {
             transition={{ delay: 0.1 }}
             className="mt-4 max-w-4xl font-display text-4xl font-semibold leading-[1.1] md:text-6xl lg:text-7xl"
           >
-            <span className="text-gold-gradient">Denver&apos;s Premier</span>
+            <span className="text-gold-gradient">{heroData.headline}</span>
             <br />
-            <span className="text-white">Luxury Chauffeured Transportation</span>
+            <span className="text-white">{heroData.subheadline}</span>
           </motion.h1>
           <motion.p
             initial={{ opacity: 0, y: 16 }}
@@ -99,8 +98,7 @@ export function HomePage() {
             transition={{ delay: 0.2 }}
             className="mt-6 max-w-2xl text-sm leading-relaxed text-white/75 md:text-base"
           >
-            Airport Transfers • Corporate Travel • Mountain Resorts • Private Aviation •
-            Weddings • Special Events
+            {heroData.description}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -144,7 +142,7 @@ export function HomePage() {
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
             <img
-              src="/images/hero2.jpg"
+              src={IMAGES.hero2}
               alt="Denver Black Limo - serving Colorado"
               className="h-full w-full object-cover"
               loading="lazy"

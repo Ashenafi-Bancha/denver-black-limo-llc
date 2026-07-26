@@ -1,0 +1,30 @@
+# Local development database for Denver Black Limo.
+# Usage:
+#   docker compose up -d       # start Postgres in the background
+#   docker compose down        # stop it (data is kept in the named volume)
+#   docker compose down -v     # stop AND delete all data (fresh start)
+#
+# Port 5433 on the host avoids clashing with any existing local Postgres on 5432.
+# Connection string for denverblacklimo-backend/.env:
+#   DATABASE_URL="postgresql://dbl:dbl_local_password@localhost:5433/denverblacklimo"
+services:
+  db:
+    image: postgres:16
+    container_name: dbl-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dbl
+      POSTGRES_PASSWORD: dbl_local_password
+      POSTGRES_DB: denverblacklimo
+    ports:
+      - "5433:5432"
+    volumes:
+      - dbl_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dbl -d denverblacklimo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  dbl_pgdata:

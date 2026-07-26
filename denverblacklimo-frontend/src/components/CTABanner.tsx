@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Calendar, Check, MessageSquare, Phone } from 'lucide-react'
-import { PHONE, PHONE_HREF } from '../constants'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { DEFAULT_BUSINESS, telHref, type BusinessInfo } from '../content/defaults'
 
 type CTABannerProps = {
   eyebrow?: string
@@ -33,6 +34,8 @@ export function CTABanner({
   backgroundImage =
     'https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1600&q=80',
 }: CTABannerProps) {
+  const { get } = useSiteSettings()
+  const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
   return (
     <section className="relative overflow-hidden border-y border-brand-gold/20">
       <img
@@ -69,12 +72,12 @@ export function CTABanner({
           {showPhone && (
             <div className="flex justify-center">
               <a
-                href={PHONE_HREF}
+                href={telHref(biz.phone)}
                 className="group border border-brand-gold/50 bg-brand-black/60 px-8 py-6 text-center backdrop-blur-sm transition hover:border-brand-gold hover:bg-brand-gold/5"
               >
                 <Phone className="mx-auto h-6 w-6 text-brand-gold-light transition group-hover:scale-110" />
                 <p className="mt-3 font-display text-3xl tracking-wide text-brand-gold-light md:text-4xl">
-                  {PHONE}
+                  {biz.phone}
                 </p>
                 <p className="mt-1 text-[10px] tracking-[0.25em] text-white/50">
                   24/7 CUSTOMER SUPPORT

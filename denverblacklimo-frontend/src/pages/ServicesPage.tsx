@@ -6,6 +6,7 @@ import { ServiceSection } from '../components/ServiceSection'
 import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, PageHero, SectionHeading } from '../components/ui'
 import { services } from '../data/services'
+import { IMAGES } from '../config/images'
 
 export function ServicesPage() {
   const { hash } = useLocation()
@@ -29,7 +30,7 @@ export function ServicesPage() {
         eyebrow="Services"
         title="Luxury Chauffeured Transportation Services"
         subtitle="Denver Black Limo LLC provides premium chauffeured transportation throughout Denver, Colorado, and beyond — airport transfers, private aviation, corporate travel, mountain resorts, weddings, events, and hourly service."
-        image="/images/hero1.jpg"
+        image={IMAGES.hero1}
       >
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <GoldButton to="/book">RESERVE YOUR RIDE</GoldButton>

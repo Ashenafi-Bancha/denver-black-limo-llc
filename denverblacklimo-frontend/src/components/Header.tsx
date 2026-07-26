@@ -3,8 +3,9 @@ import { Link, NavLink } from 'react-router-dom'
 import { Calendar, ChevronDown, Menu, Phone, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Logo } from './Logo'
-import { PHONE, PHONE_HREF } from '../constants'
-import { services } from '../data/services'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { DEFAULT_BUSINESS, telHref, defaultServices, type BusinessInfo } from '../content/defaults'
+import type { Service } from '../data/services'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap text-xs font-medium tracking-[0.2em] transition ${
@@ -14,6 +15,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [servicesOpen, setServicesOpen] = useState(false)
+  const { get } = useSiteSettings()
+  const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
+  const services = get<Service[]>('services', defaultServices)
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/5 bg-brand-black/90 backdrop-blur-md">
@@ -79,11 +83,11 @@ export function Header() {
 
         <div className="hidden items-center gap-3 md:flex">
           <a
-            href={PHONE_HREF}
+            href={telHref(biz.phone)}
             className="flex items-center gap-2 border border-brand-gold/50 px-3 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10"
           >
             <Phone className="h-3.5 w-3.5" />
-            {PHONE}
+            {biz.phone}
           </a>
           <Link
             to="/book"
@@ -132,8 +136,8 @@ export function Header() {
                   {label}
                 </Link>
               ))}
-              <a href={PHONE_HREF} className="mt-2 text-center text-brand-gold-light">
-                {PHONE}
+              <a href={telHref(biz.phone)} className="mt-2 text-center text-brand-gold-light">
+                {biz.phone}
               </a>
             </nav>
           </motion.div>

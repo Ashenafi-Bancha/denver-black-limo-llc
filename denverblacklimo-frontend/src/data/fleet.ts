@@ -1,3 +1,5 @@
+import { IMAGES } from '../config/images'
+
 export type FleetVehicle = {
   id: string
   name: string
@@ -15,8 +17,7 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 3 passengers',
     description:
       'Premium sedan for airport transfers, corporate travel, and executive point-to-point service. Ideal for business meetings and discreet transportation.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
   {
     id: 'executive-suv',
@@ -25,8 +26,7 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 6 passengers',
     description:
       'Full-size luxury SUV for corporate groups, airport runs, and business travel. Spacious interior with premium amenities.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
   {
     id: 'escalade-luxury-suv',
@@ -35,8 +35,7 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 7 passengers',
     description:
       'The ultimate luxury SUV experience. Perfect for VIP transportation, corporate events, and special occasions requiring maximum comfort and presence.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
   {
     id: 'sprinter-van',
@@ -45,8 +44,7 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 14 passengers',
     description:
       'Spacious executive van with comfortable seating. Ideal for group transportation, corporate teams, airport shuttles, and event logistics.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
   {
     id: 'stretch-limo',
@@ -55,8 +53,7 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 10 passengers',
     description:
       'Classic stretch limousine for weddings, proms, bachelor/bachelorette parties, and VIP celebrations. Complete with premium sound system and party lighting.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
   {
     id: 'motorcoach-party-bus',
@@ -65,7 +62,6 @@ export const fleet: FleetVehicle[] = [
     capacity: 'Up to 25 passengers',
     description:
       'Premium party bus for large group events, weddings, corporate parties, and nightlife tours. Features luxury seating, sound system, and entertainment options.',
-    image:
-      '/images/hero2.jpg',
+    image: IMAGES.hero2,
   },
 ]

@@ -1,16 +1,21 @@
 import { motion } from 'framer-motion'
 import { CTABanner } from '../components/CTABanner'
 import { PageHero } from '../components/ui'
-import { fleet } from '../data/fleet'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { defaultFleet } from '../content/defaults'
+import type { FleetVehicle } from '../data/fleet'
+import { IMAGES } from '../config/images'
 
 export function FleetPage() {
+  const { get } = useSiteSettings()
+  const fleet = get<FleetVehicle[]>('fleet', defaultFleet)
   return (
     <>
       <PageHero
         eyebrow="Our Fleet"
         title="Luxury Vehicles for Every Occasion"
         subtitle="Immaculate black luxury sedans, SUVs, limousines, sprinter vans, and party buses — maintained to the highest standards for comfort, safety, and presence."
-        image="/images/hero1.jpg"
+        image={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">

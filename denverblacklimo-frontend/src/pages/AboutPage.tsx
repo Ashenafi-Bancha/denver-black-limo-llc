@@ -4,6 +4,7 @@ import { CTABanner } from '../components/CTABanner'
 import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton } from '../components/ui'
 import { FOUNDED, FOUNDER } from '../constants'
+import { IMAGES } from '../config/images'
 
 const whyChoose = [
   {
@@ -43,7 +44,7 @@ export function AboutPage() {
     <>
       <section className="relative min-h-[55vh] overflow-hidden">
         <motion.img
-          src="/images/hero1.jpg"
+          src={IMAGES.hero1}
           alt="Denver Black Limo luxury vehicle"
           className="absolute inset-0 h-full w-full object-cover"
           initial={{ opacity: 0, scale: 1.05 }}

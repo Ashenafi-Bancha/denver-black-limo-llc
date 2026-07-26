@@ -1,9 +1,13 @@
 import { useState } from 'react'
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { reviews } from '../data/reviews'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { defaultReviews } from '../content/defaults'
+import type { Review } from '../data/reviews'
 
 export function ReviewsCarousel() {
+  const { get } = useSiteSettings()
+  const reviews = get<Review[]>('reviews', defaultReviews)
   const [index, setIndex] = useState(0)
   const visible = 3
   const maxIndex = Math.max(0, reviews.length - visible)
