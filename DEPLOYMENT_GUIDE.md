@@ -128,3 +128,72 @@ The DigitalOcean App Platform allows you to deploy the frontend, backend, and da
 DigitalOcean will now build and deploy your app. Once finished, you can visit the provided App URL, and both your frontend and backend will be live!
 
 **Congratulations!** Your site is now live on DigitalOcean App Platform!
+
+---
+
+## 3. Infrastructure as code (`.do/app.yaml`)
+
+Instead of clicking through the dashboard, you can deploy from the committed spec at [`.do/app.yaml`](.do/app.yaml). It defines the backend web service (`/api`), the frontend static site (`/`), a **managed Postgres** database, health checks, same-origin API (`VITE_API_URL=/api`, so no CORS), and the custom domain.
+
+```bash
+doctl apps create --spec .do/app.yaml     # first deploy
+doctl apps update <APP_ID> --spec .do/app.yaml   # subsequent updates
+```
+
+**Secrets:** the `type: SECRET` values in the spec (`JWT_SECRET`, `ADMIN_PASSWORD`, `RESEND_API_KEY`) are placeholders. After the first deploy, set the real values in the dashboard (App → Settings → `backend` → Environment Variables) where they are stored encrypted — never in git.
+
+Notes baked into the spec:
+- `preserve_path_prefix: true` on `/api` so the backend receives `/api/...` paths.
+- `catchall_document: index.html` so client-side routes resolve.
+- `${db.DATABASE_URL}` is auto-injected; **migrations run automatically on boot** (`server.js` → `runMigrations`), and SSL is auto-enabled for the managed database.
+- Health check at `/health`.
+
+---
+
+## 4. Prerendering (SSG) for SEO
+
+The frontend is a single-page app **and** is prerendered to static HTML at build time, so every route ships fully-formed HTML (great for Google, Bing, and social scrapers) while still hydrating into a fast SPA.
+
+**Build pipeline** (`npm run build` in `denverblacklimo-frontend`):
+1. `vite build` — client bundle + `dist/index.html` template
+2. `vite build --ssr src/entry-server.tsx` — server render bundle (`dist-server/`)
+3. `node prerender.mjs` — renders each route, rewrites its `<head>` meta, and writes `dist/<route>/index.html`
+
+**Key files:** `src/entry-server.tsx` (SSR render), `src/main.tsx` (hydrate-or-mount), `src/components/Seo.tsx` (per-route titles/meta), `prerender.mjs` (route list + head rewriting).
+
+**⚠️ SSR-safety:** because components now also render on the server, never touch `window`/`localStorage`/`document` **during render** — guard with `typeof window !== 'undefined'`. The prerender step degrades gracefully (falls back to client render for a failing route) so it won't break the build, but keep new components SSR-safe.
+
+On DigitalOcean, a request to `/fleet` is served from `dist/fleet/index.html` (App Platform's `index_document` behavior); `catchall_document` only handles paths without a prerendered file.
+
+---
+
+## 5. Custom domain (GoDaddy → DigitalOcean)
+
+Recommended path for an apex `.llc` domain — let DigitalOcean manage DNS:
+
+1. **DO** → Networking → Domains → add `denverblacklimo.llc`. DO shows nameservers `ns1/ns2/ns3.digitalocean.com`.
+2. **GoDaddy** → your domain → Nameservers → **Change → Enter my own** → add the three DO nameservers → Save.
+3. Wait for propagation (usually < 1 hr). DO auto-creates the records and issues **free SSL** for the apex + `www`.
+
+All further DNS (email, Resend) is then managed in DO → Networking → Domains.
+
+---
+
+## 6. Email for `info@denverblacklimo.llc`
+
+Two independent pieces:
+
+**A) Receiving mail** — a domain alone doesn't include a mailbox. Choose an email host (Zoho Mail free tier, Google Workspace, or GoDaddy Email), verify the domain there, and add its **MX + SPF** records in DO DNS. Until this exists, admin alerts sent to `info@` won't be received.
+
+**B) Sending (Resend)** — Resend → Domains → Add `denverblacklimo.llc` → add the **DKIM/SPF** records into DO DNS → wait for ✅ Verified → set `SENDER_EMAIL=noreply@denverblacklimo.llc` in the backend env. (Resend uses a `send.` subdomain, so it won't conflict with the mailbox's SPF.)
+
+---
+
+## 7. SEO launch checklist (once live)
+
+- **Google Search Console** — add a *Domain* property, verify via DNS TXT, then submit `https://denverblacklimo.llc/sitemap.xml`.
+- **Google Business Profile** — create/claim as a **service-area business** (Denver metro), add phone `(720) 499-6744`, website, 24/7 hours, services, and photos. This is the biggest local-ranking lever.
+- **Reviews** — ask happy clients for Google reviews (strong local-ranking signal).
+- **Consistent NAP** (name/address/phone) everywhere; list on Yelp and relevant directories.
+
+The site already includes: per-page titles/descriptions/canonicals, Open Graph + Twitter cards, `LimousineService` JSON-LD structured data, `robots.txt`, and a full `sitemap.xml`.

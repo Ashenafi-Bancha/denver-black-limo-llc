@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────────────────────
+# DigitalOcean App Platform spec — Denver Black Limo
+# ─────────────────────────────────────────────────────────────
+# Deploy options:
+#   • Dashboard: Create App → connect this GitHub repo → DO auto-detects this file.
+#   • CLI:       doctl apps create --spec .do/app.yaml
+#
+# SECRETS: values marked `type: SECRET` below are PLACEHOLDERS. After the first
+# deploy, open App → Settings → (component) → Environment Variables in the DO
+# dashboard and paste the real values — they are stored encrypted, never in git.
+name: denver-black-limo
+region: nyc
+
+# Managed PostgreSQL. `production: true` = a managed cluster (recommended for
+# production). Set to `false` for a cheaper in-app dev database while testing.
+databases:
+  - name: db
+    engine: PG
+    version: "16"
+    production: true
+
+services:
+  - name: backend
+    github:
+      repo: Ashenafi-Bancha/denver-black-limo-llc
+      branch: main
+      deploy_on_push: true
+    source_dir: denverblacklimo-backend
+    build_command: npm install
+    run_command: npm start
+    http_port: 8080
+    instance_size_slug: basic-xxs
+    instance_count: 1
+    routes:
+      - path: /api
+        preserve_path_prefix: true    # backend expects the /api prefix
+    health_check:
+      http_path: /health
+    envs:
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${db.DATABASE_URL}     # auto-injected from the database above
+      - key: JWT_SECRET
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_WITH_A_LONG_RANDOM_STRING
+      - key: ADMIN_EMAIL
+        scope: RUN_TIME
+        value: info@denverblacklimo.llc
+      - key: ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_WITH_A_STRONG_PASSWORD
+      - key: ALLOWED_ORIGIN
+        scope: RUN_TIME
+        value: https://denverblacklimo.llc
+      - key: RESEND_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_WITH_YOUR_RESEND_KEY
+      - key: ADMIN_NOTIFY_EMAIL
+        scope: RUN_TIME
+        value: info@denverblacklimo.llc
+      - key: SENDER_EMAIL
+        scope: RUN_TIME
+        value: noreply@denverblacklimo.llc   # requires domain verified in Resend
+
+static_sites:
+  - name: frontend
+    github:
+      repo: Ashenafi-Bancha/denver-black-limo-llc
+      branch: main
+      deploy_on_push: true
+    source_dir: denverblacklimo-frontend
+    build_command: npm run build
+    output_dir: dist
+    catchall_document: index.html   # SPA: serve index.html for client-side routes
+    routes:
+      - path: /
+    envs:
+      - key: VITE_API_URL
+        scope: BUILD_TIME
+        value: /api                 # same-origin API — no CORS needed
+
+# Your GoDaddy domain. DO issues free SSL once DNS points here (see runbook).
+domains:
+  - domain: denverblacklimo.llc
+    type: PRIMARY
+  - domain: www.denverblacklimo.llc
+    type: ALIAS

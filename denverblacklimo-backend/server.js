@@ -31,6 +31,10 @@ const upload = multer({ storage });
 // Serve uploaded files statically
 app.use('/uploads', express.static(uploadDir));
 
+// Health check (used by DigitalOcean App Platform)
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
+
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
 
@@ -334,7 +338,7 @@ function buildAdminAlertEmail(data, bookingId) {
         <!-- CTA -->
         <tr>
           <td style="padding:0 36px 32px; text-align:center;">
-            <a href="http://localhost:5173/admin" style="display:inline-block; background: linear-gradient(135deg,#e8c547,#c9a227); color:#0a0a0a; font-weight:700; font-size:12px; letter-spacing:2px; text-transform:uppercase; text-decoration:none; padding:14px 32px; border-radius:4px;">
+            <a href="${(process.env.ALLOWED_ORIGIN || 'http://localhost:5173').replace(/\/$/, '')}/admin" style="display:inline-block; background: linear-gradient(135deg,#e8c547,#c9a227); color:#0a0a0a; font-weight:700; font-size:12px; letter-spacing:2px; text-transform:uppercase; text-decoration:none; padding:14px 32px; border-radius:4px;">
               View in Admin Dashboard →
             </a>
           </td>

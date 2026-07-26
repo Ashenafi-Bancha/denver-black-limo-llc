@@ -33,7 +33,9 @@ type EmailTarget = { id: string; name: string; email: string; kind: 'booking' | 
 type Tab = 'bookings' | 'inbox' | 'content' | 'analytics'
 
 export function AdminDashboard() {
-  const [token, setToken] = useState<string | null>(localStorage.getItem('adminToken'))
+  const [token, setToken] = useState<string | null>(() =>
+    typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
+  )
   const [activeTab, setActiveTab] = useState<Tab>('bookings')
   const { settings, refreshSettings } = useSiteSettings()
 

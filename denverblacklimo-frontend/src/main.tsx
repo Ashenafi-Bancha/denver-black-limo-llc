@@ -1,13 +1,25 @@
 import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
+import { hydrateRoot, createRoot } from 'react-dom/client'
+import { BrowserRouter } from 'react-router-dom'
 import './index.css'
-import App from './App'
+import { AppRoutes } from './App'
 import { SiteSettingsProvider } from './context/SiteSettingsContext'
 
-createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')!
+
+const app = (
   <StrictMode>
-    <SiteSettingsProvider>
-      <App />
-    </SiteSettingsProvider>
-  </StrictMode>,
+    <BrowserRouter>
+      <SiteSettingsProvider>
+        <AppRoutes />
+      </SiteSettingsProvider>
+    </BrowserRouter>
+  </StrictMode>
 )
+
+// Prerendered routes ship real markup → hydrate. Otherwise mount fresh.
+if (root.firstElementChild) {
+  hydrateRoot(root, app)
+} else {
+  createRoot(root).render(app)
+}
