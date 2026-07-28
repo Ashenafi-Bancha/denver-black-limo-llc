@@ -40,7 +40,7 @@ export function HomePage() {
     <>
       <section className="relative min-h-[90vh] overflow-hidden flex flex-col md:block">
         {/* Mobile: sliding photos as the background, heading overlaid on top */}
-        <div className="md:hidden relative w-full h-[54vh] min-h-[380px] shrink-0 bg-brand-black overflow-hidden">
+        <div className="md:hidden relative w-full h-[40vh] min-h-[300px] shrink-0 bg-brand-black overflow-hidden">
           <AnimatePresence initial={false}>
             <motion.img
               key={currentImageIndex}
@@ -63,7 +63,7 @@ export function HomePage() {
           {/* Readability gradient — strongest at the bottom where the heading sits */}
           <div className="absolute inset-0 z-10 bg-gradient-to-t from-brand-black via-brand-black/45 to-brand-black/10" />
           {/* Heading overlay */}
-          <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-5">
+          <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
             <motion.h1
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -104,7 +104,7 @@ export function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
         
         {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-14 pt-6 md:min-h-[90vh] md:px-6 md:pb-16 md:pt-28">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-12 pt-4 md:min-h-[90vh] md:px-6 md:pb-16 md:pt-28">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -141,7 +141,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-6 flex flex-col gap-3 sm:flex-row md:mt-8"
+            className="mt-5 flex flex-col gap-3 sm:flex-row md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>

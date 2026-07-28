@@ -32,7 +32,7 @@ export function GoldButton({
   return (
     <Link
       to={to}
-      className={`inline-flex items-center justify-center gap-2 bg-gold-gradient px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-black transition hover:brightness-110 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full bg-gold-gradient px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-black shadow-lg shadow-brand-gold/20 transition hover:brightness-110 hover:shadow-brand-gold/30 ${className}`}
     >
       <Calendar className="h-4 w-4" />
       {children}
@@ -52,7 +52,7 @@ export function OutlineButton({
   return (
     <Link
       to={to}
-      className={`inline-flex items-center justify-center gap-2 border border-brand-gold/60 px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:bg-brand-gold/10 ${className}`}
+      className={`inline-flex items-center justify-center gap-2 rounded-full border border-brand-gold/60 px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 ${className}`}
     >
       {children}
       <ArrowRight className="h-4 w-4" />

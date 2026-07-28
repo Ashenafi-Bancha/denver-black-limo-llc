@@ -109,14 +109,14 @@ export function Header() {
         <div className="hidden items-center gap-3 md:flex">
           <a
             href={telHref(biz.phone)}
-            className="flex items-center gap-2 border border-brand-gold/50 px-3 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10"
+            className="flex items-center gap-2 rounded-full border border-brand-gold/50 px-4 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10"
           >
             <Phone className="h-3.5 w-3.5" />
             {biz.phone}
           </a>
           <Link
             to="/book"
-            className="flex items-center gap-2 bg-gold-gradient px-4 py-2 text-xs font-semibold tracking-widest text-brand-black transition hover:brightness-110"
+            className="flex items-center gap-2 rounded-full bg-gold-gradient px-5 py-2 text-xs font-semibold tracking-widest text-brand-black shadow-md shadow-brand-gold/20 transition hover:brightness-110"
           >
             <Calendar className="h-3.5 w-3.5" />
             BOOK NOW
@@ -127,7 +127,7 @@ export function Header() {
         <div className="flex items-center gap-2 lg:hidden">
           <Link
             to="/book"
-            className="flex h-9 items-center gap-1 rounded-md bg-gold-gradient px-2.5 text-[11px] font-bold tracking-wide text-brand-black transition active:scale-95 md:hidden"
+            className="flex h-9 items-center gap-1 rounded-full bg-gold-gradient px-3.5 text-[11px] font-bold tracking-wide text-brand-black transition active:scale-95 md:hidden"
           >
             <Calendar className="h-3.5 w-3.5" />
             BOOK
