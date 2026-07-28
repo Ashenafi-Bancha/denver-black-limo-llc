@@ -28,17 +28,19 @@ export function HomePage() {
   const heroImages = heroData.images;
 
   useEffect(() => {
+    if (heroImages.length < 2) return
+    setCurrentImageIndex(0)
     const timer = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
-    }, 3000)
+    }, 2000)
     return () => clearInterval(timer)
-  }, [])
+  }, [heroImages.length])
 
   return (
     <>
       <section className="relative min-h-[90vh] overflow-hidden flex flex-col md:block">
-        {/* Mobile: Image at top */}
-        <div className="md:hidden relative w-full h-[45vh] shrink-0 bg-brand-black overflow-hidden">
+        {/* Mobile: sliding photos as the background, heading overlaid on top */}
+        <div className="md:hidden relative w-full h-[54vh] min-h-[380px] shrink-0 bg-brand-black overflow-hidden">
           <AnimatePresence initial={false}>
             <motion.img
               key={currentImageIndex}
@@ -49,9 +51,30 @@ export function HomePage() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.8, ease: 'easeInOut' }}
+              onError={(e) => {
+                const t = e.currentTarget
+                if (!t.dataset.fb) {
+                  t.dataset.fb = '1'
+                  t.src = IMAGES.hero1
+                }
+              }}
             />
           </AnimatePresence>
-          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-brand-black z-10" />
+          {/* Readability gradient — strongest at the bottom where the heading sits */}
+          <div className="absolute inset-0 z-10 bg-gradient-to-t from-brand-black via-brand-black/45 to-brand-black/10" />
+          {/* Heading overlay */}
+          <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-5">
+            <motion.h1
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="font-display text-[2rem] font-semibold leading-[1.1] drop-shadow-lg"
+            >
+              <span className="text-gold-gradient">{heroData.headline}</span>
+              <br />
+              <span className="text-white">{heroData.subheadline}</span>
+            </motion.h1>
+          </div>
         </div>
 
         {/* Desktop: Image behind text */}
@@ -66,6 +89,13 @@ export function HomePage() {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.8, ease: 'easeInOut' }}
+              onError={(e) => {
+                const t = e.currentTarget
+                if (!t.dataset.fb) {
+                  t.dataset.fb = '1'
+                  t.src = IMAGES.hero1
+                }
+              }}
             />
           </AnimatePresence>
         </div>
@@ -74,37 +104,44 @@ export function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
         
         {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-16 pt-8 md:min-h-[90vh] md:px-6 md:pt-28">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-14 pt-6 md:min-h-[90vh] md:px-6 md:pb-16 md:pt-28">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-xs tracking-[0.35em] text-brand-gold-light"
+            className="whitespace-nowrap text-[11px] tracking-[0.2em] text-brand-gold-light md:whitespace-normal md:text-xs md:tracking-[0.35em]"
           >
             PREMIUM. PROFESSIONAL. PUNCTUAL.
           </motion.p>
+          {/* Heading — shown here on desktop; on mobile it lives over the sliding banner above */}
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mt-4 max-w-4xl font-display text-4xl font-semibold leading-[1.1] md:text-6xl lg:text-7xl"
+            className="mt-4 hidden max-w-4xl font-display text-4xl font-semibold leading-[1.1] md:block md:text-6xl lg:text-7xl"
           >
             <span className="text-gold-gradient">{heroData.headline}</span>
             <br />
             <span className="text-white">{heroData.subheadline}</span>
           </motion.h1>
-          <motion.p
+          <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-6 max-w-2xl text-sm leading-relaxed text-white/75 md:text-base"
+            className="mt-4 max-w-2xl space-y-3 text-sm leading-relaxed text-white/75 md:mt-6 md:text-base"
           >
-            {heroData.description}
-          </motion.p>
+            {heroData.description
+              .split(/\n{2,}|\n/)
+              .map((para) => para.trim())
+              .filter(Boolean)
+              .map((para, i) => (
+                <p key={i}>{para}</p>
+              ))}
+          </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-8 flex flex-col gap-3 sm:flex-row"
+            className="mt-6 flex flex-col gap-3 sm:flex-row md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
@@ -115,19 +152,18 @@ export function HomePage() {
       <TrustRow items={aboutTrust} />
 
       <section className="border-b border-brand-gold/15 bg-brand-charcoal">
-        <div className="mx-auto grid max-w-7xl gap-px bg-brand-gold/10 md:grid-cols-5">
+        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-4 py-10 sm:gap-4 md:px-6 md:py-12 lg:grid-cols-5">
           {quickNav.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="group flex flex-col border border-transparent bg-brand-charcoal p-6 transition hover:border-brand-gold/30 hover:bg-brand-surface"
+              className="group flex flex-col items-center gap-3 rounded-xl border border-brand-gold/20 bg-brand-surface/30 p-5 text-center transition duration-300 hover:-translate-y-0.5 hover:border-brand-gold/50 hover:bg-brand-surface hover:shadow-lg hover:shadow-brand-gold/10 last:col-span-2 lg:last:col-span-1"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition group-hover:border-brand-gold/70">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition group-hover:border-brand-gold/70 group-hover:bg-brand-gold/10">
                 <item.icon className="h-5 w-5" strokeWidth={1.5} />
               </div>
-              <h2 className="mt-4 font-display text-lg text-brand-gold-light">{item.title}</h2>
-              <p className="mt-2 text-xs text-white/60">{item.desc}</p>
-              <ArrowRight className="mt-auto h-4 w-4 pt-6 text-brand-gold/60 transition group-hover:translate-x-1 group-hover:text-brand-gold-light" />
+              <h2 className="font-display text-base text-brand-gold-light md:text-lg">{item.title}</h2>
+              <p className="text-xs text-white/60">{item.desc}</p>
             </Link>
           ))}
         </div>
@@ -149,9 +185,10 @@ export function HomePage() {
             />
           </motion.div>
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, ease: "easeOut", delay: 0.2 }}
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
             className="relative"
           >
             <p className="text-xs tracking-[0.3em] text-brand-gold-light">PROUDLY SERVING COLORADO</p>
@@ -204,10 +241,21 @@ export function HomePage() {
                   transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
                 >
                   <img
-                    src={s.heroImage}
+                    src={`/images/services/${s.slug}.jpeg`}
                     alt={s.title}
                     loading="lazy"
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    onError={(e) => {
+                      const t = e.currentTarget
+                      const step = t.dataset.step
+                      if (!step) {
+                        t.dataset.step = 'jpg'
+                        t.src = `/images/services/${s.slug}.jpg`
+                      } else if (step === 'jpg') {
+                        t.dataset.step = 'stock'
+                        t.src = s.heroImage
+                      }
+                    }}
                   />
                 </motion.div>
                 <div className="p-5">

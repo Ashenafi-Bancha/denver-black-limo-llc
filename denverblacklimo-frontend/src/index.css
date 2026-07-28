@@ -15,11 +15,33 @@
 @layer base {
   html {
     scroll-behavior: smooth;
+    /* Offset sticky header so in-page anchors (e.g. /services#slug) aren't hidden */
+    scroll-padding-top: 5rem;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
     @apply bg-brand-black text-white antialiased;
     font-family: var(--font-body);
+    -webkit-tap-highlight-color: transparent;
+    /* Safety net against accidental horizontal scroll on mobile (clip keeps sticky working) */
+    overflow-x: clip;
+  }
+
+  /* Media never causes horizontal overflow */
+  img,
+  svg,
+  video,
+  canvas {
+    max-width: 100%;
+  }
+
+  /* Visible, accessible focus for keyboard users */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-gold);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 
   h1,
@@ -28,6 +50,29 @@
   h4 {
     font-family: var(--font-display);
     letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+@keyframes drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

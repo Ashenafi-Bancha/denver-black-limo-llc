@@ -57,6 +57,7 @@ export interface AboutContent {
   founderTitle: string
   founderQuote: string
   founderImage: string
+  heroImage: string
 }
 
 export const DEFAULT_ABOUT: AboutContent = {
@@ -75,7 +76,8 @@ export const DEFAULT_ABOUT: AboutContent = {
   founderName: FOUNDER.name,
   founderTitle: FOUNDER.title,
   founderQuote: FOUNDER.quote,
-  founderImage: FOUNDER.image,
+  founderImage: '/images/founder.jpg',
+  heroImage: '/images/about-hero.jpg',
 }
 
 // ── Home page copy (section headings, CTA, trust badges) ──

@@ -65,12 +65,15 @@ export function PageHero({
   subtitle,
   eyebrow,
   image,
+  fallback,
   children,
 }: {
   title: string
   subtitle?: string
   eyebrow?: string
   image: string
+  /** Shown if `image` fails to load (e.g. a not-yet-added local file). */
+  fallback?: string
   children?: React.ReactNode
 }) {
   return (
@@ -82,8 +85,14 @@ export function PageHero({
         initial={{ opacity: 0, scale: 1.05 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
+        onError={(e) => {
+          const t = e.currentTarget
+          if (!fallback || t.dataset.fallback) return
+          t.dataset.fallback = '1'
+          t.src = fallback
+        }}
       />
-      <div className="absolute inset-0 bg-gradient-to-r from-brand-black/95 via-brand-black/75 to-brand-black/40" />
+      <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/65 to-brand-black/20 md:bg-gradient-to-r md:from-brand-black/95 md:via-brand-black/75 md:to-brand-black/40" />
       <motion.div
         className="relative mx-auto flex max-w-7xl flex-col justify-end px-4 pb-12 pt-28 md:px-6 md:pb-16"
         initial={{ opacity: 0, y: 30 }}

@@ -641,3 +641,14 @@ export const services: Service[] = [
 export function getServiceBySlug(slug: string): Service | undefined {
   return services.find((s) => s.slug === slug)
 }
+
+/**
+ * Deterministic filename slug for a sub-service title. Maps to
+ * /images/services/<service-slug>/<sub-service-slug>.jpeg
+ */
+export function subServiceSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+}

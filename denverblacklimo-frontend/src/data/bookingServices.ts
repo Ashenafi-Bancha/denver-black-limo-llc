@@ -18,6 +18,8 @@ export type ServiceLayout =
 export interface ServiceConfig {
   /** Matches an entry in SERVICE_TYPES exactly. */
   name: string
+  /** Matches the service slug — used for /images/services/<slug>.jpeg. */
+  slug: string
   /** Position in the numbered dropdown (1-based). */
   number: number
   layout: ServiceLayout
@@ -55,18 +57,18 @@ const IMG = {
 }
 
 export const SERVICE_CONFIGS: ServiceConfig[] = [
-  { name: SERVICE_TYPES[0], number: 1, layout: 'airport', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.airport },
-  { name: SERVICE_TYPES[1], number: 2, layout: 'fbo', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.aviation },
-  { name: SERVICE_TYPES[2], number: 3, layout: 'pointToPoint', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.corporate, showCompany: true },
-  { name: SERVICE_TYPES[3], number: 4, layout: 'hourly', defaultVehicle: 'Luxury SUV', summaryImage: IMG.hourly, showCompany: true },
-  { name: SERVICE_TYPES[4], number: 5, layout: 'mountain', defaultVehicle: 'Luxury SUV', summaryImage: IMG.mountain },
-  { name: SERVICE_TYPES[5], number: 6, layout: 'wedding', defaultVehicle: 'Sprinter Van', summaryImage: IMG.wedding },
-  { name: SERVICE_TYPES[6], number: 7, layout: 'event', defaultVehicle: 'Luxury SUV', summaryImage: IMG.concert },
-  { name: SERVICE_TYPES[7], number: 8, layout: 'event', defaultVehicle: 'Luxury SUV', summaryImage: IMG.concert },
-  { name: SERVICE_TYPES[8], number: 9, layout: 'nightlife', defaultVehicle: 'Party Bus', summaryImage: IMG.bachelor },
-  { name: SERVICE_TYPES[9], number: 10, layout: 'hourly', defaultVehicle: 'Luxury SUV', summaryImage: IMG.city },
-  { name: SERVICE_TYPES[10], number: 11, layout: 'hourly', defaultVehicle: 'Sprinter Van', summaryImage: IMG.brewery },
-  { name: SERVICE_TYPES[11], number: 12, layout: 'pointToPoint', defaultVehicle: 'Sprinter Van', summaryImage: IMG.group, showCompany: true },
+  { name: SERVICE_TYPES[0], slug: 'airport-transportation', number: 1, layout: 'airport', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.airport },
+  { name: SERVICE_TYPES[1], slug: 'private-aviation-fbo', number: 2, layout: 'fbo', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.aviation },
+  { name: SERVICE_TYPES[2], slug: 'executive-corporate', number: 3, layout: 'pointToPoint', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.corporate, showCompany: true },
+  { name: SERVICE_TYPES[3], slug: 'hourly-chauffeur', number: 4, layout: 'hourly', defaultVehicle: 'Luxury SUV', summaryImage: IMG.hourly, showCompany: true },
+  { name: SERVICE_TYPES[4], slug: 'mountain-resort', number: 5, layout: 'mountain', defaultVehicle: 'Luxury SUV', summaryImage: IMG.mountain },
+  { name: SERVICE_TYPES[5], slug: 'wedding-transportation', number: 6, layout: 'wedding', defaultVehicle: 'Sprinter Van', summaryImage: IMG.wedding },
+  { name: SERVICE_TYPES[6], slug: 'concert-red-rocks', number: 7, layout: 'event', defaultVehicle: 'Luxury SUV', summaryImage: IMG.concert },
+  { name: SERVICE_TYPES[7], slug: 'sporting-events', number: 8, layout: 'event', defaultVehicle: 'Luxury SUV', summaryImage: IMG.concert },
+  { name: SERVICE_TYPES[8], slug: 'bachelor-bachelorette', number: 9, layout: 'nightlife', defaultVehicle: 'Party Bus', summaryImage: IMG.bachelor },
+  { name: SERVICE_TYPES[9], slug: 'private-city-tours', number: 10, layout: 'hourly', defaultVehicle: 'Luxury SUV', summaryImage: IMG.city },
+  { name: SERVICE_TYPES[10], slug: 'brewery-winery-whiskey', number: 11, layout: 'hourly', defaultVehicle: 'Sprinter Van', summaryImage: IMG.brewery },
+  { name: SERVICE_TYPES[11], slug: 'group-transportation', number: 12, layout: 'pointToPoint', defaultVehicle: 'Sprinter Van', summaryImage: IMG.group, showCompany: true },
 ]
 
 export function getServiceConfig(name: string): ServiceConfig {

@@ -30,7 +30,8 @@ export function ServicesPage() {
         eyebrow="Services"
         title="Luxury Chauffeured Transportation Services"
         subtitle="Denver Black Limo LLC provides premium chauffeured transportation throughout Denver, Colorado, and beyond — airport transfers, private aviation, corporate travel, mountain resorts, weddings, events, and hourly service."
-        image={IMAGES.hero1}
+        image="/images/services/services-hero.jpeg"
+        fallback={IMAGES.hero1}
       >
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <GoldButton to="/book">RESERVE YOUR RIDE</GoldButton>

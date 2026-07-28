@@ -332,7 +332,8 @@ export function BookNowPage() {
   if (submitted) return <SuccessScreen name={form.name} phone={form.phone} email={form.email} />
 
   const vehicle = getVehicleCategory(form.vehicleCategory)
-  const summaryImage = vehicle?.image || config.summaryImage
+  // Show the selected service's real photo (defaults to airport-transportation).
+  const summaryImage = `/images/services/${config.slug}.jpeg`
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] pt-24 pb-16 font-body text-gray-900">
@@ -435,7 +436,23 @@ export function BookNowPage() {
                 <h2 className="text-sm font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>Your Booking Summary</h2>
               </div>
               <div className="mt-4 h-40 w-full overflow-hidden">
-                <img src={summaryImage} alt={form.vehicleCategory} className="h-full w-full object-cover" />
+                <img
+                  key={config.slug}
+                  src={summaryImage}
+                  alt={form.serviceType}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    const t = e.currentTarget
+                    const step = t.dataset.step
+                    if (!step) {
+                      t.dataset.step = 'jpg'
+                      t.src = `/images/services/${config.slug}.jpg`
+                    } else if (step === 'jpg') {
+                      t.dataset.step = 'stock'
+                      t.src = config.summaryImage
+                    }
+                  }}
+                />
               </div>
 
               <div className="space-y-5 p-5">

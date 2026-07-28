@@ -17,11 +17,16 @@ export const DEFAULT_HERO = {
   headline: "Denver's Premier",
   subheadline: 'Luxury Chauffeured Transportation',
   description:
-    'Airport Transfers • Corporate Travel • Mountain Resorts • Private Aviation • Weddings • Special Events',
+    "Luxury chauffeured transportation across Colorado — from DIA and boardrooms to Vail and beyond. Immaculate vehicles, professional chauffeurs, available around the clock.",
   images: [
-    '/images/hero1.webp',
-    '/images/hero2.webp',
-    'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&q=80&w=2000',
+    '/images/hero/hero-1.jpeg',
+    '/images/hero/hero-2.jpeg',
+    '/images/hero/hero-3.jpeg',
+    '/images/hero/hero-4.jpeg',
+    '/images/hero/hero-5.jpeg',
+    '/images/hero/hero-6.jpeg',
+    '/images/hero/hero-7.jpeg',
+    '/images/hero/hero-8.jpeg',
   ],
 }
 
@@ -135,21 +140,16 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   {
     key: 'about',
     title: 'About Page',
-    description: 'Company story, mission, vision, and founder details.',
+    description: 'The About page top image, plus the founder photo, name, title & quote.',
     icon: 'info',
     kind: 'singleton',
     default: DEFAULT_ABOUT,
     fields: [
-      { key: 'eyebrow', label: 'Eyebrow', type: 'text' },
-      { key: 'title', label: 'Title', type: 'text' },
-      { key: 'intro', label: 'Intro', type: 'textarea', full: true },
-      { key: 'story', label: 'Story Paragraphs', type: 'stringList', full: true },
-      { key: 'mission', label: 'Mission', type: 'textarea', full: true },
-      { key: 'vision', label: 'Vision', type: 'textarea', full: true },
+      { key: 'heroImage', label: 'Top / Hero Image', type: 'image', full: true },
+      { key: 'founderImage', label: 'Founder Photo', type: 'image', full: true },
       { key: 'founderName', label: 'Founder Name', type: 'text' },
       { key: 'founderTitle', label: 'Founder Title', type: 'text' },
       { key: 'founderQuote', label: 'Founder Quote', type: 'textarea', full: true },
-      { key: 'founderImage', label: 'Founder Image', type: 'image', full: true },
     ],
   },
   {

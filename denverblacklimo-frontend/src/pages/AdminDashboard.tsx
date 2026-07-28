@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar, LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare } from 'lucide-react'
+import { Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar, LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { CmsManager } from '../admin/CmsManager'
@@ -37,6 +37,7 @@ export function AdminDashboard() {
     typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
   )
   const [activeTab, setActiveTab] = useState<Tab>('bookings')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { settings, refreshSettings } = useSiteSettings()
 
   const [email, setEmail] = useState('')
@@ -180,24 +181,37 @@ export function AdminDashboard() {
 
   return (
     <div className="flex h-screen bg-brand-black overflow-hidden font-body text-white">
-      <aside className="w-64 border-r border-white/10 bg-brand-surface shrink-0 flex flex-col z-10 shadow-2xl shadow-black/50">
-        <div className="p-6 border-b border-white/10 flex items-center gap-3"><Logo iconOnly /><span className="font-display text-sm font-bold tracking-widest text-brand-gold uppercase">Workspace</span></div>
-        <nav className="flex-1 p-4 space-y-2">
+      {/* Mobile backdrop */}
+      {sidebarOpen && (
+        <button aria-label="Close menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" />
+      )}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/10 bg-brand-surface flex flex-col shadow-2xl shadow-black/50 transition-transform duration-300 lg:static lg:z-10 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="p-6 border-b border-white/10 flex items-center gap-3">
+          <Logo iconOnly />
+          <span className="font-display text-sm font-bold tracking-widest text-brand-gold uppercase">Workspace</span>
+          <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-white/60 lg:hidden"><X className="h-4 w-4" /></button>
+        </div>
+        <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
-            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded text-sm transition-colors ${activeTab === item.id ? 'bg-brand-gold/10 text-brand-gold font-medium' : 'text-white/60 hover:bg-white/5 hover:text-white'}`}>
+            <button key={item.id} onClick={() => { setActiveTab(item.id); setSidebarOpen(false) }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm transition-colors ${activeTab === item.id ? 'bg-brand-gold/10 text-brand-gold font-medium' : 'text-white/60 hover:bg-white/5 hover:text-white'}`}>
               {item.icon} <span className="flex-1 text-left">{item.label}</span>
               {item.badge ? <span className="rounded-full bg-brand-gold/20 px-2 py-0.5 text-xs text-brand-gold">{item.badge}</span> : null}
             </button>
           ))}
         </nav>
         <div className="p-4 border-t border-white/10">
-          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded text-sm text-red-400/80 hover:bg-red-400/10 hover:text-red-400 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
+          <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-red-400/80 hover:bg-red-400/10 hover:text-red-400 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
         </div>
       </aside>
 
       <main className="flex-1 overflow-y-auto relative">
+        {/* Mobile top bar */}
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur lg:hidden">
+          <div className="flex items-center gap-2"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Workspace</span></div>
+          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95"><Menu className="h-5 w-5" /></button>
+        </div>
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-gold/5 via-brand-black to-brand-black opacity-30 pointer-events-none"></div>
-        <div className="relative z-10 p-8 max-w-7xl mx-auto">
+        <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
 
           {/* BOOKINGS */}
           {activeTab === 'bookings' && (

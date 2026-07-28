@@ -13,7 +13,8 @@ export function ServiceAreasPage() {
         eyebrow="Coverage"
         title="Service Areas"
         subtitle="Premium chauffeured transportation across Denver, the Front Range, mountain resorts, and key destinations throughout Colorado."
-        image={IMAGES.hero1}
+        image="/images/about-hero.jpg"
+        fallback={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

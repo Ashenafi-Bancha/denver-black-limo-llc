@@ -39,7 +39,8 @@ export function ContactPage() {
         eyebrow="Contact"
         title="We're Here 24/7"
         subtitle="Reach our team for reservations, quotes, corporate accounts, and special event planning."
-        image={IMAGES.hero1}
+        image="/images/about-hero.jpg"
+        fallback={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-12 lg:grid-cols-2">

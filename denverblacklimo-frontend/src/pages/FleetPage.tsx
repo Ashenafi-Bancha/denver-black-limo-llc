@@ -15,7 +15,8 @@ export function FleetPage() {
         eyebrow="Our Fleet"
         title="Luxury Vehicles for Every Occasion"
         subtitle="Immaculate black luxury sedans, SUVs, limousines, sprinter vans, and party buses — maintained to the highest standards for comfort, safety, and presence."
-        image={IMAGES.hero1}
+        image="/images/about-hero.jpg"
+        fallback={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
