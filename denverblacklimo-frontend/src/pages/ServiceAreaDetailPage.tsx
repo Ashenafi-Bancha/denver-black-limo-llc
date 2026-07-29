@@ -25,7 +25,22 @@ export function ServiceAreaDetailPage() {
   return (
     <>
       <section className="relative min-h-[50vh] overflow-hidden">
-        <img src={area.heroImage} alt={area.title} className="absolute inset-0 h-full w-full object-cover" />
+        <img
+          src={`/images/service-areas/area-banner-${area.number}.jpeg`}
+          alt={area.title}
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={(e) => {
+            const t = e.currentTarget
+            const step = t.dataset.step
+            if (!step) {
+              t.dataset.step = 'jpg'
+              t.src = `/images/service-areas/area-banner-${area.number}.jpg`
+            } else if (step === 'jpg') {
+              t.dataset.step = 'stock'
+              t.src = area.heroImage
+            }
+          }}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/60 to-brand-black/30" />
         <div className="relative mx-auto max-w-7xl px-4 pb-10 pt-28 md:px-6">
           <p className="text-xs tracking-[0.3em] text-brand-gold-light">SERVICE AREAS</p>

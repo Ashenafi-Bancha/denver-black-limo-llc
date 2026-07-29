@@ -32,6 +32,7 @@ export const SERVICE_TYPES = [
   'Private City Tours',
   'Brewery, Winery & Whiskey Tours',
   'Group Transportation',
+  'VIP & Special Event Transportation',
 ] as const
 
 // ─────────────────────────────────────────────

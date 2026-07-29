@@ -13,7 +13,7 @@ export function ServiceAreasPage() {
         eyebrow="Coverage"
         title="Service Areas"
         subtitle="Premium chauffeured transportation across Denver, the Front Range, mountain resorts, and key destinations throughout Colorado."
-        image="/images/about-hero.jpg"
+        image="/images/service-areas/service-areas-hero.jpeg"
         fallback={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
@@ -31,12 +31,23 @@ export function ServiceAreasPage() {
               >
                 <div className="aspect-[16/10] overflow-hidden">
                   <motion.img
-                    src={area.heroImage}
+                    src={`/images/service-areas/area-banner-${area.number}.jpeg`}
                     alt={area.title}
                     loading="lazy"
                     className="h-full w-full object-cover"
                     whileHover={{ scale: 1.05 }}
                     transition={{ duration: 0.4, ease: "easeInOut" }}
+                    onError={(e) => {
+                      const t = e.currentTarget
+                      const step = t.dataset.step
+                      if (!step) {
+                        t.dataset.step = 'jpg'
+                        t.src = `/images/service-areas/area-banner-${area.number}.jpg`
+                      } else if (step === 'jpg') {
+                        t.dataset.step = 'stock'
+                        t.src = area.heroImage
+                      }
+                    }}
                   />
                 </div>
                 <div className="p-5">

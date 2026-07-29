@@ -332,8 +332,8 @@ export function BookNowPage() {
   if (submitted) return <SuccessScreen name={form.name} phone={form.phone} email={form.email} />
 
   const vehicle = getVehicleCategory(form.vehicleCategory)
-  // Show the selected service's real photo (defaults to airport-transportation).
-  const summaryImage = `/images/services/${config.slug}.jpeg`
+  // Show the selected service's real banner (defaults to airport-transportation).
+  const summaryImage = `/images/services/service-banner-${config.number}.jpeg`
 
   return (
     <div className="min-h-screen bg-[#f8f9fa] pt-24 pb-16 font-body text-gray-900">
@@ -446,7 +446,7 @@ export function BookNowPage() {
                     const step = t.dataset.step
                     if (!step) {
                       t.dataset.step = 'jpg'
-                      t.src = `/images/services/${config.slug}.jpg`
+                      t.src = `/images/services/service-banner-${config.number}.jpg`
                     } else if (step === 'jpg') {
                       t.dataset.step = 'stock'
                       t.src = config.summaryImage

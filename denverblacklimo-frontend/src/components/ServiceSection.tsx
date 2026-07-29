@@ -6,9 +6,9 @@ import type { Service } from '../data/services'
 
 export function ServiceSection({ service }: { service: Service }) {
   const num = String(service.number).padStart(2, '0')
-  // Try a real photo at /images/services/<slug>.jpeg (then .jpg); fall back to
-  // the built-in stock image if that file hasn't been added yet.
-  const localHero = `/images/services/${service.slug}.jpeg`
+  // Try the client banner at /images/services/service-banner-<number>.jpeg
+  // (then .jpg); fall back to the built-in stock image if not added yet.
+  const localHero = `/images/services/service-banner-${service.number}.jpeg`
 
   return (
     <section id={service.slug} className="scroll-mt-24 overflow-x-clip border-t border-brand-gold/15 bg-brand-black">
@@ -32,7 +32,7 @@ export function ServiceSection({ service }: { service: Service }) {
                 const step = t.dataset.step
                 if (!step) {
                   t.dataset.step = 'jpg'
-                  t.src = `/images/services/${service.slug}.jpg`
+                  t.src = `/images/services/service-banner-${service.number}.jpg`
                 } else if (step === 'jpg') {
                   t.dataset.step = 'stock'
                   t.src = service.heroImage

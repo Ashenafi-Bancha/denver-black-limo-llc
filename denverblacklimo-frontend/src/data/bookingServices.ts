@@ -18,7 +18,7 @@ export type ServiceLayout =
 export interface ServiceConfig {
   /** Matches an entry in SERVICE_TYPES exactly. */
   name: string
-  /** Matches the service slug — used for /images/services/<slug>.jpeg. */
+  /** Matches the service slug (used for keys and sub-service image folders). */
   slug: string
   /** Position in the numbered dropdown (1-based). */
   number: number
@@ -69,6 +69,7 @@ export const SERVICE_CONFIGS: ServiceConfig[] = [
   { name: SERVICE_TYPES[9], slug: 'private-city-tours', number: 10, layout: 'hourly', defaultVehicle: 'Luxury SUV', summaryImage: IMG.city },
   { name: SERVICE_TYPES[10], slug: 'brewery-winery-whiskey', number: 11, layout: 'hourly', defaultVehicle: 'Sprinter Van', summaryImage: IMG.brewery },
   { name: SERVICE_TYPES[11], slug: 'group-transportation', number: 12, layout: 'pointToPoint', defaultVehicle: 'Sprinter Van', summaryImage: IMG.group, showCompany: true },
+  { name: SERVICE_TYPES[12], slug: 'vip-special-events', number: 13, layout: 'pointToPoint', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.aviation, showCompany: true },
 ]
 
 export function getServiceConfig(name: string): ServiceConfig {

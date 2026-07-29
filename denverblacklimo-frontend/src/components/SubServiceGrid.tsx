@@ -1,7 +1,28 @@
 import { ServiceIcon } from './ServiceIcon'
 import { subServiceSlug, type SubService } from '../data/services'
 
+/**
+ * Widest (xl) column count chosen to keep rows balanced for each sub-service
+ * count — e.g. 8 cards render as 4×2 instead of an awkward 6+2. All classes are
+ * spelled out literally so Tailwind's scanner includes them.
+ */
+const XL_COLS: Record<number, string> = {
+  1: 'xl:grid-cols-1',
+  2: 'xl:grid-cols-2',
+  3: 'xl:grid-cols-3',
+  4: 'xl:grid-cols-4',
+  5: 'xl:grid-cols-5',
+  6: 'xl:grid-cols-6',
+  7: 'xl:grid-cols-4',
+  8: 'xl:grid-cols-4',
+  9: 'xl:grid-cols-3',
+  10: 'xl:grid-cols-5',
+  11: 'xl:grid-cols-4',
+  12: 'xl:grid-cols-4',
+}
+
 export function SubServiceGrid({ items, serviceSlug }: { items: SubService[]; serviceSlug: string }) {
+  const xlCols = XL_COLS[items.length] ?? 'xl:grid-cols-4'
   return (
     <div>
       <div className="mb-10 flex items-center gap-4">
@@ -11,11 +32,7 @@ export function SubServiceGrid({ items, serviceSlug }: { items: SubService[]; se
         </h2>
         <div className="h-px flex-1 bg-brand-gold/30" />
       </div>
-      <div
-        className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${
-          items.length >= 6 ? 'xl:grid-cols-6' : 'xl:grid-cols-5'
-        }`}
-      >
+      <div className={`grid gap-4 sm:grid-cols-2 lg:grid-cols-3 ${xlCols}`}>
         {items.map((item) => (
           <article
             key={item.title}

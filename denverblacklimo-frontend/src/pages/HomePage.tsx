@@ -241,7 +241,7 @@ export function HomePage() {
                   transition={{ duration: 0.6, delay: index * 0.1, ease: "easeOut" }}
                 >
                   <img
-                    src={`/images/services/${s.slug}.jpeg`}
+                    src={`/images/services/service-banner-${s.number}.jpeg`}
                     alt={s.title}
                     loading="lazy"
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
@@ -250,7 +250,7 @@ export function HomePage() {
                       const step = t.dataset.step
                       if (!step) {
                         t.dataset.step = 'jpg'
-                        t.src = `/images/services/${s.slug}.jpg`
+                        t.src = `/images/services/service-banner-${s.number}.jpg`
                       } else if (step === 'jpg') {
                         t.dataset.step = 'stock'
                         t.src = s.heroImage

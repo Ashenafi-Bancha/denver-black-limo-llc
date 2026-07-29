@@ -19,10 +19,12 @@ const SERVICE_SLUGS = [
   'airport-transportation', 'private-aviation-fbo', 'executive-corporate', 'hourly-chauffeur',
   'mountain-resort', 'wedding-transportation', 'concert-red-rocks', 'sporting-events',
   'bachelor-bachelorette', 'private-city-tours', 'brewery-winery-whiskey', 'group-transportation',
+  'vip-special-events',
 ]
 const AREA_SLUGS = [
-  'denver-metro', 'boulder-northern-colorado', 'colorado-springs-southern',
-  'mountain-resorts-airports', 'fort-collins', 'grand-junction',
+  'denver-metro', 'south-denver-metro', 'north-denver-metro', 'boulder-northern-colorado',
+  'foothills-mountain-gateway', 'colorado-mountain-resorts', 'colorado-springs-southern',
+  'airports-private-aviation', 'entertainment-sports-hotels', 'long-distance-interstate',
 ]
 
 const ROUTES = [
