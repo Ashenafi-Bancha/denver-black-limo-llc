@@ -3,6 +3,7 @@ import { Header } from './Header'
 import { Footer } from './Footer'
 import { RouteSeo } from './Seo'
 import { ScrollToTop } from './ScrollToTop'
+import { ChatWidget } from './ChatWidget'
 
 export function Layout() {
   return (
@@ -14,6 +15,7 @@ export function Layout() {
         <Outlet />
       </main>
       <Footer />
+      <ChatWidget />
     </div>
   )
 }

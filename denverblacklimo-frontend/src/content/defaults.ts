@@ -117,6 +117,50 @@ export const DEFAULT_HOME: HomeContent = {
   coverageList: homeCoverageList,
 }
 
+// ── FAQs (Contact page accordion) ──
+export interface Faq {
+  question: string
+  answer: string
+}
+
+export const DEFAULT_FAQS: Faq[] = [
+  {
+    question: 'How do I make a reservation?',
+    answer:
+      'You can reserve online in minutes using our Book Now form, request a quote, call us 24/7, or message us through the chat. We confirm every reservation personally — no payment is required online.',
+  },
+  {
+    question: 'What information do I need to provide for a booking?',
+    answer:
+      'Your name and contact details, the service you need, pickup date and time, pickup and drop-off locations, passenger count, and any special requests. For airport pickups, your airline and flight number let us track your flight.',
+  },
+  {
+    question: 'Do you offer airport meet & greet service?',
+    answer:
+      'Yes. For Denver International Airport arrivals we offer personalized meet & greet — your chauffeur welcomes you inside the terminal with professional signage and assists with your luggage.',
+  },
+  {
+    question: 'What is your cancellation policy?',
+    answer:
+      'Plans change — we understand. Contact us as early as possible to modify or cancel a reservation, and our team will take care of it. Cancellation terms can vary by service and vehicle type, so we confirm the details with your booking.',
+  },
+  {
+    question: 'Do you provide child seats?',
+    answer:
+      'Yes — child and booster seats can be arranged on request. Just mention the ages of the children when you book, and we will have the appropriate seats installed before pickup.',
+  },
+  {
+    question: 'Do you provide service outside of Denver?',
+    answer:
+      'Absolutely. We serve the entire Front Range, Colorado mountain resorts, and neighboring states for long-distance and interstate travel — see our Service Areas page for details.',
+  },
+  {
+    question: 'How far in advance should I book?',
+    answer:
+      'We recommend booking as early as possible, especially for weddings, ski season, and major events. Same-day and last-minute requests are welcome too — call us and we will do our best to accommodate you 24/7.',
+  },
+]
+
 // ── CMS registry: keys the admin can edit ──
 export const CMS_KEYS = {
   business: 'business',
@@ -127,4 +171,5 @@ export const CMS_KEYS = {
   fleet: 'fleet',
   serviceAreas: 'service_areas',
   reviews: 'reviews',
+  faqs: 'faqs',
 } as const
