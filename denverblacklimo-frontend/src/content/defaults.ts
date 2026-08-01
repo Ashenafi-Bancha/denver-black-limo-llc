@@ -27,6 +27,7 @@ export interface BusinessInfo {
   address: string
   hours: string
   facebook: string
+  instagram: string
   whatsapp: string
   twitter: string
   founded: string
@@ -38,10 +39,11 @@ export const DEFAULT_BUSINESS: BusinessInfo = {
   companyName: 'Denver Black Limo LLC',
   tagline: 'Luxury Chauffeured Transportation',
   phone: '(720) 499-6744',
-  email: 'denverblacklimo@yahoo.com',
+  email: 'info@denverblacklimo.llc',
   address: 'Denver, Colorado — serving the Front Range & beyond',
   hours: 'Available 24 hours a day, 7 days a week',
-  facebook: 'https://web.facebook.com/p/Denver-Black-Limo-LLC-100087707941139/?_rdc=1&_rdr#',
+  facebook: 'https://www.facebook.com/profile.php?id=61592643747921',
+  instagram: 'https://www.instagram.com/denverblacklimo.llc?igsh=MXZ5MGc5cHh4bzdscA==',
   whatsapp: '',
   twitter: '',
   founded: 'September 2019',

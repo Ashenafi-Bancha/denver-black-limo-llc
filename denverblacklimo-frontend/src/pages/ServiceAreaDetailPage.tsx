@@ -5,6 +5,7 @@ import { ServiceIcon } from '../components/ServiceIcon'
 import { defaultTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton } from '../components/ui'
 import { getServiceAreaBySlug } from '../data/serviceAreas'
+import { subServiceSlug } from '../data/services'
 import { PHONE, PHONE_HREF } from '../constants'
 
 export function ServiceAreaDetailPage() {
@@ -69,10 +70,21 @@ export function ServiceAreaDetailPage() {
           </div>
           <div className="overflow-hidden border border-brand-gold/25">
             <img
-              src={area.mapImage}
+              src={`/images/service-areas/area-side-${area.number}.jpeg`}
               alt={`${area.title} landscape`}
               loading="lazy"
               className="h-full min-h-[280px] w-full object-cover"
+              onError={(e) => {
+                const t = e.currentTarget
+                const step = t.dataset.step
+                if (!step) {
+                  t.dataset.step = 'jpg'
+                  t.src = `/images/service-areas/area-side-${area.number}.jpg`
+                } else if (step === 'jpg') {
+                  t.dataset.step = 'stock'
+                  t.src = area.mapImage
+                }
+              }}
             />
           </div>
         </div>
@@ -89,10 +101,21 @@ export function ServiceAreaDetailPage() {
           {area.offers.map((offer) => (
             <article key={offer.title} className="overflow-hidden border border-brand-gold/20 bg-brand-charcoal">
               <img
-                src={offer.image}
+                src={`/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpeg`}
                 alt={offer.title}
                 loading="lazy"
                 className="aspect-[4/3] w-full object-cover"
+                onError={(e) => {
+                  const t = e.currentTarget
+                  const step = t.dataset.step
+                  if (!step) {
+                    t.dataset.step = 'jpg'
+                    t.src = `/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpg`
+                  } else if (step === 'jpg') {
+                    t.dataset.step = 'stock'
+                    t.src = offer.image
+                  }
+                }}
               />
               <div className="p-4 text-center">
                 <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-brand-gold/50 text-brand-gold-light">

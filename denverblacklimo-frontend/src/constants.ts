@@ -1,8 +1,8 @@
 export const PHONE = '(720) 499-6744'
 export const PHONE_HREF = 'tel:+17204996744'
-export const EMAIL = 'denverblacklimo@yahoo.com'
-export const EMAIL_HREF = 'mailto:denverblacklimo@yahoo.com'
-export const FACEBOOK_URL = 'https://web.facebook.com/p/Denver-Black-Limo-LLC-100087707941139/?_rdc=1&_rdr#'
+export const EMAIL = 'info@denverblacklimo.llc'
+export const EMAIL_HREF = 'mailto:info@denverblacklimo.llc'
+export const FACEBOOK_URL = 'https://www.facebook.com/profile.php?id=61592643747921'
 export const ADDRESS = 'Denver, Colorado — serving the Front Range & beyond'
 export const FOUNDED = 'September 2019'
 

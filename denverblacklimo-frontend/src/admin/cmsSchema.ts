@@ -99,6 +99,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { key: 'address', label: 'Service Area / Address', type: 'text', full: true },
       { key: 'hours', label: 'Service Hours', type: 'text', full: true },
       { key: 'facebook', label: 'Facebook URL', type: 'text', full: true },
+      { key: 'instagram', label: 'Instagram URL', type: 'text', full: true },
       { key: 'whatsapp', label: 'WhatsApp (number/URL)', type: 'text' },
       { key: 'twitter', label: 'X / Twitter URL', type: 'text' },
       { key: 'founded', label: 'Founded', type: 'text' },

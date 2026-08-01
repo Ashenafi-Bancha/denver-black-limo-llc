@@ -204,3 +204,33 @@ area-banner-10.jpeg        # 10 Long-Distance & Interstate Travel
 ```
 
 **Total: 11 images (1 hero + 10 area banners)**
+
+## Area detail pages — side banner + offer cards
+
+Each area detail page also loads a **side banner** (next to Coverage Areas) and one image
+per **offer card**, from these paths (fallback to stock until added):
+
+```
+area-side-<N>.jpeg                          # side banner, N = area number (1-10)
+<area-slug>/<offer-slug>.jpeg               # offer cards, in the area's subfolder
+```
+
+### 1 — denver-metro/
+```
+area-side-1.jpeg (in service-areas/)
+denver-metro/business-travel.jpeg    denver-metro/airport-transfers.jpeg
+denver-metro/hotels.jpeg             denver-metro/dining.jpeg
+denver-metro/events.jpeg             denver-metro/shopping.jpeg
+```
+
+### 2 — south-denver-metro/
+```
+area-side-2.jpeg (in service-areas/)
+south-denver-metro/executive-travel.jpeg    south-denver-metro/corporate-offices.jpeg
+south-denver-metro/weddings.jpeg            south-denver-metro/golf-clubs.jpeg
+south-denver-metro/luxury-communities.jpeg  south-denver-metro/fine-dining-shopping.jpeg
+```
+
+### 3-10 — same pattern
+`area-side-<N>.jpeg` plus `<slug>/<offer-title-slugified>.jpeg` — exact offer filenames are
+printed in each area's built HTML or ask Claude to list them when the client's images arrive.
