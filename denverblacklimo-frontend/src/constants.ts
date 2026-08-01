@@ -15,8 +15,8 @@ export const FOUNDER = {
 } as const
 
 /**
- * The 12 transportation service categories offered by Denver Black Limo.
- * Order matters — these are numbered 1–12 in the booking dropdown.
+ * The transportation service categories offered by Denver Black Limo (currently 13).
+ * Order matters — the booking dropdown numbers them in this order.
  * (A 13th category will be added by the client later.)
  */
 export const SERVICE_TYPES = [

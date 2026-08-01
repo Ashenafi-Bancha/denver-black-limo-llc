@@ -14,7 +14,7 @@ import { useSiteSettings } from '../context/SiteSettingsContext'
 
 const quickNav = [
   { title: 'About Us', desc: 'Our story & values', to: '/about', icon: Info },
-  { title: 'Services', desc: '12 premium categories', to: '/services', icon: Sparkles },
+  { title: 'Services', desc: `${services.length} premium categories`, to: '/services', icon: Sparkles },
   { title: 'Service Areas', desc: 'Statewide coverage', to: '/service-areas', icon: Map },
   { title: 'Fleet', desc: 'Luxury vehicles', to: '/fleet', icon: Users },
   { title: 'Contact', desc: 'Speak with our team', to: '/contact', icon: Phone },
@@ -270,7 +270,7 @@ export function HomePage() {
             ))}
           </div>
           <div className="mt-10 text-center">
-            <OutlineButton to="/services">VIEW ALL 12 SERVICES</OutlineButton>
+            <OutlineButton to="/services">{`VIEW ALL ${services.length} SERVICES`}</OutlineButton>
           </div>
         </div>
       </section>
