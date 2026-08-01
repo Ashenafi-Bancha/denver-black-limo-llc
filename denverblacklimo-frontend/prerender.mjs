@@ -72,3 +72,24 @@ for (const route of ROUTES) {
   ok++
 }
 console.log(`✔ Prerendered ${ok} routes to static HTML.`)
+
+// ── sitemap.xml — generated from the live route list so it never goes stale ──
+function sitemapEntry(route) {
+  const loc = SITE + (route === '/' ? '/' : route)
+  const priority =
+    route === '/' ? '1.0'
+    : route === '/book' || route === '/services' ? '0.9'
+    : route.startsWith('/services/') || route.startsWith('/service-areas') || route === '/fleet' ? '0.8'
+    : '0.7'
+  const changefreq = route === '/' ? 'weekly' : 'monthly'
+  return `  <url><loc>${loc}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`
+}
+const sitemap = [
+  '<?xml version="1.0" encoding="UTF-8"?>',
+  '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+  ...ROUTES.filter((r) => r !== '/admin').map(sitemapEntry),
+  '</urlset>',
+  '',
+].join('\n')
+fs.writeFileSync(path.join(DIST, 'sitemap.xml'), sitemap)
+console.log(`✔ Generated sitemap.xml (${ROUTES.length - 1} URLs).`)
