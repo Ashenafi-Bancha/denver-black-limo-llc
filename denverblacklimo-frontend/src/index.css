@@ -76,6 +76,49 @@
   }
 }
 
+/* ── "Scroll to explore" mouse indicator (home hero) ── */
+.scroll-mouse {
+  width: 22px;
+  height: 34px;
+  border-radius: 9999px;
+  border: 2px solid var(--color-brand-gold-light);
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
+  flex-shrink: 0;
+  animation: mouse-glow 2.2s ease-in-out infinite;
+}
+.scroll-mouse-wheel {
+  width: 3px;
+  height: 7px;
+  border-radius: 2px;
+  background: var(--color-brand-gold-light);
+  animation: wheel-scroll 1.6s ease-in-out infinite;
+}
+@keyframes wheel-scroll {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  65% {
+    transform: translateY(11px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+}
+@keyframes mouse-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 6px rgba(212, 175, 55, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(212, 175, 55, 0.75), 0 0 30px rgba(212, 175, 55, 0.25);
+  }
+}
+
 @layer utilities {
   .text-gold-gradient {
     background: linear-gradient(135deg, #e8c547 0%, #c9a227 45%, #b8860b 100%);

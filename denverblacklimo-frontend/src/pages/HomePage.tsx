@@ -11,6 +11,12 @@ import { services } from '../data/services'
 import { IMAGES } from '../config/images'
 
 import { useSiteSettings } from '../context/SiteSettingsContext'
+import {
+  DEFAULT_ABOUT,
+  DEFAULT_BUSINESS,
+  type AboutContent,
+  type BusinessInfo,
+} from '../content/defaults'
 
 const quickNav = [
   { title: 'About Us', desc: 'Our story & values', to: '/about', icon: Info },
@@ -22,10 +28,12 @@ const quickNav = [
 
 export function HomePage() {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const { settings } = useSiteSettings()
-  
+  const { settings, get } = useSiteSettings()
+
   const heroData = settings.home_hero;
   const heroImages = heroData.images;
+  const about = { ...DEFAULT_ABOUT, ...get<Partial<AboutContent>>('about', {}) }
+  const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
 
   useEffect(() => {
     if (heroImages.length < 2) return
@@ -141,10 +149,19 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-5 flex flex-col gap-3 sm:flex-row md:mt-8"
+            className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
+            {/* Scroll indicator — below buttons on mobile, right of them on desktop */}
+            <div className="mt-2 flex items-center justify-center gap-3 self-center sm:ml-5 sm:mt-0 sm:self-auto">
+              <div className="scroll-mouse" aria-hidden="true">
+                <div className="scroll-mouse-wheel" />
+              </div>
+              <span className="text-[10px] font-semibold tracking-[0.3em] text-brand-gold-light/90">
+                SCROLL TO EXPLORE
+              </span>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -159,11 +176,13 @@ export function HomePage() {
               to={item.to}
               className="group flex flex-col items-center gap-3 rounded-xl border border-brand-gold/20 bg-brand-surface/30 p-5 text-center transition duration-300 hover:-translate-y-0.5 hover:border-brand-gold/50 hover:bg-brand-surface hover:shadow-lg hover:shadow-brand-gold/10 last:col-span-2 lg:last:col-span-1"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition group-hover:border-brand-gold/70 group-hover:bg-brand-gold/10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition duration-300 group-hover:scale-110 group-hover:border-brand-gold group-hover:bg-brand-gold/15">
                 <item.icon className="h-5 w-5" strokeWidth={1.5} />
               </div>
-              <h2 className="font-display text-base text-brand-gold-light md:text-lg">{item.title}</h2>
-              <p className="text-xs text-white/60">{item.desc}</p>
+              <h2 className="font-display text-base text-brand-gold-light transition-colors duration-300 group-hover:text-white md:text-lg">
+                {item.title}
+              </h2>
+              <p className="text-xs text-white/60 transition-colors duration-300 group-hover:text-white/80">{item.desc}</p>
             </Link>
           ))}
         </div>
@@ -220,6 +239,53 @@ export function HomePage() {
               VIEW ALL SERVICE AREAS
               <ArrowRight className="h-4 w-4" />
             </Link>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* About Us — before the services, per client request */}
+      <section className="border-t border-brand-gold/15 bg-brand-charcoal">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 md:px-6 md:py-20 lg:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <p className="text-xs tracking-[0.3em] text-brand-gold-light">ABOUT US</p>
+            <h2 className="mt-3 font-display text-3xl text-white md:text-4xl">{about.title}</h2>
+            <p className="mt-4 leading-relaxed text-white/65">{about.intro}</p>
+            <p className="mt-3 text-sm leading-relaxed text-white/55">
+              Established in {biz.founded} · Licensed &amp; insured · Professional chauffeurs ·
+              Available 24/7
+            </p>
+            <Link
+              to="/about"
+              className="mt-8 inline-flex items-center gap-2 border border-brand-gold/50 px-6 py-3 text-xs font-semibold tracking-widest text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/5"
+            >
+              LEARN MORE ABOUT US
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </motion.div>
+          <motion.div
+            className="order-first aspect-[16/10] w-full overflow-hidden border border-brand-gold/25 lg:order-none"
+            initial={{ opacity: 0, scale: 0.97 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, amount: 0.2 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <img
+              src={about.heroImage}
+              alt="Denver Black Limo — about us"
+              loading="lazy"
+              className="h-full w-full object-cover"
+              onError={(e) => {
+                const t = e.currentTarget
+                if (t.dataset.fallback) return
+                t.dataset.fallback = '1'
+                t.src = IMAGES.hero2
+              }}
+            />
           </motion.div>
         </div>
       </section>

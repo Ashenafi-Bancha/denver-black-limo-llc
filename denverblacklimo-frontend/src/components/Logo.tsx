@@ -25,8 +25,11 @@ export function Logo({ compact = false, className = '', iconOnly = false }: Logo
       />
       {!iconOnly && (
         <div className={`flex flex-col ${compact ? 'hidden md:flex' : 'flex'}`}>
-          <p className="font-display text-[11px] font-semibold tracking-[0.15em] text-brand-gold-light sm:text-sm md:tracking-[0.18em]">
-            DENVER BLACK LIMO LLC
+          <p className="font-display text-xs font-bold leading-tight tracking-[0.22em] text-white sm:text-base md:tracking-[0.26em]">
+            DENVER
+          </p>
+          <p className="font-display text-[10px] font-semibold leading-tight tracking-[0.12em] text-brand-gold-light sm:text-xs md:tracking-[0.15em]">
+            BLACK LIMO LLC
           </p>
         </div>
       )}
