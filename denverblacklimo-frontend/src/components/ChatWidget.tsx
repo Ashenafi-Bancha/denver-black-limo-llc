@@ -1,14 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import {
-  Calendar,
-  ChevronRight,
-  Clock,
   Lock,
   MessageCircle,
   MessageSquareText,
   MessagesSquare,
-  Phone,
   RotateCw,
   Send,
   UserRound,
@@ -18,7 +13,6 @@ import { useSiteSettings } from '../context/SiteSettingsContext'
 import {
   DEFAULT_ABOUT,
   DEFAULT_BUSINESS,
-  telHref,
   type AboutContent,
   type BusinessInfo,
 } from '../content/defaults'
@@ -46,7 +40,7 @@ declare global {
 const WELCOME: Bubble[] = [
   {
     from: 'bot',
-    text: "Hi, I'm Bereket. Welcome to Denver Black Limo LLC!\n\nI'm here to help you get a quote or book your luxury transportation in just a few minutes.\n\nHow can I assist you today?",
+    text: "Hi, I'm Bereket 👋 Welcome to Denver Black Limo LLC!\n\nHow can I assist you today? Type your message below.",
   },
 ]
 
@@ -71,7 +65,6 @@ function BereketAvatar({ src, className }: { src: string; className: string }) {
 }
 
 export function ChatWidget() {
-  const navigate = useNavigate()
   const { get } = useSiteSettings()
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
   const about = { ...DEFAULT_ABOUT, ...get<Partial<AboutContent>>('about', {}) }
@@ -178,11 +171,6 @@ export function ChatWidget() {
     draft.current = { message: '', name: '', phone: '' }
   }
 
-  const go = (path: string) => {
-    setOpen(false)
-    navigate(path)
-  }
-
   const say = (b: Bubble) => setBubbles((prev) => [...prev, b])
 
   const handleSend = async () => {
@@ -255,39 +243,9 @@ export function ChatWidget() {
     say({ from: 'bot', text: 'Thanks! May I have your name so our team can follow up?' })
   }
 
-  const actions = [
-    ...(tawkId
-      ? [
-          {
-            icon: MessagesSquare,
-            title: 'CHAT LIVE NOW',
-            sub: 'Talk with our team in real time',
-            primary: true,
-            onClick: openLiveChat,
-          },
-        ]
-      : []),
-    {
-      icon: MessageSquareText,
-      title: 'GET INSTANT QUOTE',
-      sub: 'Get a quote in just a few steps',
-      primary: !tawkId,
-      onClick: () => go('/quote'),
-    },
-    { icon: Calendar, title: 'BOOK A RIDE', sub: 'Reserve your ride now', onClick: () => go('/book') },
-    {
-      icon: Phone,
-      title: `CALL ${biz.phone}`,
-      sub: 'Speak with our team',
-      onClick: () => { window.location.href = telHref(biz.phone) },
-    },
-    {
-      icon: MessagesSquare,
-      title: 'TEXT US',
-      sub: 'Send us a text message',
-      onClick: () => { window.location.href = `sms:+1${biz.phone.replace(/[^\d]/g, '')}` },
-    },
-  ]
+  const textUs = () => {
+    window.location.href = `sms:+1${biz.phone.replace(/[^\d]/g, '')}`
+  }
 
   return (
     <>
@@ -313,15 +271,18 @@ export function ChatWidget() {
         <div
           role="dialog"
           aria-label="Chat with Bereket, your luxury quote assistant"
-          className="fixed inset-x-3 bottom-24 z-[79] mx-auto flex max-h-[78vh] w-auto flex-col overflow-hidden rounded-2xl border border-brand-gold/40 bg-brand-black shadow-2xl shadow-black/60 sm:inset-x-auto sm:right-5 sm:w-[380px]"
+          className="fixed bottom-24 right-4 z-[79] flex h-[min(480px,72vh)] w-[calc(100vw-2rem)] max-w-[330px] flex-col overflow-hidden rounded-2xl border border-brand-gold/40 bg-white shadow-2xl shadow-black/60"
         >
           {/* Header */}
-          <div className="flex items-center justify-between gap-3 border-b-2 border-brand-gold/60 bg-brand-charcoal px-4 py-3">
-            <div className="flex items-center gap-3">
-              <BereketAvatar src={founderSrc} className="h-10 w-10 shrink-0 rounded-full" />
-              <div className="border-l border-brand-gold/40 pl-3">
-                <p className="font-display text-lg leading-tight text-brand-gold-light">Bereket,</p>
-                <p className="text-xs text-white/75">Your Luxury Quote Assistant</p>
+          <div className="flex items-center justify-between gap-2 border-b border-brand-gold/50 bg-brand-charcoal px-3.5 py-2.5">
+            <div className="flex items-center gap-2.5">
+              <span className="relative">
+                <BereketAvatar src={founderSrc} className="h-9 w-9 shrink-0 rounded-full" />
+                <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-brand-charcoal bg-green-400" />
+              </span>
+              <div>
+                <p className="font-display text-base leading-tight text-brand-gold-light">Bereket</p>
+                <p className="text-[11px] text-white/65">Luxury Quote Assistant · Online</p>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -344,21 +305,18 @@ export function ChatWidget() {
             </div>
           </div>
 
-          {/* Conversation + actions */}
-          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
-            <p className="mx-auto w-fit rounded-full border border-white/15 px-3 py-1 text-[10px] tracking-wider text-white/50">
-              Today
-            </p>
+          {/* Conversation */}
+          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3.5 py-3">
             {bubbles.map((b, i) => (
               <div key={i} className={`flex items-end gap-2 ${b.from === 'user' ? 'justify-end' : ''}`}>
                 {b.from === 'bot' && (
-                  <BereketAvatar src={founderSrc} className="h-8 w-8 shrink-0 rounded-full" />
+                  <BereketAvatar src={founderSrc} className="h-7 w-7 shrink-0 rounded-full" />
                 )}
                 <p
-                  className={`max-w-[80%] whitespace-pre-line rounded-xl px-4 py-3 text-sm leading-relaxed ${
+                  className={`max-w-[82%] whitespace-pre-line rounded-2xl px-3.5 py-2.5 text-[13px] leading-relaxed ${
                     b.from === 'bot'
-                      ? 'border border-white/10 bg-brand-surface text-white/85'
-                      : 'bg-gold-gradient text-brand-black'
+                      ? 'rounded-bl-sm border border-black/5 bg-gray-100 text-gray-800'
+                      : 'rounded-br-sm bg-gold-gradient text-brand-black'
                   }`}
                 >
                   {b.text}
@@ -366,61 +324,32 @@ export function ChatWidget() {
               </div>
             ))}
 
-            {/* Quick actions (shown until the user starts typing a message flow) */}
+            {/* Quick chips — only channels that aren't elsewhere on the site */}
             {flow === 'idle' && (
-              <div className="space-y-2.5 pt-1">
-                {actions.map((a) => (
+              <div className="flex flex-wrap gap-2 pl-9">
+                {tawkId && (
                   <button
-                    key={a.title}
                     type="button"
-                    onClick={a.onClick}
-                    className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left transition active:scale-[0.99] ${
-                      a.primary
-                        ? 'bg-gold-gradient text-brand-black shadow-md shadow-brand-gold/25 hover:brightness-110'
-                        : 'border border-brand-gold/40 text-brand-gold-light hover:bg-brand-gold/10'
-                    }`}
+                    onClick={openLiveChat}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-gold-gradient px-3.5 py-1.5 text-xs font-bold text-brand-black shadow-sm transition hover:brightness-110 active:scale-95"
                   >
-                    <a.icon className="h-5 w-5 shrink-0" />
-                    <span className="flex-1">
-                      <span className="block text-sm font-bold tracking-wide">{a.title}</span>
-                      <span className={`block text-xs ${a.primary ? 'text-brand-black/70' : 'text-white/55'}`}>
-                        {a.sub}
-                      </span>
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0" />
+                    <MessagesSquare className="h-3.5 w-3.5" /> Live Chat
                   </button>
-                ))}
-                <div className="flex items-center gap-3 py-1">
-                  <span className="h-px flex-1 bg-brand-gold/25" />
-                  <span className="text-[10px] tracking-widest text-brand-gold/70">OR</span>
-                  <span className="h-px flex-1 bg-brand-gold/25" />
-                </div>
+                )}
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
-                  className="flex w-full items-center gap-3 rounded-xl border border-white/15 px-4 py-3 text-left text-white/75 transition hover:bg-white/5 active:scale-[0.99]"
+                  onClick={textUs}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-gold-dark/60 px-3.5 py-1.5 text-xs font-bold text-brand-gold-dark transition hover:bg-brand-gold/10 active:scale-95"
                 >
-                  <Clock className="h-5 w-5 shrink-0 text-brand-gold-light" />
-                  <span className="flex-1">
-                    <span className="block text-sm font-bold tracking-wide">MAYBE LATER</span>
-                    <span className="block text-xs text-white/50">I&rsquo;ll come back later</span>
-                  </span>
-                  <ChevronRight className="h-4 w-4 shrink-0" />
+                  <MessageSquareText className="h-3.5 w-3.5" /> Text Us
                 </button>
               </div>
             )}
           </div>
 
-          {/* Privacy + input */}
-          <div className="border-t border-brand-gold/25 bg-brand-charcoal px-4 pb-4 pt-3">
-            <p className="flex items-start gap-2 text-[11px] leading-snug text-white/55">
-              <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-gold-light" />
-              <span>
-                <span className="text-brand-gold-light">Your privacy is important to us.</span>{' '}
-                Your information will only be used for your quote request.
-              </span>
-            </p>
-            <div className="mt-3 flex items-center gap-2">
+          {/* Input */}
+          <div className="border-t border-brand-gold/25 bg-brand-charcoal px-3 pb-2.5 pt-2.5">
+            <div className="flex items-center gap-2">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -442,11 +371,15 @@ export function ChatWidget() {
                 onClick={handleSend}
                 disabled={sending}
                 aria-label="Send message"
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gold-gradient text-brand-black transition hover:brightness-110 disabled:opacity-60"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold-gradient text-brand-black transition hover:brightness-110 disabled:opacity-60"
               >
                 <Send className="h-4 w-4" />
               </button>
             </div>
+            <p className="mt-1.5 flex items-center justify-center gap-1 text-center text-[10px] text-white/40">
+              <Lock className="h-2.5 w-2.5 text-brand-gold/70" />
+              Your information is only used for your request.
+            </p>
           </div>
         </div>
       )}
