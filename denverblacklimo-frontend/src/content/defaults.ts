@@ -79,7 +79,7 @@ export const DEFAULT_ABOUT: AboutContent = {
   founderName: FOUNDER.name,
   founderTitle: FOUNDER.title,
   founderQuote: FOUNDER.quote,
-  founderImage: '/images/founder.jpg',
+  founderImage: '/images/founder.png',
   heroImage: '/images/about-hero.jpg',
 }
 

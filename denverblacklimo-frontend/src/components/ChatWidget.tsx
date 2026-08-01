@@ -15,7 +15,13 @@ import {
   X,
 } from 'lucide-react'
 import { useSiteSettings } from '../context/SiteSettingsContext'
-import { DEFAULT_BUSINESS, telHref, type BusinessInfo } from '../content/defaults'
+import {
+  DEFAULT_ABOUT,
+  DEFAULT_BUSINESS,
+  telHref,
+  type AboutContent,
+  type BusinessInfo,
+} from '../content/defaults'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 const POS_KEY = 'dbl-chat-pos'
@@ -44,10 +50,32 @@ const WELCOME: Bubble[] = [
   },
 ]
 
+/** Bereket's avatar — the founder photo, falling back to a generic icon. */
+function BereketAvatar({ src, className }: { src: string; className: string }) {
+  const [failed, setFailed] = useState(false)
+  if (failed || !src) {
+    return (
+      <span className={`${className} flex items-center justify-center border border-brand-gold/60 text-brand-gold-light`}>
+        <UserRound className="h-1/2 w-1/2" />
+      </span>
+    )
+  }
+  return (
+    <img
+      src={src}
+      alt="Bereket"
+      className={`${className} border border-brand-gold/60 object-cover object-[center_22%]`}
+      onError={() => setFailed(true)}
+    />
+  )
+}
+
 export function ChatWidget() {
   const navigate = useNavigate()
   const { get } = useSiteSettings()
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
+  const about = { ...DEFAULT_ABOUT, ...get<Partial<AboutContent>>('about', {}) }
+  const founderSrc = about.founderImage || DEFAULT_ABOUT.founderImage
 
   const [open, setOpen] = useState(false)
   const [bubbles, setBubbles] = useState<Bubble[]>(WELCOME)
@@ -290,12 +318,7 @@ export function ChatWidget() {
           {/* Header */}
           <div className="flex items-center justify-between gap-3 border-b-2 border-brand-gold/60 bg-brand-charcoal px-4 py-3">
             <div className="flex items-center gap-3">
-              <img
-                src="/logo.png"
-                alt=""
-                className="h-10 w-10 rounded-full object-contain"
-                onError={(e) => { e.currentTarget.style.display = 'none' }}
-              />
+              <BereketAvatar src={founderSrc} className="h-10 w-10 shrink-0 rounded-full" />
               <div className="border-l border-brand-gold/40 pl-3">
                 <p className="font-display text-lg leading-tight text-brand-gold-light">Bereket,</p>
                 <p className="text-xs text-white/75">Your Luxury Quote Assistant</p>
@@ -329,9 +352,7 @@ export function ChatWidget() {
             {bubbles.map((b, i) => (
               <div key={i} className={`flex items-end gap-2 ${b.from === 'user' ? 'justify-end' : ''}`}>
                 {b.from === 'bot' && (
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-gold/60 text-brand-gold-light">
-                    <UserRound className="h-4 w-4" />
-                  </span>
+                  <BereketAvatar src={founderSrc} className="h-8 w-8 shrink-0 rounded-full" />
                 )}
                 <p
                   className={`max-w-[80%] whitespace-pre-line rounded-xl px-4 py-3 text-sm leading-relaxed ${
