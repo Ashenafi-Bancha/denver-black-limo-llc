@@ -21,8 +21,21 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 const POS_KEY = 'dbl-chat-pos'
 
 type Bubble = { from: 'bot' | 'user'; text: string }
-/** Mini guided flow for "message Bereket": collect message → name → email → submit. */
-type FlowStep = 'idle' | 'askName' | 'askEmail' | 'done'
+/** Mini guided flow for "message Bereket": message → name → phone → email → submit. */
+type FlowStep = 'idle' | 'askName' | 'askPhone' | 'askEmail' | 'done'
+
+/** Tawk.to live chat is injected on demand; its API hangs off window. */
+declare global {
+  interface Window {
+    Tawk_API?: {
+      maximize?: () => void
+      hideWidget?: () => void
+      onLoad?: () => void
+      onChatMinimized?: () => void
+    }
+    Tawk_LoadStart?: Date
+  }
+}
 
 const WELCOME: Bubble[] = [
   {
@@ -41,8 +54,34 @@ export function ChatWidget() {
   const [input, setInput] = useState('')
   const [flow, setFlow] = useState<FlowStep>('idle')
   const [sending, setSending] = useState(false)
-  const draft = useRef<{ message: string; name: string }>({ message: '', name: '' })
+  const draft = useRef<{ message: string; name: string; phone: string }>({ message: '', name: '', phone: '' })
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  // ── Tawk.to live chat (loaded on demand when configured in the CMS) ────────
+  const tawkId = (biz.tawkId || '').trim()
+  const openLiveChat = () => {
+    if (!tawkId) return
+    setOpen(false)
+    if (window.Tawk_API?.maximize) {
+      window.Tawk_API.maximize()
+      return
+    }
+    window.Tawk_API = window.Tawk_API || {}
+    // Keep OUR gold button as the only launcher: hide tawk's bubble on minimize.
+    window.Tawk_API.onLoad = () => {
+      window.Tawk_API?.maximize?.()
+    }
+    window.Tawk_API.onChatMinimized = () => {
+      window.Tawk_API?.hideWidget?.()
+    }
+    window.Tawk_LoadStart = new Date()
+    const s = document.createElement('script')
+    s.async = true
+    s.src = `https://embed.tawk.to/${tawkId}`
+    s.charset = 'UTF-8'
+    s.setAttribute('crossorigin', '*')
+    document.head.appendChild(s)
+  }
 
   // ── Draggable launcher button ──────────────────────────────────────────────
   const btnRef = useRef<HTMLButtonElement>(null)
@@ -108,7 +147,7 @@ export function ChatWidget() {
     setBubbles(WELCOME)
     setFlow('idle')
     setInput('')
-    draft.current = { message: '', name: '' }
+    draft.current = { message: '', name: '', phone: '' }
   }
 
   const go = (path: string) => {
@@ -132,8 +171,17 @@ export function ChatWidget() {
     }
     if (flow === 'askName') {
       draft.current.name = text
+      setFlow('askPhone')
+      say({
+        from: 'bot',
+        text: `Great to meet you, ${text}! What's the best phone number to reach you? (or type "skip")`,
+      })
+      return
+    }
+    if (flow === 'askPhone') {
+      draft.current.phone = /^skip$/i.test(text) ? '' : text
       setFlow('askEmail')
-      say({ from: 'bot', text: `Great to meet you, ${text}! What's the best email address to reach you?` })
+      say({ from: 'bot', text: "Almost done — what's your email address?" })
       return
     }
     if (flow === 'askEmail') {
@@ -146,6 +194,7 @@ export function ChatWidget() {
             type: 'Contact',
             name: draft.current.name,
             email: text,
+            phone: draft.current.phone || undefined,
             service: 'Chat with Bereket',
             message: draft.current.message,
           }),
@@ -173,17 +222,28 @@ export function ChatWidget() {
       return
     }
     // done → start a fresh message
-    draft.current = { message: text, name: draft.current.name }
+    draft.current = { message: text, name: draft.current.name, phone: draft.current.phone }
     setFlow('askName')
     say({ from: 'bot', text: 'Thanks! May I have your name so our team can follow up?' })
   }
 
   const actions = [
+    ...(tawkId
+      ? [
+          {
+            icon: MessagesSquare,
+            title: 'CHAT LIVE NOW',
+            sub: 'Talk with our team in real time',
+            primary: true,
+            onClick: openLiveChat,
+          },
+        ]
+      : []),
     {
       icon: MessageSquareText,
       title: 'GET INSTANT QUOTE',
       sub: 'Get a quote in just a few steps',
-      primary: true,
+      primary: !tawkId,
       onClick: () => go('/quote'),
     },
     { icon: Calendar, title: 'BOOK A RIDE', sub: 'Reserve your ride now', onClick: () => go('/book') },
@@ -345,7 +405,13 @@ export function ChatWidget() {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSend() }}
                 placeholder={
-                  flow === 'askName' ? 'Your name…' : flow === 'askEmail' ? 'Your email…' : 'Type a message…'
+                  flow === 'askName'
+                    ? 'Your name…'
+                    : flow === 'askPhone'
+                      ? 'Your phone (or "skip")…'
+                      : flow === 'askEmail'
+                        ? 'Your email…'
+                        : 'Type a message…'
                 }
                 aria-label="Type a message"
                 className="w-full rounded-full border border-white/15 bg-brand-black px-4 py-2.5 text-sm text-white outline-none transition focus:border-brand-gold/60"

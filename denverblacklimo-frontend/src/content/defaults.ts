@@ -30,6 +30,8 @@ export interface BusinessInfo {
   whatsapp: string
   twitter: string
   founded: string
+  /** Tawk.to live-chat id: "<propertyId>/<widgetId>" from the embed URL. Empty = live chat hidden. */
+  tawkId: string
 }
 
 export const DEFAULT_BUSINESS: BusinessInfo = {
@@ -43,6 +45,7 @@ export const DEFAULT_BUSINESS: BusinessInfo = {
   whatsapp: '',
   twitter: '',
   founded: 'September 2019',
+  tawkId: '',
 }
 
 // ── About page content ──

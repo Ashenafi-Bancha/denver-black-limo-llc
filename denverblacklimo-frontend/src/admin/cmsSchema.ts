@@ -102,6 +102,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { key: 'whatsapp', label: 'WhatsApp (number/URL)', type: 'text' },
       { key: 'twitter', label: 'X / Twitter URL', type: 'text' },
       { key: 'founded', label: 'Founded', type: 'text' },
+      { key: 'tawkId', label: 'Tawk.to Live Chat ID', type: 'text', placeholder: 'propertyId/widgetId — e.g. 688a1b2c3d4e5f/1j0abcdef', full: true },
     ],
   },
   {
