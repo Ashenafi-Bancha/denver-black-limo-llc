@@ -166,6 +166,10 @@
   position: relative;
   z-index: 1;
 }
+/* Pill-shaped variant of the moving-light border */
+.glow-border-pill {
+  border-radius: 9999px;
+}
 @keyframes border-spin {
   to {
     transform: rotate(360deg);

@@ -16,6 +16,7 @@ import { useSiteSettings } from '../context/SiteSettingsContext'
 import {
   DEFAULT_ABOUT,
   DEFAULT_BUSINESS,
+  telHref,
   type AboutContent,
   type BusinessInfo,
 } from '../content/defaults'
@@ -169,6 +170,16 @@ export function HomePage() {
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
+            {/* Call button — desktop only, moving-light border, same size as its siblings */}
+            <div className="glow-border glow-border-pill hidden md:block">
+              <a
+                href={telHref(biz.phone)}
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:bg-brand-charcoal"
+              >
+                <Phone className="h-4 w-4" />
+                CALL US
+              </a>
+            </div>
             {/* Scroll indicator — two lines: label above, glowing mouse below.
                 Mobile: centered a bit below the buttons; desktop: to their right. */}
             <div className="mt-6 flex flex-col items-center gap-2 self-center sm:ml-16 sm:mt-3 sm:self-start lg:ml-24">
@@ -253,13 +264,15 @@ export function HomePage() {
                 </motion.div>
               ))}
             </div>
-            <Link
-              to="/service-areas"
-              className="mt-8 inline-flex items-center gap-2 border border-brand-gold/50 px-6 py-3 text-xs font-semibold tracking-widest text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/5"
-            >
-              VIEW ALL SERVICE AREAS
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="mt-8 flex justify-center">
+              <Link
+                to="/service-areas"
+                className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
+              >
+                VIEW ALL SERVICE AREAS
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </motion.div>
         </div>
       </section>
@@ -280,13 +293,15 @@ export function HomePage() {
               Established in {biz.founded} · Licensed &amp; insured · Professional chauffeurs ·
               Available 24/7
             </p>
-            <Link
-              to="/about"
-              className="mt-8 inline-flex items-center gap-2 border border-brand-gold/50 px-6 py-3 text-xs font-semibold tracking-widest text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/5"
-            >
-              LEARN MORE ABOUT US
-              <ArrowRight className="h-4 w-4" />
-            </Link>
+            <div className="mt-8 flex justify-center">
+              <Link
+                to="/about"
+                className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
+              >
+                LEARN MORE ABOUT US
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </motion.div>
           <motion.div
             className="order-first aspect-[16/10] w-full overflow-hidden border border-brand-gold/25 lg:order-none"

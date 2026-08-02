@@ -83,7 +83,7 @@ export function RequestQuotePage() {
             <button
               type="submit"
               disabled={status === 'sending'}
-              className="flex w-full items-center justify-center gap-2 border border-brand-gold/60 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:bg-brand-gold/10 disabled:opacity-70"
+              className="flex w-full items-center justify-center gap-2 rounded-full border border-brand-gold/60 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 disabled:opacity-70"
             >
               {status === 'sending' ? <><Loader2 className="h-4 w-4 animate-spin" /> SUBMITTING…</> : 'SUBMIT QUOTE REQUEST'}
             </button>

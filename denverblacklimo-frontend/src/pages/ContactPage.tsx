@@ -358,7 +358,7 @@ export function ContactPage() {
               <button
                 type="button"
                 onClick={() => setShowAllFaqs((v) => !v)}
-                className="mt-6 inline-flex items-center gap-2 border border-brand-black/25 px-5 py-2.5 text-xs font-bold tracking-widest text-brand-black transition hover:border-brand-gold-dark hover:text-brand-gold-dark"
+                className="mt-6 inline-flex items-center gap-2 rounded-full border border-brand-black/25 px-5 py-2.5 text-xs font-bold tracking-widest text-brand-black transition hover:border-brand-gold-dark hover:text-brand-gold-dark"
               >
                 {showAllFaqs ? 'SHOW FEWER FAQS' : 'VIEW ALL FAQS'}
                 <ChevronDown className={`h-4 w-4 transition-transform ${showAllFaqs ? 'rotate-180' : ''}`} />
