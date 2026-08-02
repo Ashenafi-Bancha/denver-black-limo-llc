@@ -277,52 +277,61 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* About Us — before the services, per client request */}
-      <section className="border-t border-brand-gold/15 bg-brand-charcoal">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 py-16 md:px-6 md:py-20 lg:grid-cols-2">
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          >
-            <p className="text-xs tracking-[0.3em] text-brand-gold-light">ABOUT US</p>
-            <h2 className="mt-3 font-display text-3xl text-white md:text-4xl">{about.title}</h2>
-            <p className="mt-4 leading-relaxed text-white/65">{about.intro}</p>
-            <p className="mt-3 text-sm leading-relaxed text-white/55">
-              Established in {biz.founded} · Licensed &amp; insured · Professional chauffeurs ·
-              Available 24/7
-            </p>
-            <div className="mt-8 flex justify-center">
-              <Link
-                to="/about"
-                className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
-              >
-                LEARN MORE ABOUT US
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-          </motion.div>
-          <motion.div
-            className="order-first aspect-[16/10] w-full overflow-hidden border border-brand-gold/25 lg:order-none"
-            initial={{ opacity: 0, scale: 0.97 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true, amount: 0.2 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          >
-            <img
-              src={about.heroImage}
-              alt="Denver Black Limo — about us"
-              loading="lazy"
-              className="h-full w-full object-cover"
-              onError={(e) => {
-                const t = e.currentTarget
-                if (t.dataset.fallback) return
-                t.dataset.fallback = '1'
-                t.src = IMAGES.hero2
-              }}
-            />
-          </motion.div>
+      {/* About Us — image blends into the section like the hero treatments:
+          top banner fading into text on mobile, right-side blend on desktop. */}
+      <section className="relative overflow-hidden border-t border-brand-gold/15 bg-brand-charcoal">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid items-stretch lg:grid-cols-2">
+            {/* Image — TOP on mobile, RIGHT on desktop, gradient-blended */}
+            <motion.div
+              className="relative order-1 min-h-[280px] sm:min-h-[360px] lg:order-2 lg:min-h-[480px]"
+              initial={{ opacity: 0, scale: 1.05 }}
+              whileInView={{ opacity: 1, scale: 1 }}
+              viewport={{ once: true, margin: '-80px' }}
+              transition={{ duration: 0.8, ease: 'easeOut' }}
+            >
+              <img
+                src={about.heroImage}
+                alt="Denver Black Limo — about us"
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover"
+                onError={(e) => {
+                  const t = e.currentTarget
+                  if (t.dataset.fallback) return
+                  t.dataset.fallback = '1'
+                  t.src = IMAGES.hero2
+                }}
+              />
+              {/* Smooth blend: bottom-fade on mobile, left-fade on desktop */}
+              <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-charcoal to-transparent to-[45%] lg:bg-gradient-to-r lg:from-brand-charcoal lg:to-transparent lg:to-[55%]" />
+            </motion.div>
+
+            {/* Text */}
+            <motion.div
+              className="order-2 flex flex-col justify-center px-4 pb-14 pt-2 md:px-6 lg:order-1 lg:py-20"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.2 }}
+              transition={{ duration: 0.7, ease: 'easeOut' }}
+            >
+              <p className="text-xs tracking-[0.3em] text-brand-gold-light">ABOUT US</p>
+              <h2 className="mt-3 font-display text-3xl text-white md:text-4xl">{about.title}</h2>
+              <p className="mt-4 leading-relaxed text-white/65">{about.intro}</p>
+              <p className="mt-3 text-sm leading-relaxed text-white/55">
+                Established in {biz.founded} · Licensed &amp; insured · Professional chauffeurs ·
+                Available 24/7
+              </p>
+              <div className="mt-8 flex justify-center">
+                <Link
+                  to="/about"
+                  className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
+                >
+                  LEARN MORE ABOUT US
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </div>
+            </motion.div>
+          </div>
         </div>
       </section>
 
