@@ -65,7 +65,7 @@ export function HomePage() {
     <>
       <section className="relative overflow-hidden flex flex-col md:block md:min-h-[74vh]">
         {/* Mobile: sliding photos as the background, heading overlaid on top */}
-        <div className="md:hidden relative w-full h-[40vh] min-h-[300px] shrink-0 bg-brand-black overflow-hidden">
+        <div className="md:hidden relative w-full h-[36vh] min-h-[240px] shrink-0 bg-brand-black overflow-hidden">
           <AnimatePresence initial={false}>
             <motion.img
               key={currentImageIndex}
@@ -152,7 +152,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-4 max-w-2xl space-y-3 text-sm leading-relaxed text-white/75 md:mt-6 md:text-base"
+            className="mt-3 max-w-2xl space-y-3 text-sm leading-relaxed text-white/75 md:mt-6 md:text-base"
           >
             {heroData.description
               .split(/\n{2,}|\n/)
@@ -166,7 +166,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-8"
+            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
@@ -182,8 +182,8 @@ export function HomePage() {
             </div>
             {/* Scroll indicator — two lines: label above, glowing mouse below.
                 Mobile: centered a bit below the buttons; desktop: to their right. */}
-            <div className="mt-6 flex flex-col items-center gap-2 self-center sm:ml-16 sm:mt-3 sm:self-start lg:ml-24">
-              <span className="scroll-text text-[10px] font-semibold tracking-[0.3em] text-brand-gold-light">
+            <div className="mt-1.5 flex flex-col items-center gap-1 self-center sm:ml-16 sm:mt-3 sm:gap-2 sm:self-start lg:ml-24">
+              <span className="scroll-text text-[9px] font-semibold tracking-[0.26em] text-brand-gold-light sm:text-[10px] sm:tracking-[0.3em]">
                 SCROLL TO EXPLORE
               </span>
               <span className="relative flex items-center justify-center">
