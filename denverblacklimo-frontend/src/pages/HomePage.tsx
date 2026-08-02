@@ -1,9 +1,11 @@
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect } from 'react'
-import { ArrowRight, Check, Info, Map, Phone, Sparkles, Users } from 'lucide-react'
+import { ArrowRight, Info, Phone, Sparkles, Users } from 'lucide-react'
 import { CTABanner } from '../components/CTABanner'
+import { ColoradoMap } from '../components/ColoradoMap'
 import { ReviewsCarousel } from '../components/ReviewsCarousel'
+import { ServiceIcon } from '../components/ServiceIcon'
 import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { homeCoverageList } from '../data/serviceAreas'
@@ -18,10 +20,24 @@ import {
   type BusinessInfo,
 } from '../content/defaults'
 
+/** Area-specific icon for each coverage item (design: no generic check marks). */
+function coverageIcon(area: string): string {
+  const a = area.toLowerCase()
+  if (a.includes('airport') || a.includes('aviation')) return 'plane'
+  if (a.includes('vail') || a.includes('aspen')) return 'snowflake'
+  if (a.includes('foothills')) return 'trees'
+  if (a.includes('boulder')) return 'tree-pine'
+  if (a.includes('entertainment') || a.includes('sports')) return 'music'
+  if (a.includes('long-distance')) return 'route'
+  if (a.includes('mountain') || a.includes('springs')) return 'mountain'
+  if (a.includes('south')) return 'home'
+  if (a.includes('metro') || a.includes('denver')) return 'building'
+  return 'map-pin'
+}
+
 const quickNav = [
   { title: 'About Us', desc: 'Our story & values', to: '/about', icon: Info },
   { title: 'Services', desc: `${services.length} premium categories`, to: '/services', icon: Sparkles },
-  { title: 'Service Areas', desc: 'Statewide coverage', to: '/service-areas', icon: Map },
   { title: 'Fleet', desc: 'Luxury vehicles', to: '/fleet', icon: Users },
   { title: 'Contact', desc: 'Speak with our team', to: '/contact', icon: Phone },
 ]
@@ -78,9 +94,9 @@ export function HomePage() {
               transition={{ delay: 0.1 }}
               className="font-display text-[2rem] font-semibold leading-[1.1] drop-shadow-lg"
             >
-              <span className="text-gold-gradient">{heroData.headline}</span>
+              <span className="text-white">{heroData.headline}</span>
               <br />
-              <span className="text-white">{heroData.subheadline}</span>
+              <span className="text-gold-gradient">{heroData.subheadline}</span>
             </motion.h1>
           </div>
         </div>
@@ -127,9 +143,9 @@ export function HomePage() {
             transition={{ delay: 0.1 }}
             className="mt-4 hidden max-w-4xl font-display text-4xl font-semibold leading-[1.1] md:block md:text-6xl lg:text-7xl"
           >
-            <span className="text-gold-gradient">{heroData.headline}</span>
+            <span className="text-white">{heroData.headline}</span>
             <br />
-            <span className="text-white">{heroData.subheadline}</span>
+            <span className="text-gold-gradient">{heroData.subheadline}</span>
           </motion.h1>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -169,20 +185,25 @@ export function HomePage() {
       <TrustRow items={aboutTrust} />
 
       <section className="border-b border-brand-gold/15 bg-brand-charcoal">
-        <div className="mx-auto grid max-w-7xl grid-cols-2 gap-3 px-4 py-10 sm:gap-4 md:px-6 md:py-12 lg:grid-cols-5">
+        <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 px-4 py-10 sm:grid-cols-2 md:px-6 md:py-12 lg:gap-5">
           {quickNav.map((item) => (
             <Link
               key={item.to}
               to={item.to}
-              className="group flex flex-col items-center gap-3 rounded-xl border border-brand-gold/20 bg-brand-surface/30 p-5 text-center transition duration-300 hover:-translate-y-0.5 hover:border-brand-gold/50 hover:bg-brand-surface hover:shadow-lg hover:shadow-brand-gold/10 last:col-span-2 lg:last:col-span-1"
+              className="group flex items-center gap-4 rounded-xl border border-brand-gold/25 bg-brand-surface/30 p-5 transition duration-300 hover:-translate-y-0.5 hover:border-brand-gold/60 hover:bg-brand-surface hover:shadow-lg hover:shadow-brand-gold/10 md:p-6"
             >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition duration-300 group-hover:scale-110 group-hover:border-brand-gold group-hover:bg-brand-gold/15">
-                <item.icon className="h-5 w-5" strokeWidth={1.5} />
-              </div>
-              <h2 className="font-display text-base text-brand-gold-light transition-colors duration-300 group-hover:text-white md:text-lg">
-                {item.title}
-              </h2>
-              <p className="text-xs text-white/60 transition-colors duration-300 group-hover:text-white/80">{item.desc}</p>
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full border border-brand-gold/50 text-brand-gold-light transition duration-300 group-hover:scale-110 group-hover:border-brand-gold group-hover:bg-brand-gold/15">
+                <item.icon className="h-6 w-6" strokeWidth={1.5} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <h2 className="font-display text-lg tracking-wide text-white transition-colors duration-300 group-hover:text-brand-gold-light">
+                  {item.title.toUpperCase()}
+                </h2>
+                <p className="mt-1 text-sm leading-snug text-white/60">{item.desc}</p>
+              </span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light transition duration-300 group-hover:translate-x-1 group-hover:border-brand-gold group-hover:bg-brand-gold/15">
+                <ArrowRight className="h-4 w-4" />
+              </span>
             </Link>
           ))}
         </div>
@@ -191,17 +212,11 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-24">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <motion.div
-            className="aspect-square w-full overflow-hidden border border-brand-gold/25"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
-            <img
-              src={IMAGES.hero2}
-              alt="Denver Black Limo - serving Colorado"
-              className="h-full w-full object-cover"
-              loading="lazy"
-            />
+            <ColoradoMap />
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -222,12 +237,14 @@ export function HomePage() {
               {homeCoverageList.map((area) => (
                 <motion.div
                   key={area}
-                  className="flex items-center gap-2 text-sm text-white/80"
+                  className="flex items-center gap-3 text-sm text-white/85"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 + homeCoverageList.indexOf(area) * 0.1 }}
                 >
-                  <Check className="h-4 w-4 shrink-0 text-brand-gold-light" />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light">
+                    <ServiceIcon name={coverageIcon(area)} className="h-4 w-4" />
+                  </span>
                   {area}
                 </motion.div>
               ))}

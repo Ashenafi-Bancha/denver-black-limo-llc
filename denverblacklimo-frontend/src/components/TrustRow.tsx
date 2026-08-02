@@ -4,18 +4,19 @@ type TrustItem = { label: string; icon: string }
 
 export function TrustRow({ items }: { items: TrustItem[] }) {
   return (
-    <div className="bg-brand-charcoal/80 py-12">
+    <div className="border-b border-brand-gold/15 bg-brand-charcoal/80 py-10">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6">
+        {/* Slim badge strip — gold icons, white labels, gold dividers (no cards, no hover) */}
+        <div className="grid grid-cols-2 gap-y-8 md:grid-cols-4">
           {items.map((item) => (
             <div
               key={item.label}
-              className="flex flex-col items-center justify-center rounded-2xl border border-white/15 bg-brand-surface/40 p-6 text-center"
+              className="flex flex-col items-center gap-3 border-brand-gold/25 px-3 text-center even:border-l md:even:border-l-0 md:[&:not(:first-child)]:border-l"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-white/40 text-white">
+              <span className="text-brand-gold-light">
                 <TrustIcon name={item.icon} />
-              </div>
-              <p className="mt-4 text-[11px] font-semibold tracking-[0.18em] text-white">
+              </span>
+              <p className="text-[11px] font-semibold leading-snug tracking-[0.18em] text-white">
                 {item.label.toUpperCase()}
               </p>
             </div>
