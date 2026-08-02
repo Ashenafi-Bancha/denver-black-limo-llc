@@ -4,7 +4,7 @@ type TrustItem = { label: string; icon: string }
 
 export function TrustRow({ items }: { items: TrustItem[] }) {
   return (
-    <div className="border-b border-brand-gold/15 bg-brand-charcoal/80 py-10">
+    <div className="border-b border-brand-gold/15 bg-brand-charcoal/80 py-6 md:py-10">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
         {/* Slim badge strip — gold icons, white labels, gold dividers (no cards, no hover) */}
         <div className="grid grid-cols-2 gap-y-8 md:grid-cols-4">

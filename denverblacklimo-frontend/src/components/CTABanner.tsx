@@ -71,18 +71,20 @@ export function CTABanner({
           {/* Center — phone */}
           {showPhone && (
             <div className="flex justify-center">
-              <a
-                href={telHref(biz.phone)}
-                className="group border border-brand-gold/50 bg-brand-black/60 px-8 py-6 text-center backdrop-blur-sm transition hover:border-brand-gold hover:bg-brand-gold/5"
-              >
-                <Phone className="mx-auto h-6 w-6 text-brand-gold-light transition group-hover:scale-110" />
-                <p className="mt-3 font-display text-3xl tracking-wide text-brand-gold-light md:text-4xl">
-                  {biz.phone}
-                </p>
-                <p className="mt-1 text-[10px] tracking-[0.25em] text-white/50">
-                  24/7 CUSTOMER SUPPORT
-                </p>
-              </a>
+              <div className="glow-border">
+                <a
+                  href={telHref(biz.phone)}
+                  className="group flex flex-col items-center rounded-[calc(1rem-1.5px)] bg-brand-black px-6 py-3.5 text-center transition hover:bg-brand-charcoal"
+                >
+                  <Phone className="h-4 w-4 text-brand-gold-light transition group-hover:scale-110" />
+                  <p className="mt-1.5 font-display text-lg tracking-wide text-brand-gold-light md:text-xl">
+                    {biz.phone}
+                  </p>
+                  <p className="mt-0.5 text-[9px] tracking-[0.25em] text-white/50">
+                    24/7 CUSTOMER SUPPORT
+                  </p>
+                </a>
+              </div>
             </div>
           )}
 

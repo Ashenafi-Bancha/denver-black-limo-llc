@@ -140,6 +140,38 @@
     opacity: 1;
   }
 }
+/* Animated moving-light border — a bright gold segment orbits the element edge */
+.glow-border {
+  position: relative;
+  overflow: hidden;
+  padding: 1.5px;
+  border-radius: 1rem;
+  background: rgba(212, 175, 55, 0.25);
+}
+.glow-border::before {
+  content: '';
+  position: absolute;
+  inset: -100%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 60deg,
+    rgba(212, 175, 55, 0.95) 105deg,
+    #f4e3a1 120deg,
+    rgba(212, 175, 55, 0.95) 135deg,
+    transparent 180deg 360deg
+  );
+  animation: border-spin 3.2s linear infinite;
+}
+.glow-border > * {
+  position: relative;
+  z-index: 1;
+}
+@keyframes border-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* "SCROLL TO EXPLORE" label — gentle golden shimmer */
 .scroll-text {
   animation: text-glow 2.2s ease-in-out infinite;

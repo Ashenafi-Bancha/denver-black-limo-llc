@@ -62,43 +62,64 @@ export function FleetPage() {
 
   return (
     <>
-      {/* Hero — centered title over the fleet line-up */}
-      <section className="relative min-h-[46vh] overflow-hidden">
-        <img
-          src="/images/fleet/fleet-hero.jpeg"
-          alt="Denver Black Limo fleet"
-          className="absolute inset-0 h-full w-full object-cover"
-          onError={(e) => {
-            const t = e.currentTarget
-            if (t.dataset.fallback) return
-            t.dataset.fallback = '1'
-            t.src = IMAGES.hero1
-          }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-brand-black/70 via-brand-black/40 to-brand-black" />
-        <motion.div
-          className="relative mx-auto flex min-h-[46vh] max-w-7xl flex-col items-center justify-center px-4 pt-20 pb-10 text-center md:px-6"
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: 'easeOut' }}
-        >
-          <p className="text-sm tracking-[0.35em] text-brand-gold-light">OUR FLEET</p>
-          <h1 className="mt-3 max-w-3xl font-display text-4xl font-semibold leading-tight text-white md:text-5xl">
-            Luxury Transportation for Every Journey
-          </h1>
-        </motion.div>
-      </section>
-
-      {/* Intro */}
-      <section className="mx-auto max-w-4xl px-4 pt-12 text-center md:px-6">
-        <p className="text-sm leading-relaxed text-white/75 md:text-base">
-          At Denver Black Limo LLC, our fleet is carefully selected to provide comfort, safety,
-          reliability, and flexibility for every journey. From executive airport transfers and
-          corporate travel to mountain trips, weddings, special events, and large-group
-          transportation, we offer the right vehicle for every occasion. Every ride is supported by
-          a professional chauffeur and a commitment to first-class service from pickup to
-          destination.
-        </p>
+      {/* Hero — client design: cream, heading + intro left, fleet line-up right */}
+      <section className="bg-brand-cream">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 pb-12 pt-10 md:px-6 md:pb-16 md:pt-14 lg:grid-cols-2">
+          <motion.div
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <p className="text-xs font-bold tracking-[0.35em] text-brand-gold-dark">OUR FLEET</p>
+            <h1 className="mt-3 font-display text-4xl font-bold leading-tight text-brand-black md:text-5xl">
+              LUXURY VEHICLES
+              <span className="mt-1 block font-semibold text-brand-gold-dark">for Every Occasion</span>
+            </h1>
+            <div className="mt-4 flex w-40 items-center gap-2">
+              <span className="h-px flex-1 bg-brand-gold-dark/50" />
+              <span className="h-1.5 w-1.5 rotate-45 bg-brand-gold-dark" />
+              <span className="h-px flex-1 bg-brand-gold-dark/50" />
+            </div>
+            <div className="mt-6 space-y-4 text-sm leading-relaxed text-brand-black/75 md:text-[15px]">
+              <p>
+                At Denver Black Limo LLC, our diverse fleet of luxury vehicles is designed to meet
+                the needs of every traveler and every occasion. From executive sedans and spacious
+                SUVs to Sprinter vans, limousines, and motor coaches, each vehicle is meticulously
+                maintained, fully insured, and prepared to deliver a first-class experience with
+                comfort, safety, and reliability.
+              </p>
+              <p>
+                Whether you&rsquo;re traveling for business, celebrating a special event, heading to
+                the airport, or exploring Colorado&rsquo;s mountains, we have the perfect vehicle to
+                make your journey exceptional.
+              </p>
+              <p>
+                Our professional chauffeurs are committed to punctuality, discretion, and unmatched
+                service, ensuring you arrive in style and on time — every time. From short trips to
+                long-distance destinations, you can trust Denver Black Limo LLC for a seamless and
+                luxurious travel experience.
+              </p>
+            </div>
+          </motion.div>
+          <motion.div
+            className="overflow-hidden rounded-2xl border border-brand-gold/40 shadow-xl shadow-brand-black/15"
+            initial={{ opacity: 0, scale: 0.97 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+          >
+            <img
+              src="/images/fleet/fleet-hero.jpeg"
+              alt="Denver Black Limo luxury fleet line-up"
+              className="h-full max-h-[440px] w-full object-cover"
+              onError={(e) => {
+                const t = e.currentTarget
+                if (t.dataset.fallback) return
+                t.dataset.fallback = '1'
+                t.src = IMAGES.hero1
+              }}
+            />
+          </motion.div>
+        </div>
       </section>
 
       {/* Trust badges */}
@@ -119,40 +140,57 @@ export function FleetPage() {
           {fleet.map((vehicle, index) => (
             <motion.article
               key={vehicle.id}
-              className="flex flex-col overflow-hidden rounded-xl border border-brand-gold/25 bg-brand-surface transition hover:border-brand-gold/50"
+              className="flex flex-col overflow-hidden rounded-2xl border border-brand-gold/40 bg-brand-cream shadow-lg shadow-brand-black/20 transition hover:border-brand-gold"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.5, delay: (index % 3) * 0.08, ease: 'easeOut' }}
             >
-              <div className="relative aspect-[16/10] overflow-hidden">
-                <VehicleImage vehicle={vehicle} className="h-full w-full object-cover transition duration-500 hover:scale-105" />
+              {/* Photo with the design's curved bottom edge */}
+              <div className="relative overflow-hidden [border-radius:0_0_50%_50%/0_0_2rem_2rem]">
+                <VehicleImage vehicle={vehicle} className="aspect-[16/11] w-full object-cover transition duration-500 hover:scale-105" />
                 <span className="absolute left-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-brand-gold/70 bg-brand-black/70 font-display text-sm text-brand-gold-light">
                   {vehicle.number ?? index + 1}
                 </span>
               </div>
-              <div className="flex flex-1 flex-col p-5 text-center">
-                <h2 className="font-display text-2xl text-white">{vehicle.name}</h2>
-                <div className="mt-2 flex items-center justify-center gap-6 text-sm text-brand-gold-light">
-                  <span className="inline-flex items-center gap-1.5">
-                    <Users className="h-4 w-4" /> {vehicle.passengers ?? vehicle.capacity}
-                  </span>
-                  <span className="inline-flex items-center gap-1.5">
-                    <Luggage className="h-4 w-4" /> {vehicle.luggage ?? '—'}
-                  </span>
+              <div className="flex flex-1 flex-col px-5 pb-6 pt-5 text-center">
+                {/* Stats — gold icons, divider between */}
+                <div className="flex items-stretch justify-center gap-6">
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-5 w-5 text-brand-gold-dark" strokeWidth={1.5} />
+                      <span className="font-display text-2xl text-brand-black">{vehicle.passengers ?? '—'}</span>
+                    </div>
+                    <p className="mt-1 text-[10px] tracking-[0.2em] text-brand-black/55">PASSENGERS</p>
+                  </div>
+                  <div className="w-px bg-brand-gold-dark/40" />
+                  <div className="flex flex-col items-center">
+                    <div className="flex items-center gap-2">
+                      <Luggage className="h-5 w-5 text-brand-gold-dark" strokeWidth={1.5} />
+                      <span className="font-display text-2xl text-brand-black">{vehicle.luggage ?? '—'}</span>
+                    </div>
+                    <p className="mt-1 text-[10px] tracking-[0.2em] text-brand-black/55">LUGGAGE</p>
+                  </div>
                 </div>
-                <p className="mt-3 flex-1 text-sm leading-relaxed text-white/65">{vehicle.description}</p>
+                {/* Diamond separator */}
+                <div className="mx-auto mt-4 flex w-44 items-center gap-2">
+                  <span className="h-px flex-1 bg-brand-gold-dark/40" />
+                  <span className="h-1.5 w-1.5 rotate-45 bg-brand-gold-dark" />
+                  <span className="h-px flex-1 bg-brand-gold-dark/40" />
+                </div>
+                <h2 className="mt-3 font-display text-3xl text-brand-black">{vehicle.name}</h2>
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-brand-black/70">{vehicle.description}</p>
                 <div className="mt-5 grid grid-cols-2 gap-3">
                   <button
                     type="button"
                     onClick={() => setSelected(vehicle)}
-                    className="rounded-full border border-brand-gold/50 px-3 py-2.5 text-[11px] font-bold tracking-widest text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10"
+                    className="rounded-full border border-brand-black/30 px-3 py-2.5 text-[11px] font-bold tracking-widest text-brand-black transition hover:border-brand-gold-dark hover:text-brand-gold-dark"
                   >
                     VIEW DETAILS
                   </button>
                   <Link
                     to="/book"
-                    className="rounded-full bg-gold-gradient px-3 py-2.5 text-[11px] font-bold tracking-widest text-brand-black transition hover:brightness-110"
+                    className="rounded-full bg-gold-gradient px-3 py-2.5 text-[11px] font-bold tracking-widest text-brand-black shadow-md shadow-brand-gold/30 transition hover:brightness-110"
                   >
                     REQUEST THIS VEHICLE
                   </Link>

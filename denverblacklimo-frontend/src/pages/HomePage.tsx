@@ -128,7 +128,7 @@ export function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
         
         {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-8 pt-4 md:min-h-[74vh] md:px-6 md:pb-10 md:pt-20">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-3 pt-4 md:min-h-[74vh] md:px-6 md:pb-10 md:pt-20">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -171,7 +171,7 @@ export function HomePage() {
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
             {/* Scroll indicator — two lines: label above, glowing mouse below.
                 Mobile: centered a bit below the buttons; desktop: to their right. */}
-            <div className="mt-6 flex flex-col items-center gap-2 self-center sm:ml-12 sm:mt-0 sm:self-auto lg:ml-16">
+            <div className="mt-6 flex flex-col items-center gap-2 self-center sm:ml-16 sm:mt-3 sm:self-start lg:ml-24">
               <span className="scroll-text text-[10px] font-semibold tracking-[0.3em] text-brand-gold-light">
                 SCROLL TO EXPLORE
               </span>
@@ -237,16 +237,16 @@ export function HomePage() {
               From DIA and private FBO terminals to Vail, Boulder, and the Western Slope — Denver
               Black Limo delivers consistent luxury service across Colorado.
             </p>
-            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="mt-8 grid grid-cols-2 gap-2.5 sm:gap-3">
               {homeCoverageList.map((area) => (
                 <motion.div
                   key={area}
-                  className="flex items-center gap-3 text-sm text-white/85"
+                  className="flex items-center gap-2.5 text-xs leading-snug text-white/85 sm:gap-3 sm:text-sm"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 + homeCoverageList.indexOf(area) * 0.1 }}
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-gold/40 text-brand-gold-light sm:h-9 sm:w-9">
                     <ServiceIcon name={coverageIcon(area)} className="h-4 w-4" />
                   </span>
                   {area}
