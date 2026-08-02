@@ -62,7 +62,7 @@ export function HomePage() {
 
   return (
     <>
-      <section className="relative min-h-[90vh] overflow-hidden flex flex-col md:block">
+      <section className="relative overflow-hidden flex flex-col md:block md:min-h-[74vh]">
         {/* Mobile: sliding photos as the background, heading overlaid on top */}
         <div className="md:hidden relative w-full h-[40vh] min-h-[300px] shrink-0 bg-brand-black overflow-hidden">
           <AnimatePresence initial={false}>
@@ -128,7 +128,7 @@ export function HomePage() {
         <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
         
         {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-12 pt-4 md:min-h-[90vh] md:px-6 md:pb-16 md:pt-28">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-8 pt-4 md:min-h-[74vh] md:px-6 md:pb-10 md:pt-20">
           <motion.p
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -169,13 +169,17 @@ export function HomePage() {
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
-            {/* Scroll indicator — below buttons on mobile, right of them on desktop */}
-            <div className="mt-2 flex items-center justify-center gap-3 self-center sm:ml-5 sm:mt-0 sm:self-auto">
-              <div className="scroll-mouse" aria-hidden="true">
-                <div className="scroll-mouse-wheel" />
-              </div>
-              <span className="text-[10px] font-semibold tracking-[0.3em] text-brand-gold-light/90">
+            {/* Scroll indicator — two lines: label above, glowing mouse below.
+                Mobile: centered a bit below the buttons; desktop: to their right. */}
+            <div className="mt-6 flex flex-col items-center gap-2 self-center sm:ml-12 sm:mt-0 sm:self-auto lg:ml-16">
+              <span className="scroll-text text-[10px] font-semibold tracking-[0.3em] text-brand-gold-light">
                 SCROLL TO EXPLORE
+              </span>
+              <span className="relative flex items-center justify-center">
+                <span className="scroll-halo" aria-hidden="true" />
+                <span className="scroll-mouse" aria-hidden="true">
+                  <span className="scroll-mouse-wheel" />
+                </span>
               </span>
             </div>
           </motion.div>

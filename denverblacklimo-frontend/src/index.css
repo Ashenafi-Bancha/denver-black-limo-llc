@@ -112,10 +112,47 @@
 @keyframes mouse-glow {
   0%,
   100% {
-    box-shadow: 0 0 6px rgba(212, 175, 55, 0.35);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.45);
   }
   50% {
-    box-shadow: 0 0 16px rgba(212, 175, 55, 0.75), 0 0 30px rgba(212, 175, 55, 0.25);
+    box-shadow: 0 0 20px rgba(212, 175, 55, 0.9), 0 0 40px rgba(212, 175, 55, 0.35);
+  }
+}
+/* Soft pulsing halo behind the mouse — the attention-seeking glow area */
+.scroll-halo {
+  position: absolute;
+  width: 52px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212, 175, 55, 0.4) 0%, rgba(212, 175, 55, 0.12) 45%, transparent 70%);
+  filter: blur(6px);
+  animation: halo-pulse 2.2s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes halo-pulse {
+  0%,
+  100% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+}
+/* "SCROLL TO EXPLORE" label — gentle golden shimmer */
+.scroll-text {
+  animation: text-glow 2.2s ease-in-out infinite;
+}
+@keyframes text-glow {
+  0%,
+  100% {
+    opacity: 0.75;
+    text-shadow: 0 0 4px rgba(212, 175, 55, 0.25);
+  }
+  50% {
+    opacity: 1;
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.75);
   }
 }
 
