@@ -62,64 +62,85 @@ export function FleetPage() {
 
   return (
     <>
-      {/* Hero — client design: cream, heading + intro left, fleet line-up right */}
-      <section className="bg-brand-cream">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 px-4 pb-12 pt-10 md:px-6 md:pb-16 md:pt-14 lg:grid-cols-2">
-          <motion.div
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          >
-            <p className="text-xs font-bold tracking-[0.35em] text-brand-gold-dark">OUR FLEET</p>
-            <h1 className="mt-3 font-display text-4xl font-bold leading-tight text-brand-black md:text-5xl">
-              LUXURY VEHICLES
-              <span className="mt-1 block font-semibold text-brand-gold-dark">for Every Occasion</span>
-            </h1>
-            <div className="mt-4 flex w-40 items-center gap-2">
-              <span className="h-px flex-1 bg-brand-gold-dark/50" />
-              <span className="h-1.5 w-1.5 rotate-45 bg-brand-gold-dark" />
-              <span className="h-px flex-1 bg-brand-gold-dark/50" />
-            </div>
-            <div className="mt-6 space-y-4 text-sm leading-relaxed text-brand-black/75 md:text-[15px]">
-              <p>
-                At Denver Black Limo LLC, our diverse fleet of luxury vehicles is designed to meet
-                the needs of every traveler and every occasion. From executive sedans and spacious
-                SUVs to Sprinter vans, limousines, and motor coaches, each vehicle is meticulously
-                maintained, fully insured, and prepared to deliver a first-class experience with
-                comfort, safety, and reliability.
-              </p>
-              <p>
-                Whether you&rsquo;re traveling for business, celebrating a special event, heading to
-                the airport, or exploring Colorado&rsquo;s mountains, we have the perfect vehicle to
-                make your journey exceptional.
-              </p>
-              <p>
-                Our professional chauffeurs are committed to punctuality, discretion, and unmatched
-                service, ensuring you arrive in style and on time — every time. From short trips to
-                long-distance destinations, you can trust Denver Black Limo LLC for a seamless and
-                luxurious travel experience.
-              </p>
-            </div>
-          </motion.div>
-          <motion.div
-            className="overflow-hidden rounded-2xl border border-brand-gold/40 shadow-xl shadow-brand-black/15"
-            initial={{ opacity: 0, scale: 0.97 }}
+      {/* Hero — background image like the other section heroes; on mobile the
+          image sits on top and blends smoothly into the text below. */}
+      <section className="relative overflow-hidden">
+        {/* Mobile: image banner fading into the content */}
+        <div className="relative h-[38vh] min-h-[260px] md:hidden">
+          <motion.img
+            src="/images/fleet/fleet-hero.jpeg"
+            alt="Denver Black Limo luxury fleet line-up"
+            className="absolute inset-0 h-full w-full object-cover"
+            initial={{ opacity: 0, scale: 1.05 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: 'easeOut' }}
-          >
-            <img
-              src="/images/fleet/fleet-hero.jpeg"
-              alt="Denver Black Limo luxury fleet line-up"
-              className="h-full max-h-[440px] w-full object-cover"
-              onError={(e) => {
-                const t = e.currentTarget
-                if (t.dataset.fallback) return
-                t.dataset.fallback = '1'
-                t.src = IMAGES.hero1
-              }}
-            />
-          </motion.div>
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            onError={(e) => {
+              const t = e.currentTarget
+              if (t.dataset.fallback) return
+              t.dataset.fallback = '1'
+              t.src = IMAGES.hero1
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/35 to-transparent" />
         </div>
+
+        {/* Desktop: full background image with a smooth left-to-right blend */}
+        <div className="absolute inset-0 hidden md:block">
+          <motion.img
+            src="/images/fleet/fleet-hero.jpeg"
+            alt=""
+            className="h-full w-full object-cover"
+            initial={{ opacity: 0, scale: 1.05 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, ease: 'easeOut' }}
+            onError={(e) => {
+              const t = e.currentTarget
+              if (t.dataset.fallback) return
+              t.dataset.fallback = '1'
+              t.src = IMAGES.hero1
+            }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/80 to-brand-black/25" />
+          <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-brand-black to-transparent" />
+        </div>
+
+        <motion.div
+          className="relative mx-auto max-w-7xl px-4 pb-10 pt-2 md:px-6 md:py-24"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
+        >
+          <p className="text-xs font-bold tracking-[0.35em] text-brand-gold-light">OUR FLEET</p>
+          <h1 className="mt-3 font-display text-4xl font-bold leading-tight text-white md:text-5xl">
+            LUXURY VEHICLES
+            <span className="mt-1 block font-semibold text-gold-gradient">for Every Occasion</span>
+          </h1>
+          <div className="mt-4 flex w-40 items-center gap-2">
+            <span className="h-px flex-1 bg-brand-gold/60" />
+            <span className="h-1.5 w-1.5 rotate-45 bg-brand-gold-light" />
+            <span className="h-px flex-1 bg-brand-gold/60" />
+          </div>
+          <div className="mt-6 max-w-2xl space-y-4 text-sm leading-relaxed text-white/75 md:text-[15px]">
+            <p>
+              At Denver Black Limo LLC, our diverse fleet of luxury vehicles is designed to meet
+              the needs of every traveler and every occasion. From executive sedans and spacious
+              SUVs to Sprinter vans, limousines, and motor coaches, each vehicle is meticulously
+              maintained, fully insured, and prepared to deliver a first-class experience with
+              comfort, safety, and reliability.
+            </p>
+            <p>
+              Whether you&rsquo;re traveling for business, celebrating a special event, heading to
+              the airport, or exploring Colorado&rsquo;s mountains, we have the perfect vehicle to
+              make your journey exceptional.
+            </p>
+            <p>
+              Our professional chauffeurs are committed to punctuality, discretion, and unmatched
+              service, ensuring you arrive in style and on time — every time. From short trips to
+              long-distance destinations, you can trust Denver Black Limo LLC for a seamless and
+              luxurious travel experience.
+            </p>
+          </div>
+        </motion.div>
       </section>
 
       {/* Trust badges */}
