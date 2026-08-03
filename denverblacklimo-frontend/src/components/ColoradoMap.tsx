@@ -96,12 +96,6 @@ export function ColoradoMap() {
           </text>
         </g>
       </svg>
-
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-brand-black/90 to-transparent px-4 pb-3 pt-8">
-        <p className="text-center font-display text-sm tracking-widest text-brand-gold-light">
-          STATEWIDE COVERAGE
-        </p>
-      </div>
     </div>
   )
 }

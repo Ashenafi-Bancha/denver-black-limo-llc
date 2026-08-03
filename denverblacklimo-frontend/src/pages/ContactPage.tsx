@@ -190,16 +190,21 @@ export function ContactPage() {
           <div className="flex flex-col overflow-hidden rounded-xl border border-brand-gold/25 bg-brand-surface">
             <div className="relative min-h-[260px] flex-1">
               <img
-                src="/images/contact/map.jpeg"
+                src="/images/coverage-map.jpeg"
                 alt="Denver Black Limo service coverage map — Front Range, Colorado"
                 loading="lazy"
                 className="absolute inset-0 h-full w-full object-cover"
                 onError={(e) => {
                   const t = e.currentTarget
-                  if (t.dataset.fallback) return
-                  t.dataset.fallback = '1'
-                  t.src =
-                    'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1000&auto=format&fit=crop&q=80'
+                  const step = t.dataset.step
+                  if (!step) {
+                    t.dataset.step = 'contact'
+                    t.src = '/images/contact/map.jpeg'
+                  } else if (step === 'contact') {
+                    t.dataset.step = 'stock'
+                    t.src =
+                      'https://images.unsplash.com/photo-1524661135-423995f22d0b?w=1000&auto=format&fit=crop&q=80'
+                  }
                 }}
               />
             </div>

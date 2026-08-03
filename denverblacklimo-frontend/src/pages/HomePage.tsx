@@ -227,11 +227,32 @@ export function HomePage() {
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-24">
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <motion.div
+            className="group relative overflow-hidden rounded-xl border border-brand-gold/25 bg-brand-charcoal"
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
           >
+            {/* SVG map renders underneath as fallback; the real photo covers it once loaded */}
             <ColoradoMap />
+            <img
+              src="/images/coverage-map.jpeg"
+              alt="Denver Black Limo statewide coverage"
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+            {/* Caption + description overlaid on the image */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-brand-black via-brand-black/70 to-transparent px-5 pb-4 pt-14">
+              <p className="font-display text-sm tracking-widest text-brand-gold-light">
+                STATEWIDE COVERAGE
+              </p>
+              <p className="mt-1 text-xs leading-relaxed text-white/75">
+                From Denver Metro and the Front Range to mountain resorts, airports, and
+                neighboring states — we come to you, anywhere in Colorado.
+              </p>
+            </div>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 30 }}
