@@ -214,17 +214,15 @@ One hero (the line-up shot) + one photo per vehicle, loaded by the vehicle's num
 ```
 fleet-hero.jpeg    # hero — the fleet line-up (sedan + SUV + van + coach)
 fleet-1.jpeg       # 1  Luxury Sedan      (Mercedes S-Class photo)
-fleet-2.jpeg       # 2  Executive Sedan   (Cadillac XT6 photo)
-fleet-3.jpeg       # 3  Luxury SUV        (Cadillac Escalade photo)
-fleet-4.jpeg       # 4  Executive SUV     (Chevrolet Suburban photo)
-fleet-5.jpeg       # 5  Van               (Ford Transit photo)
-fleet-6.jpeg       # 6  Luxury Van        (Mercedes Sprinter photo)
-fleet-7.jpeg       # 7  Mini Coach        (Ford shuttle coach photo)
-fleet-8.jpeg       # 8  Limo Bus          (Freightliner limo bus photo)
-fleet-9.jpeg       # 9  Motor Coach       (full-size coach photo)
+fleet-2.jpeg       # 2  Luxury SUV        (Cadillac Escalade photo)
+fleet-3.jpeg       # 3  Executive SUV     (Chevrolet Suburban photo)
+fleet-4.jpeg       # 4  Luxury Van        (Mercedes Sprinter photo)
+fleet-5.jpeg       # 5  Mini Coach        (Ford shuttle coach photo)
+fleet-6.jpeg       # 6  Limo Bus          (Freightliner limo bus photo)
+fleet-7.jpeg       # 7  Motor Coach       (full-size coach photo)
 ```
 
-**Total: 10 images**
+**Total: 8 images** *(Executive Sedan and Van removed from the fleet — no longer available)*
 
 ## Area detail pages — side banner + offer cards
 

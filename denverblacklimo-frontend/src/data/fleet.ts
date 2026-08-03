@@ -31,21 +31,9 @@ export const fleet: FleetVehicle[] = [
     bestFor: 'Airport Transfers, Business Travel, Private Rides',
     image: IMAGES.hero2,
   },
-  {
-    id: 'executive-sedan',
-    number: 2,
-    name: 'Executive Sedan',
-    type: 'Sedan',
-    passengers: '3',
-    luggage: '3',
-    capacity: 'Up to 3 Passengers, 3 Luggage',
-    description: 'Sophisticated comfort and modern style for business travel and beyond.',
-    bestFor: 'Executives, Meetings, Corporate Guests',
-    image: IMAGES.hero2,
-  },
-  {
+   {
     id: 'luxury-suv',
-    number: 3,
+    number: 2,
     name: 'Luxury SUV',
     type: 'SUV',
     passengers: '6',
@@ -57,7 +45,7 @@ export const fleet: FleetVehicle[] = [
   },
   {
     id: 'executive-suv',
-    number: 4,
+    number: 3,
     name: 'Executive SUV',
     type: 'SUV',
     passengers: '6',
@@ -67,21 +55,9 @@ export const fleet: FleetVehicle[] = [
     bestFor: 'Corporate Executives, VIP Service, Special Guests',
     image: IMAGES.hero2,
   },
-  {
-    id: 'van',
-    number: 5,
-    name: 'Van',
-    type: 'Van',
-    passengers: '14',
-    luggage: '14',
-    capacity: 'Up to 14 Passengers, 14 Luggage',
-    description: 'Reliable and spacious transportation for groups, events, and airport transfers.',
-    bestFor: 'Group Travel, Airport Transfers, Events',
-    image: IMAGES.hero2,
-  },
-  {
+   {
     id: 'luxury-van',
-    number: 6,
+    number: 4,
     name: 'Luxury Van',
     type: 'Van',
     passengers: '14',
@@ -93,7 +69,7 @@ export const fleet: FleetVehicle[] = [
   },
   {
     id: 'mini-coach',
-    number: 7,
+    number: 5,
     name: 'Mini Coach',
     type: 'Coach',
     passengers: '13',
@@ -105,7 +81,7 @@ export const fleet: FleetVehicle[] = [
   },
   {
     id: 'limo-bus',
-    number: 8,
+    number: 6,
     name: 'Limo Bus',
     type: 'Bus',
     passengers: '28',
@@ -117,7 +93,7 @@ export const fleet: FleetVehicle[] = [
   },
   {
     id: 'motor-coach',
-    number: 9,
+    number: 7,
     name: 'Motor Coach',
     type: 'Coach',
     passengers: '55',
