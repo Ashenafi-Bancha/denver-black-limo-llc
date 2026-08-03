@@ -4,8 +4,15 @@ import { Calendar, ChevronDown, ChevronRight, Menu, Phone, X } from 'lucide-reac
 import { motion, AnimatePresence } from 'framer-motion'
 import { Logo } from './Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
-import { DEFAULT_BUSINESS, telHref, defaultServices, type BusinessInfo } from '../content/defaults'
+import {
+  DEFAULT_BUSINESS,
+  telHref,
+  defaultServices,
+  defaultServiceAreas,
+  type BusinessInfo,
+} from '../content/defaults'
 import type { Service } from '../data/services'
+import type { ServiceArea } from '../data/serviceAreas'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `whitespace-nowrap text-xs font-medium tracking-[0.2em] transition ${
@@ -23,10 +30,12 @@ const NAV_LINKS: [string, string][] = [
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [servicesOpen, setServicesOpen] = useState(false)
+  const [areasOpen, setAreasOpen] = useState(false)
   const [mobileServicesOpen, setMobileServicesOpen] = useState(false)
   const { get } = useSiteSettings()
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
   const services = get<Service[]>('services', defaultServices)
+  const areas = get<ServiceArea[]>('service_areas', defaultServiceAreas)
 
   // Lock background scroll while the drawer is open
   useEffect(() => {
@@ -68,10 +77,11 @@ export function Header() {
             <AnimatePresence>
               {servicesOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 8 }}
-                  className="absolute left-0 top-full z-50 mt-2 w-80 border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl"
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl"
                 >
                   {services.map((s) => (
                     <Link
@@ -95,9 +105,46 @@ export function Header() {
           <NavLink to="/fleet" className={navLinkClass}>
             FLEET
           </NavLink>
-          <NavLink to="/service-areas" className={navLinkClass}>
-            SERVICE AREAS
-          </NavLink>
+          <div
+            className="relative"
+            onMouseEnter={() => setAreasOpen(true)}
+            onMouseLeave={() => setAreasOpen(false)}
+          >
+            <button
+              type="button"
+              className="flex whitespace-nowrap items-center gap-1 text-xs font-medium tracking-[0.2em] text-white/80 transition hover:text-brand-gold-light"
+            >
+              SERVICE AREAS
+              <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            <AnimatePresence>
+              {areasOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                  className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl"
+                >
+                  {areas.map((a) => (
+                    <Link
+                      key={a.slug}
+                      to={`/service-areas/${a.slug}`}
+                      className="block border border-transparent px-3 py-2 text-sm text-white/85 transition hover:border-brand-gold/30 hover:bg-brand-surface hover:text-brand-gold-light"
+                    >
+                      {a.title}
+                    </Link>
+                  ))}
+                  <Link
+                    to="/service-areas"
+                    className="mt-1 block border-t border-white/10 px-3 py-2 text-xs tracking-widest text-brand-gold-light"
+                  >
+                    VIEW ALL SERVICE AREAS →
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <NavLink to="/about" className={navLinkClass}>
             ABOUT US
           </NavLink>
