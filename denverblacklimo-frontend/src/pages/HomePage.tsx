@@ -57,7 +57,7 @@ export function HomePage() {
     setCurrentImageIndex(0)
     const timer = setInterval(() => {
       setCurrentImageIndex((prev) => (prev + 1) % heroImages.length)
-    }, 2000)
+    }, 3500)
     return () => clearInterval(timer)
   }, [heroImages.length])
 
@@ -75,7 +75,7 @@ export function HomePage() {
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
-              transition={{ duration: 0.8, ease: 'easeInOut' }}
+              transition={{ duration: 1.1, ease: 'easeInOut' }}
               onError={(e) => {
                 const t = e.currentTarget
                 if (!t.dataset.fb) {
