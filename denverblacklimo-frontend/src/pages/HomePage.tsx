@@ -63,47 +63,9 @@ export function HomePage() {
 
   return (
     <>
-      <section className="relative overflow-hidden flex flex-col md:block md:min-h-[74vh]">
-        {/* Mobile: sliding photos as the background, heading overlaid on top */}
-        <div className="md:hidden relative w-full h-[36vh] min-h-[240px] shrink-0 bg-brand-black overflow-hidden">
-          <AnimatePresence initial={false}>
-            <motion.img
-              key={currentImageIndex}
-              src={heroImages[currentImageIndex]}
-              alt="Denver Black Limo luxury vehicle"
-              className="absolute inset-0 w-full h-full object-cover"
-              initial={{ x: '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ duration: 0.8, ease: 'easeInOut' }}
-              onError={(e) => {
-                const t = e.currentTarget
-                if (!t.dataset.fb) {
-                  t.dataset.fb = '1'
-                  t.src = IMAGES.hero1
-                }
-              }}
-            />
-          </AnimatePresence>
-          {/* Readability gradient — strongest at the bottom where the heading sits */}
-          <div className="absolute inset-0 z-10 bg-gradient-to-t from-brand-black via-brand-black/45 to-brand-black/10" />
-          {/* Heading overlay */}
-          <div className="absolute inset-x-0 bottom-0 z-20 px-4 pb-4">
-            <motion.h1
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="font-display text-[2rem] font-semibold leading-[1.1] drop-shadow-lg"
-            >
-              <span className="text-white">{heroData.headline}</span>
-              <br />
-              <span className="text-gold-gradient">{heroData.subheadline}</span>
-            </motion.h1>
-          </div>
-        </div>
-
-        {/* Desktop: Image behind text */}
-        <div className="absolute inset-0 h-full w-full hidden md:block bg-brand-black overflow-hidden">
+      <section className="relative overflow-hidden md:min-h-[74vh]">
+        {/* Sliding photos as the full hero background (all screens) */}
+        <div className="absolute inset-0 overflow-hidden bg-brand-black">
           <AnimatePresence initial={false}>
             <motion.img
               key={currentImageIndex}
@@ -123,44 +85,78 @@ export function HomePage() {
               }}
             />
           </AnimatePresence>
+          <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/80 to-brand-black/45 md:bg-gradient-to-r md:from-brand-black md:via-brand-black/75 md:to-brand-black/25" />
         </div>
-        
-        {/* Gradient overlay for desktop */}
-        <div className="absolute inset-0 bg-gradient-to-r from-brand-black via-brand-black/70 to-brand-black/20 hidden md:block z-10" />
-        
-        {/* Text content - positioned below image on mobile, centered on desktop */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col justify-center px-4 pb-3 pt-4 md:min-h-[74vh] md:px-6 md:pb-10 md:pt-20">
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="whitespace-nowrap text-[11px] tracking-[0.2em] text-brand-gold-light md:whitespace-normal md:text-xs md:tracking-[0.35em]"
-          >
-            PREMIUM. PROFESSIONAL. PUNCTUAL.
-          </motion.p>
-          {/* Heading — shown here on desktop; on mobile it lives over the sliding banner above */}
+
+        {/* Brand lockup — per client design: logo landing above the hero text */}
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-6 pt-8 text-center md:min-h-[74vh] md:items-start md:justify-center md:px-6 md:py-16 md:text-left">
+          <motion.img
+            src={IMAGES.logo}
+            alt="Denver Black Limo LLC logo"
+            className="h-24 w-24 rounded-full object-cover shadow-lg shadow-brand-gold/20 ring-2 ring-brand-gold/40 md:h-28 md:w-28"
+            initial={{ opacity: 0, y: -16, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.7, ease: 'easeOut' }}
+            onError={(e) => {
+              if (!e.currentTarget.src.endsWith('/images/logo.webp')) {
+                e.currentTarget.src = '/images/logo.webp'
+              }
+            }}
+          />
           <motion.h1
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mt-4 hidden max-w-4xl font-display text-4xl font-semibold leading-[1.1] md:block md:text-6xl lg:text-7xl"
+            className="mt-4 font-display font-bold leading-none"
           >
-            <span className="text-white">{heroData.headline}</span>
-            <br />
-            <span className="text-gold-gradient">{heroData.subheadline}</span>
+            <span className="block bg-gradient-to-b from-white via-gray-100 to-gray-400 bg-clip-text text-[3.4rem] tracking-[0.05em] text-transparent md:text-8xl">
+              DENVER
+            </span>
+            <span className="mt-1 block text-gold-gradient text-[1.9rem] tracking-[0.04em] md:text-6xl">
+              BLACK LIMO, LLC
+            </span>
           </motion.h1>
+          {/* line — diamond — line divider */}
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.15 }}
+            className="mt-4 flex w-64 items-center gap-2 md:w-96"
+          >
+            <span className="h-px flex-1 bg-brand-gold/60" />
+            <span className="h-2 w-2 rotate-45 bg-brand-gold-light" />
+            <span className="h-px flex-1 bg-brand-gold/60" />
+          </motion.div>
+          <motion.p
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-3 max-w-2xl space-y-3 text-sm leading-relaxed text-white/75 md:mt-6 md:text-base"
+            className="mt-3 text-[13px] font-medium tracking-[0.22em] text-white md:text-lg md:tracking-[0.3em]"
           >
-            {heroData.description
-              .split(/\n{2,}|\n/)
-              .map((para) => para.trim())
-              .filter(Boolean)
-              .map((para, i) => (
-                <p key={i}>{para}</p>
-              ))}
+            LUXURY CHAUFFEURED TRANSPORTATION
+          </motion.p>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.25 }}
+            className="mt-4 text-[11px] font-semibold tracking-[0.08em] text-white/90 md:text-sm"
+          >
+            <p>
+              DENVER METRO
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              DIA
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              RED ROCKS
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              MOUNTAIN RESORTS
+            </p>
+            <p className="mt-2">
+              CORPORATE TRAVEL
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              WEDDINGS &amp; EVENTS
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              AND MORE
+            </p>
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -169,7 +165,7 @@ export function HomePage() {
             className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
-            <OutlineButton to="/quote">REQUEST A QUOTE</OutlineButton>
+            <OutlineButton to="/quote">GET A QUOTE</OutlineButton>
             {/* Call button — desktop only, moving-light border, same size as its siblings */}
             <div className="glow-border glow-border-pill hidden md:block">
               <a
