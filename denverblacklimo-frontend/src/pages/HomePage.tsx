@@ -100,10 +100,9 @@ export function HomePage() {
         </div>
 
         {/* Brand lockup — per client design: logo landing above the hero text */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-6 pt-8 text-center md:min-h-[74vh] md:items-start md:justify-center md:px-6 md:py-16 md:text-left">
-          {/* Brand lockup — internally centered so the logo and divider sit
-              balanced over the heading, while the block stays left on desktop */}
-          <div className="flex flex-col items-center text-center md:w-fit">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-8 text-left md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
+          {/* Brand lockup — left-aligned on all screens */}
+          <div className="flex flex-col items-start text-left md:w-fit">
           <motion.img
             src={IMAGES.logo}
             alt="Denver Black Limo LLC logo"
@@ -156,7 +155,7 @@ export function HomePage() {
             className="mt-4 w-full text-[clamp(12px,3.4vw,15px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
           >
             {/* Tags flow into centered rows so the block always stays balanced */}
-            <p className="mx-auto flex max-w-[92%] flex-wrap items-center justify-center gap-x-1.5 gap-y-1.5 md:max-w-none md:gap-x-2.5">
+            <p className="flex max-w-[96%] flex-wrap items-center justify-start gap-x-1.5 gap-y-1.5 md:max-w-none md:gap-x-2.5">
               {HERO_TAGS.map((tag, i) => (
                 <span key={tag} className="whitespace-nowrap">
                   {tag}
@@ -172,7 +171,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-8"
+            className="mt-4 flex flex-wrap items-center gap-3 md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">GET A QUOTE</OutlineButton>
@@ -188,7 +187,7 @@ export function HomePage() {
             </div>
             {/* Scroll indicator — two lines: label above, glowing mouse below.
                 Mobile: centered a bit below the buttons; desktop: to their right. */}
-            <div className="mt-1.5 flex flex-col items-center gap-1 self-center sm:ml-16 sm:mt-3 sm:gap-2 sm:self-start lg:ml-24">
+            <div className="mt-1.5 flex w-full flex-col items-center gap-1 sm:ml-16 sm:mt-3 sm:w-auto sm:gap-2 lg:ml-24">
               <span className="scroll-text text-[9px] font-semibold tracking-[0.26em] text-brand-gold-light sm:text-[10px] sm:tracking-[0.3em]">
                 SCROLL TO EXPLORE
               </span>
