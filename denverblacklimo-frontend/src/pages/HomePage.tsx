@@ -21,6 +21,17 @@ import {
   type BusinessInfo,
 } from '../content/defaults'
 
+/** Hero service tags — flow into centered rows under the brand lockup. */
+const HERO_TAGS = [
+  'DENVER METRO',
+  'DIA',
+  'RED ROCKS',
+  'MOUNTAIN RESORTS',
+  'CORPORATE TRAVEL',
+  'WEDDINGS & EVENTS',
+  'AND MORE',
+]
+
 /** Area-specific icon for each coverage item (design: no generic check marks). */
 function coverageIcon(area: string): string {
   const a = area.toLowerCase()
@@ -142,24 +153,18 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-4 w-full whitespace-nowrap text-[clamp(10px,2.9vw,13px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
+            className="mt-4 w-full text-[clamp(12px,3.4vw,15px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
           >
-            {/* Sized to fill the width on one line, with natural gaps */}
-            <p>
-              DENVER METRO
-              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
-              DIA
-              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
-              RED ROCKS
-              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
-              MOUNTAIN RESORTS
-            </p>
-            <p className="mt-2">
-              CORPORATE TRAVEL
-              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
-              WEDDINGS &amp; EVENTS
-              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
-              AND MORE
+            {/* Tags flow into centered rows so the block always stays balanced */}
+            <p className="mx-auto flex max-w-[92%] flex-wrap items-center justify-center gap-x-1.5 gap-y-1.5 md:max-w-none md:gap-x-2.5">
+              {HERO_TAGS.map((tag, i) => (
+                <span key={tag} className="whitespace-nowrap">
+                  {tag}
+                  {i < HERO_TAGS.length - 1 && (
+                    <span className="ml-1.5 text-brand-gold-light md:ml-2.5">•</span>
+                  )}
+                </span>
+              ))}
             </p>
           </motion.div>
           </div>
