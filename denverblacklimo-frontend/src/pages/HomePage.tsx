@@ -90,10 +90,13 @@ export function HomePage() {
 
         {/* Brand lockup — per client design: logo landing above the hero text */}
         <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-center px-4 pb-6 pt-8 text-center md:min-h-[74vh] md:items-start md:justify-center md:px-6 md:py-16 md:text-left">
+          {/* Brand lockup — internally centered so the logo and divider sit
+              balanced over the heading, while the block stays left on desktop */}
+          <div className="flex flex-col items-center text-center md:w-fit">
           <motion.img
             src={IMAGES.logo}
             alt="Denver Black Limo LLC logo"
-            className="h-24 w-24 rounded-full object-cover shadow-lg shadow-brand-gold/20 ring-2 ring-brand-gold/40 md:h-28 md:w-28"
+            className="h-24 w-24 rounded-full object-cover shadow-lg shadow-brand-gold/20 ring-2 ring-brand-gold/40 md:h-36 md:w-36"
             initial={{ opacity: 0, y: -16, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.7, ease: 'easeOut' }}
@@ -121,7 +124,7 @@ export function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15 }}
-            className="mt-4 flex w-64 items-center gap-2 md:w-96"
+            className="mt-4 flex w-64 items-center gap-2 md:w-[28rem]"
           >
             <span className="h-px flex-1 bg-brand-gold/60" />
             <span className="h-2 w-2 rotate-45 bg-brand-gold-light" />
@@ -158,6 +161,7 @@ export function HomePage() {
               AND MORE
             </p>
           </motion.div>
+          </div>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
