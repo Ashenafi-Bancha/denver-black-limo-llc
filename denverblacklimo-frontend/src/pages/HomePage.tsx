@@ -142,24 +142,24 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-4 w-full text-[9px] font-semibold tracking-normal text-white/90 sm:text-[10px] md:text-sm md:tracking-[0.08em]"
+            className="mt-4 w-full whitespace-nowrap text-[clamp(10px,2.9vw,13px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
           >
-            {/* Each row spreads edge-to-edge on mobile so both lines stay balanced */}
-            <p className="flex w-full items-center justify-between whitespace-nowrap md:justify-center md:gap-2.5">
-              <span>DENVER METRO</span>
-              <span className="text-brand-gold-light">•</span>
-              <span>DIA</span>
-              <span className="text-brand-gold-light">•</span>
-              <span>RED ROCKS</span>
-              <span className="text-brand-gold-light">•</span>
-              <span>MOUNTAIN RESORTS</span>
+            {/* Sized to fill the width on one line, with natural gaps */}
+            <p>
+              DENVER METRO
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              DIA
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              RED ROCKS
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              MOUNTAIN RESORTS
             </p>
-            <p className="mt-2 flex w-full items-center justify-between whitespace-nowrap md:justify-center md:gap-2.5">
-              <span>CORPORATE TRAVEL</span>
-              <span className="text-brand-gold-light">•</span>
-              <span>WEDDINGS &amp; EVENTS</span>
-              <span className="text-brand-gold-light">•</span>
-              <span>AND MORE</span>
+            <p className="mt-2">
+              CORPORATE TRAVEL
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              WEDDINGS &amp; EVENTS
+              <span className="mx-1.5 text-brand-gold-light md:mx-2.5">•</span>
+              AND MORE
             </p>
           </motion.div>
           </div>
