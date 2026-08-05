@@ -24,6 +24,7 @@ import {
   isSportingService,
   type ServiceConfig,
 } from '../data/bookingServices'
+import { useAddressAutocomplete } from '../lib/googlePlaces'
 import {
   Check,
   ChevronDown,
@@ -51,6 +52,7 @@ import {
   Home,
   Music,
   ArrowRight,
+  ArrowLeft,
   ShieldCheck,
 } from 'lucide-react'
 
@@ -66,10 +68,13 @@ interface ItineraryStop {
 const GOLD = '#c9a227'
 const AIRPORT_LABEL = 'Denver International Airport (DEN)'
 
+const STEPS = ['Trip Details', 'Your Information', 'Review & Submit']
+
 export function BookNowPage() {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
+  const [step, setStep] = useState(1)
 
   const [form, setForm] = useState({
     // Customer
@@ -192,14 +197,18 @@ export function BookNowPage() {
     return form.dropoffLocation
   }, [layout, form, itinerary])
 
-  // ── Validation ──
-  const validate = () => {
+  // ── Validation (split per wizard step) ──
+  const collectCustomerErrors = () => {
     const e: FormErrors = {}
     if (!form.name.trim()) e.name = 'Full name is required'
     if (!form.phone.trim()) e.phone = 'Phone number is required'
     if (!form.email.trim()) e.email = 'Email is required'
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Enter a valid email'
+    return e
+  }
 
+  const collectTripErrors = () => {
+    const e: FormErrors = {}
     if (layout === 'airport') {
       if (!airline) e.airline = 'Please select an airline'
       if (!form.flightNumber.trim()) e.flightNumber = 'Flight number is required'
@@ -239,7 +248,11 @@ export function BookNowPage() {
       if (!form.pickupLocation.trim()) e.pickupLocation = 'Pickup address is required'
       if (!form.dropoffLocation.trim()) e.dropoffLocation = 'Destination is required'
     }
+    return e
+  }
 
+  /** Applies errors, scrolls up when something is wrong, and reports validity. */
+  const commit = (e: FormErrors) => {
     setErrors(e)
     if (Object.keys(e).length > 0) {
       window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -247,6 +260,24 @@ export function BookNowPage() {
     }
     return true
   }
+
+  const validateTrip = () => commit(collectTripErrors())
+  const validateCustomer = () => commit(collectCustomerErrors())
+  const validate = () => commit({ ...collectTripErrors(), ...collectCustomerErrors() })
+
+  // ── Wizard navigation ──
+  const goToStep = (next: number) => {
+    setStep(next)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const goNext = () => {
+    if (step === 1 && !validateTrip()) return
+    if (step === 2 && !validateCustomer()) return
+    goToStep(Math.min(STEPS.length, step + 1))
+  }
+
+  const goBack = () => goToStep(Math.max(1, step - 1))
 
   const onSubmit = async () => {
     if (!validate()) return
@@ -345,10 +376,14 @@ export function BookNowPage() {
           <div className="mx-auto mt-4 h-1 w-16 rounded-full" style={{ backgroundColor: GOLD }} />
         </div>
 
+        {/* Progress */}
+        <Stepper current={step} onSelect={(n) => n < step && goToStep(n)} />
+
         <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
           {/* ─────────── LEFT: FORM ─────────── */}
           <div className="space-y-6">
-            {/* SECTION 1 — TRIP DETAILS */}
+            {/* STEP 1 — TRIP DETAILS */}
+            {step === 1 && (
             <SectionCard step={1} title="Trip Details">
               <div className="grid gap-6 md:grid-cols-2">
                 <Select
@@ -384,8 +419,10 @@ export function BookNowPage() {
                 </Field>
               </div>
             </SectionCard>
+            )}
 
-            {/* SECTION 2 — CUSTOMER + PASSENGER/VEHICLE */}
+            {/* STEP 2 — CUSTOMER + PASSENGER/VEHICLE */}
+            {step === 2 && (
             <SectionCard step={2} title="Customer Information">
               <div className="grid gap-6 md:grid-cols-2">
                 <Input label="Full Name" required value={form.name} onChange={(v) => set('name', v)} error={errors.name} icon={<User className="h-4 w-4" />} placeholder="John Smith" />
@@ -409,28 +446,65 @@ export function BookNowPage() {
                 </Field>
               </div>
             </SectionCard>
+            )}
 
-            {/* SECTION 3 — REVIEW & SUBMIT */}
-            <SectionCard step={3} title="Review & Submit">
-              <div className="flex items-center gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
-                <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
-                Your information is secure and will only be used for your booking.
-              </div>
-              <button
-                type="button"
-                onClick={onSubmit}
-                disabled={isSubmitting}
-                className="mt-5 flex w-full items-center justify-center gap-3 rounded-lg bg-black px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] text-[color:var(--gold)] transition-all hover:bg-gray-900 disabled:opacity-60"
-                style={{ ['--gold' as string]: GOLD }}
-              >
-                {isSubmitting ? 'Submitting…' : <>Submit Booking Request <ArrowRight className="h-4 w-4" /></>}
-              </button>
-              <p className="mt-3 text-center text-xs text-gray-400">🔒 We will contact you shortly with your personalized quote.</p>
-            </SectionCard>
+            {/* STEP 3 — REVIEW & SUBMIT (mobile shows the full summary here) */}
+            {step === 3 && (
+              <>
+                <div className="lg:hidden">{renderSummaryPanel()}</div>
+                <SectionCard step={3} title="Review & Submit">
+                  <div className="flex items-center gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
+                    <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
+                    Your information is secure and will only be used for your booking.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onSubmit}
+                    disabled={isSubmitting}
+                    className="mt-5 flex w-full items-center justify-center gap-3 rounded-lg bg-black px-8 py-4 text-sm font-bold uppercase tracking-[0.2em] text-[color:var(--gold)] transition-all hover:bg-gray-900 disabled:opacity-60"
+                    style={{ ['--gold' as string]: GOLD }}
+                  >
+                    {isSubmitting ? 'Submitting…' : <>Submit Booking Request <ArrowRight className="h-4 w-4" /></>}
+                  </button>
+                  <p className="mt-3 text-center text-xs text-gray-400">🔒 We will contact you shortly with your personalized quote.</p>
+                </SectionCard>
+              </>
+            )}
+
+            {/* Wizard navigation */}
+            <div className="flex items-center gap-3">
+              {step > 1 && (
+                <button
+                  type="button"
+                  onClick={goBack}
+                  className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-6 py-3.5 text-sm font-bold uppercase tracking-wider text-gray-700 transition-colors hover:border-gray-400 hover:bg-gray-50"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Back
+                </button>
+              )}
+              {step < STEPS.length && (
+                <button
+                  type="button"
+                  onClick={goNext}
+                  className="ml-auto inline-flex flex-1 items-center justify-center gap-2 rounded-lg bg-black px-8 py-3.5 text-sm font-bold uppercase tracking-[0.15em] text-[color:var(--gold)] transition-all hover:bg-gray-900 sm:flex-none"
+                  style={{ ['--gold' as string]: GOLD }}
+                >
+                  Continue <ArrowRight className="h-4 w-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {/* ─────────── RIGHT: LIVE SUMMARY ─────────── */}
-          <aside className="lg:sticky lg:top-24">
+          {/* ─────────── RIGHT: LIVE SUMMARY (desktop only) ─────────── */}
+          <aside className="hidden lg:sticky lg:top-24 lg:block">{renderSummaryPanel()}</aside>
+        </div>
+      </div>
+    </div>
+  )
+
+  // Summary "cart" — sticky sidebar on desktop, shown on the final step on mobile.
+  function renderSummaryPanel() {
+    return (
             <div className="overflow-hidden rounded-xl bg-[#0a0a0a] text-white shadow-2xl shadow-black/30 ring-1 ring-white/10">
               <div className="flex items-center justify-between px-5 pt-5">
                 <h2 className="text-sm font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>Your Booking Summary</h2>
@@ -489,11 +563,8 @@ export function BookNowPage() {
                 </a>
               </div>
             </div>
-          </aside>
-        </div>
-      </div>
-    </div>
-  )
+    )
+  }
 
   // ─────────────────────────────────────────────
   // SERVICE-SPECIFIC FIELD MODULES
@@ -547,11 +618,11 @@ export function BookNowPage() {
           {arriving ? (
             <>
               <ReadOnlyLocation label="Pickup Location (At Airport)" value={AIRPORT_LABEL} />
-              <Input label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Hotel, home or business address" />
+              <AddressInput label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} placeholder="Hotel, home or business address" />
             </>
           ) : (
             <>
-              <Input label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Home, hotel or business address" />
+              <AddressInput label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Home, hotel or business address" />
               <ReadOnlyLocation label="Destination" value={AIRPORT_LABEL} />
             </>
           )}
@@ -599,11 +670,11 @@ export function BookNowPage() {
           {arriving ? (
             <>
               <ReadOnlyLocation label="Pickup Location (From FBO)" value={fbo?.name || ''} />
-              <Input label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Hotel, home or business address" />
+              <AddressInput label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} placeholder="Hotel, home or business address" />
             </>
           ) : (
             <>
-              <Input label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Home, hotel or business address" />
+              <AddressInput label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Home, hotel or business address" />
               <ReadOnlyLocation label="Destination (FBO)" value={fbo?.name || ''} />
             </>
           )}
@@ -627,8 +698,8 @@ export function BookNowPage() {
           )}
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Input label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Home, hotel or business address" />
-          <Input label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Drop-off address" />
+          <AddressInput label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Home, hotel or business address" />
+          <AddressInput label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} placeholder="Drop-off address" />
         </div>
         {renderReturnBlock()}
       </div>
@@ -649,7 +720,7 @@ export function BookNowPage() {
           </Field>
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Input label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Starting address" />
+          <AddressInput label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Starting address" />
           <Field label="Service Area">
             <NativeSelect value={form.serviceArea} onChange={(v) => set('serviceArea', v)} options={SERVICE_AREAS.map((s) => ({ value: s, label: s }))} leftIcon={<MapPin className="h-4 w-4" />} />
           </Field>
@@ -686,7 +757,7 @@ export function BookNowPage() {
             <Input label="Flight Number" optional value={form.flightNumber} onChange={(v) => set('flightNumber', v)} placeholder="e.g. AA1234" />
           </div>
         ) : (
-          <Input label={`Pickup Location (${form.pickupType})`} required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Hotel or residence address" />
+          <AddressInput label={`Pickup Location (${form.pickupType})`} required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Hotel or residence address" />
         )}
 
         <DateTimeRow dateLabel={arriving ? 'Arrival Date' : 'Pickup Date'} timeLabel={arriving ? 'Arrival Time' : 'Pickup Time'} form={form} set={set} errors={errors} />
@@ -697,7 +768,7 @@ export function BookNowPage() {
             <NativeSelect value={form.resort} onChange={(v) => set('resort', v)} placeholder="Select resort" options={MOUNTAIN_RESORTS.map((r) => ({ value: r, label: r }))} leftIcon={<Mountain className="h-4 w-4" />} />
             {errors.dropoffLocation && !form.resort && <p className="mt-1 text-xs text-red-500">{errors.dropoffLocation}</p>}
           </Field>
-          <Input label="Resort / Hotel Address" optional value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} icon={<MapPin className="h-4 w-4" />} placeholder="Specific lodge or address (optional)" />
+          <AddressInput label="Resort / Hotel Address" optional value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} placeholder="Specific lodge or address (optional)" />
         </div>
         {renderReturnBlock()}
       </div>
@@ -722,7 +793,7 @@ export function BookNowPage() {
           <Input label="Event Time" type="time" value={form.eventTime} onChange={(v) => set('eventTime', v)} />
         </div>
         <div className="grid gap-6 md:grid-cols-2">
-          <Input label="Pickup Location (From)" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} icon={<MapPin className="h-4 w-4" />} placeholder="Home, hotel or residence" />
+          <AddressInput label="Pickup Location (From)" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Home, hotel or residence" />
           <Input label="Pickup Time" type="time" value={form.pickupTime} onChange={(v) => set('pickupTime', v)} />
         </div>
         <div className="rounded-lg border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-sm text-[#854d0e]">
@@ -730,7 +801,7 @@ export function BookNowPage() {
         </div>
         {form.tripType !== 'One Way' && (
           <div className="grid gap-6 md:grid-cols-2">
-            <Input label="Return Pickup Location (After Event)" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} icon={<MapPin className="h-4 w-4" />} placeholder="Where should we pick you up after?" />
+            <AddressInput label="Return Pickup Location (After Event)" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} placeholder="Where should we pick you up after?" />
             <Input label="Return Pickup Time" type="time" value={form.returnPickupTime} onChange={(v) => set('returnPickupTime', v)} />
           </div>
         )}
@@ -776,12 +847,11 @@ export function BookNowPage() {
                   )}
                 </div>
                 <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
-                  <input
+                  <PlaceInput
                     value={stop.location}
-                    onChange={(e) => updateItineraryStop(i, 'location', e.target.value)}
+                    onChange={(v) => updateItineraryStop(i, 'location', v)}
                     placeholder="Address / venue"
                     className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[color:var(--gold)]"
-                    style={{ ['--gold' as string]: GOLD }}
                   />
                   <input
                     type="time"
@@ -817,7 +887,7 @@ export function BookNowPage() {
           <Calendar className="h-3.5 w-3.5" /> Return Trip
         </p>
         <div className="grid gap-4 md:grid-cols-3">
-          <Input label="Return Pickup Location" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} icon={<MapPin className="h-4 w-4" />} placeholder="Return pickup address" />
+          <AddressInput label="Return Pickup Location" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} placeholder="Return pickup address" />
           <Input label="Return Date" type="date" value={form.returnDate} onChange={(v) => set('returnDate', v)} />
           <Input label="Return Time" type="time" value={form.returnTime} onChange={(v) => set('returnTime', v)} />
         </div>
@@ -889,6 +959,55 @@ export function BookNowPage() {
 // SHARED SUB-COMPONENTS
 // ═════════════════════════════════════════════
 
+/** Wizard progress bar — completed steps are clickable to go back and edit. */
+function Stepper({ current, onSelect }: { current: number; onSelect: (n: number) => void }) {
+  return (
+    <div className="mb-8">
+      <div className="flex items-center">
+        {STEPS.map((label, i) => {
+          const n = i + 1
+          const done = n < current
+          const active = n === current
+          return (
+            <div key={label} className="flex flex-1 items-center last:flex-none">
+              <button
+                type="button"
+                onClick={() => onSelect(n)}
+                disabled={n >= current}
+                className={`flex items-center gap-2.5 ${done ? 'cursor-pointer' : 'cursor-default'}`}
+              >
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold transition-colors ${
+                    done
+                      ? 'bg-black text-white'
+                      : active
+                        ? 'bg-black'
+                        : 'border border-gray-300 bg-white text-gray-400'
+                  }`}
+                  style={active ? { color: GOLD } : undefined}
+                >
+                  {done ? <Check className="h-4 w-4" /> : n}
+                </span>
+                <span
+                  className={`hidden whitespace-nowrap text-xs font-bold uppercase tracking-wider sm:block ${
+                    active ? 'text-gray-900' : done ? 'text-gray-600' : 'text-gray-400'
+                  }`}
+                >
+                  {label}
+                </span>
+              </button>
+              {n < STEPS.length && <span className={`mx-3 h-px flex-1 ${done ? 'bg-black' : 'bg-gray-200'}`} />}
+            </div>
+          )
+        })}
+      </div>
+      <p className="mt-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-500 sm:hidden">
+        Step {current} of {STEPS.length} — {STEPS[current - 1]}
+      </p>
+    </div>
+  )
+}
+
 function SectionCard({ step, title, children }: { step: number; title: string; children: React.ReactNode }) {
   return (
     <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm md:p-7">
@@ -931,6 +1050,70 @@ function Input({ label, value, onChange, error, icon, required, optional, placeh
           style={{ ['--tw-ring-color' as string]: GOLD }}
           onFocus={(e) => (e.currentTarget.style.borderColor = GOLD)}
           onBlur={(e) => (e.currentTarget.style.borderColor = error ? '#fca5a5' : '#e5e7eb')}
+        />
+      </div>
+      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+    </Field>
+  )
+}
+
+/** Bare text input wired to Google Places; plain typing still works without a key. */
+function PlaceInput({
+  value,
+  onChange,
+  placeholder,
+  className,
+}: {
+  value: string
+  onChange: (v: string) => void
+  placeholder?: string
+  className?: string
+}) {
+  const ref = useAddressAutocomplete(onChange)
+  return (
+    <input
+      ref={ref}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      autoComplete="off"
+      className={className}
+      style={{ ['--gold' as string]: GOLD }}
+    />
+  )
+}
+
+/** Labelled address field — matches Input's look, with Places autocomplete. */
+function AddressInput({
+  label,
+  value,
+  onChange,
+  error,
+  required,
+  optional,
+  placeholder,
+}: {
+  label: string
+  value: string
+  onChange: (v: string) => void
+  error?: string
+  required?: boolean
+  optional?: boolean
+  placeholder?: string
+}) {
+  return (
+    <Field label={label} required={required} optional={optional}>
+      <div className="relative">
+        <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+          <MapPin className="h-4 w-4" />
+        </div>
+        <PlaceInput
+          value={value}
+          onChange={onChange}
+          placeholder={placeholder}
+          className={`w-full rounded-lg border py-2.5 pl-10 pr-3 text-sm text-gray-900 outline-none transition-colors focus:border-[color:var(--gold)] focus:bg-white ${
+            error ? 'border-red-300' : 'border-gray-200 bg-gray-50/50'
+          }`}
         />
       </div>
       {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
@@ -1053,12 +1236,11 @@ function AdditionalStops({ stops, setStops }: { stops: string[]; setStops: (s: s
         <div className="space-y-2">
           {stops.map((s, i) => (
             <div key={i} className="flex gap-2">
-              <input
+              <PlaceInput
                 value={s}
-                onChange={(e) => setStops(stops.map((v, idx) => (idx === i ? e.target.value : v)))}
+                onChange={(val) => setStops(stops.map((v, idx) => (idx === i ? val : v)))}
                 placeholder={`Stop ${i + 1} address`}
                 className="w-full rounded-lg border border-gray-200 bg-gray-50/50 px-3 py-2.5 text-sm outline-none focus:border-[color:var(--gold)] focus:bg-white"
-                style={{ ['--gold' as string]: GOLD }}
               />
               <button type="button" onClick={() => setStops(stops.filter((_, idx) => idx !== i))} className="rounded-lg border border-gray-200 px-3 text-gray-400 hover:text-red-500"><X className="h-4 w-4" /></button>
             </div>
