@@ -81,9 +81,9 @@ function shell({ title, preheader = '', contentHtml }) {
       <td align="center" class="wrap" style="padding:28px 16px;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; background:#ffffff; border-radius:10px; overflow:hidden; border:1px solid ${BRAND.line};">
 
-          <!-- Header: logo + business name -->
+          <!-- Header: solid black, gold rule underneath -->
           <tr>
-            <td style="background:${BRAND.black}; padding:20px 32px;">
+            <td style="background:${BRAND.black}; padding:20px 32px; border-bottom:3px solid ${BRAND.gold};">
               <table role="presentation" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="padding-right:12px; vertical-align:middle;">
@@ -99,42 +99,46 @@ function shell({ title, preheader = '', contentHtml }) {
             </td>
           </tr>
 
-          <!-- Body -->
+          <!-- Body: pure white -->
           <tr><td style="background:#ffffff;">${contentHtml}</td></tr>
 
-          <!-- Footer -->
+          <!-- Footer: lighter charcoal + gold rule so it reads apart from the header -->
           <tr>
-            <td style="background:${BRAND.black}; padding:26px 32px; text-align:center;">
-              <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px;">
+            <td style="background:#161616; padding:28px 32px; text-align:center; border-top:3px solid ${BRAND.gold};">
+
+              <!-- Social icons + website, evenly spaced as one block -->
+              <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto;">
                 <tr>
-                  <td style="padding:0 6px;">
+                  <td align="center" style="padding:0 7px;">
                     <a href="${BRAND.facebook}" target="_blank">
-                      <img src="${SITE}/images/email/facebook.png" width="30" height="30" alt="Facebook" style="display:block; width:30px; height:30px; border-radius:50%;">
+                      <img src="${SITE}/images/email/facebook.png" width="32" height="32" alt="Facebook" style="display:block; width:32px; height:32px; border-radius:50%;">
                     </a>
                   </td>
-                  <td style="padding:0 6px;">
+                  <td align="center" style="padding:0 7px;">
                     <a href="${BRAND.instagram}" target="_blank">
-                      <img src="${SITE}/images/email/instagram.png" width="30" height="30" alt="Instagram" style="display:block; width:30px; height:30px; border-radius:50%;">
+                      <img src="${SITE}/images/email/instagram.png" width="32" height="32" alt="Instagram" style="display:block; width:32px; height:32px; border-radius:50%;">
                     </a>
                   </td>
-                  <td style="padding:0 6px;">
+                  <td align="center" style="padding:0 7px;">
                     <a href="${BRAND.whatsapp}" target="_blank">
-                      <img src="${SITE}/images/email/whatsapp.png" width="30" height="30" alt="WhatsApp" style="display:block; width:30px; height:30px; border-radius:50%;">
+                      <img src="${SITE}/images/email/whatsapp.png" width="32" height="32" alt="WhatsApp" style="display:block; width:32px; height:32px; border-radius:50%;">
                     </a>
+                  </td>
+                </tr>
+                <tr>
+                  <td colspan="3" align="center" style="padding:14px 0 0;">
+                    <a href="${SITE}" target="_blank" style="font-size:14px; font-weight:600; letter-spacing:1px; color:${BRAND.goldLight}; text-decoration:none;">denverblacklimo.llc</a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 6px; font-size:13px; color:#ffffff;">
-                <a href="${BRAND.phoneHref}" style="color:${BRAND.goldLight}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>
-                <span style="color:#555;"> &nbsp;|&nbsp; </span>
-                <a href="mailto:${BRAND.email}" style="color:${BRAND.goldLight}; text-decoration:none;">${BRAND.email}</a>
+              <p style="margin:16px 0 0; font-size:13px; line-height:1.9; color:#ffffff;">
+                <a href="${BRAND.phoneHref}" style="color:#ffffff; text-decoration:none; font-weight:600;">${BRAND.phone}</a><br>
+                <a href="mailto:${BRAND.email}" style="color:#ffffff; text-decoration:none;">${BRAND.email}</a><br>
+                <span style="color:#9a9a9a; font-size:12px;">Denver, Colorado &nbsp;&middot;&nbsp; Available 24/7</span>
               </p>
-              <p style="margin:0 0 12px; font-size:12px; color:#8a8a8a;">
-                <a href="${SITE}" style="color:#8a8a8a; text-decoration:none;">denverblacklimo.llc</a>
-                &nbsp;|&nbsp; Denver, Colorado &nbsp;|&nbsp; Available 24/7
-              </p>
-              <p style="margin:0; font-size:11px; color:#6b6b6b; letter-spacing:0.4px;">
+
+              <p style="margin:18px 0 0; padding-top:14px; border-top:1px solid #2b2b2b; font-size:11px; color:#7d7d7d; letter-spacing:0.4px;">
                 &copy; ${new Date().getFullYear()} ${BRAND.name}. All rights reserved.
               </p>
             </td>
@@ -170,7 +174,7 @@ function rowsTable(rows) {
 
 /** Light bordered panel used to group details. */
 function panel(innerHtml) {
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#fafafa; border:1px solid ${BRAND.line}; border-radius:8px;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#ffffff; border:1px solid ${BRAND.line}; border-radius:8px;">
     <tr><td style="padding:18px 20px;">${innerHtml}</td></tr>
   </table>`;
 }
