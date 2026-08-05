@@ -11,6 +11,11 @@ const KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
 
 let loader: Promise<boolean> | null = null
 
+/** True when a Google Maps key is configured at build time. */
+export function hasGoogleKey(): boolean {
+  return Boolean(KEY)
+}
+
 /** Loads the Maps JS API once; resolves false when unavailable. */
 export function loadGooglePlaces(): Promise<boolean> {
   if (!KEY || typeof window === 'undefined') return Promise.resolve(false)

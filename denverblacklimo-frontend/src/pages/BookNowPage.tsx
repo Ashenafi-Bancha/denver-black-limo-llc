@@ -24,7 +24,7 @@ import {
   isSportingService,
   type ServiceConfig,
 } from '../data/bookingServices'
-import { useAddressAutocomplete } from '../lib/googlePlaces'
+import { PlaceInput } from '../components/PlaceInput'
 import {
   Check,
   ChevronDown,
@@ -1057,33 +1057,7 @@ function Input({ label, value, onChange, error, icon, required, optional, placeh
   )
 }
 
-/** Bare text input wired to Google Places; plain typing still works without a key. */
-function PlaceInput({
-  value,
-  onChange,
-  placeholder,
-  className,
-}: {
-  value: string
-  onChange: (v: string) => void
-  placeholder?: string
-  className?: string
-}) {
-  const ref = useAddressAutocomplete(onChange)
-  return (
-    <input
-      ref={ref}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      autoComplete="off"
-      className={className}
-      style={{ ['--gold' as string]: GOLD }}
-    />
-  )
-}
-
-/** Labelled address field — matches Input's look, with Places autocomplete. */
+/** Labelled address field — matches Input's look, with address suggestions. */
 function AddressInput({
   label,
   value,
