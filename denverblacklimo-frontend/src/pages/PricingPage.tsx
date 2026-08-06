@@ -118,12 +118,11 @@ export function PricingPage() {
                             <span className="text-xs text-white/50"> /hr</span>
                           </span>
                         ) : (
-                          <Link
-                            to="/quote"
-                            className="inline-flex items-center gap-1 text-xs font-bold tracking-wider text-brand-gold-light hover:underline"
-                          >
-                            REQUEST QUOTE <ArrowRight className="h-3 w-3" />
-                          </Link>
+                          // Published rates are pending from the client; show a holding
+                          // label rather than an empty cell.
+                          <span className="inline-flex items-center rounded-full border border-brand-gold/30 bg-brand-gold/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-brand-gold-light">
+                            Coming soon
+                          </span>
                         )}
                       </td>
                       <td className="px-5 py-4 text-white/60">{r.minimumHours || '—'}</td>
@@ -135,9 +134,18 @@ export function PricingPage() {
           </div>
 
           {!hasAnyRate && (
-            <p className="mt-4 text-center text-xs text-white/45">
-              Every trip is quoted individually — tell us your route and we will send your price.
-            </p>
+            <div className="mt-5 text-center">
+              <p className="text-xs text-white/45">
+                Published rates are on the way. In the meantime every trip is quoted individually —
+                tell us your route and we will send your price.
+              </p>
+              <Link
+                to="/quote"
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-brand-gold/50 px-5 py-2 text-xs font-bold tracking-wider text-brand-gold-light transition hover:bg-brand-gold/10"
+              >
+                REQUEST A QUOTE <ArrowRight className="h-3 w-3" />
+              </Link>
+            </div>
           )}
         </div>
       </section>

@@ -14,6 +14,7 @@ import {
   BOOKING_STATUSES, INQUIRY_STATUSES, statusStyle, matchesQuery,
 } from '../admin/adminUtils'
 import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, type Toast } from '../admin/AdminUI'
+import { OPTION_CLASS } from '../lib/formStyles'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -539,7 +540,7 @@ export function AdminDashboard() {
                           <a href={`tel:${b.phone}`} onClick={(e) => e.stopPropagation()} title={`Call ${b.phone}`} className="flex items-center gap-1.5 rounded border border-white/15 px-3 py-2 text-xs text-white/70 transition-colors hover:border-brand-gold/40 hover:text-brand-gold"><Phone className="h-3.5 w-3.5" /> Call</a>
                           <button onClick={(e) => { e.stopPropagation(); openEmailModal({ id: b.id, name: b.name, email: b.email, kind: 'booking' }) }} className="flex items-center gap-1.5 rounded border border-brand-gold/40 bg-brand-gold/5 px-3 py-2 text-xs text-brand-gold hover:bg-brand-gold/15 transition-colors"><Send className="h-3.5 w-3.5" /> Email</button>
                           <select value={b.status} onChange={(e) => { e.stopPropagation(); updateBookingStatus(b.id, e.target.value, b.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
-                            {BOOKING_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                            {BOOKING_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
                           </select>
                         </div>
                       </div>
@@ -637,7 +638,7 @@ export function AdminDashboard() {
                         <div className="flex shrink-0 items-center gap-3">
                           <button onClick={(e) => { e.stopPropagation(); openEmailModal({ id: q.id, name: q.name, email: q.email, kind: 'inquiry' }) }} className="flex items-center gap-1.5 rounded border border-brand-gold/40 bg-brand-gold/5 px-3 py-2 text-xs text-brand-gold hover:bg-brand-gold/15 transition-colors"><Send className="h-3.5 w-3.5" /> Reply</button>
                           <select value={q.status} onChange={(e) => { e.stopPropagation(); updateInquiryStatus(q.id, e.target.value, q.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
-                            {INQUIRY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                            {INQUIRY_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
                           </select>
                         </div>
                       </div>

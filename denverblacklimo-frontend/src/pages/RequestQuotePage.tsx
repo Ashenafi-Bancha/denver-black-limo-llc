@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { PageHero } from '../components/ui'
 import { SERVICE_TYPES } from '../constants'
 import { IMAGES } from '../config/images'
+import { OPTION_CLASS, OPTION_PLACEHOLDER_CLASS } from '../lib/formStyles'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
@@ -65,9 +66,9 @@ export function RequestQuotePage() {
                 onChange={(e) => setField('service', e.target.value)}
                 className="mt-2 w-full border border-white/10 bg-brand-black px-3 py-2 text-sm text-white outline-none focus:border-brand-gold/50"
               >
-                <option value="" disabled>Select a service</option>
+                <option value="" disabled className={OPTION_PLACEHOLDER_CLASS}>Select a service</option>
                 {SERVICE_TYPES.map((s) => (
-                  <option key={s} value={s}>{s}</option>
+                  <option key={s} value={s} className={OPTION_CLASS}>{s}</option>
                 ))}
               </select>
             </div>

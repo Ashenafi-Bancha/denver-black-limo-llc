@@ -19,6 +19,7 @@ import {
 import { CTABanner } from '../components/CTABanner'
 import { IMAGES } from '../config/images'
 import { SERVICE_TYPES } from '../constants'
+import { OPTION_CLASS, OPTION_PLACEHOLDER_CLASS } from '../lib/formStyles'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import {
   DEFAULT_BUSINESS,
@@ -289,11 +290,11 @@ export function ContactPage() {
                   >
                     {/* Options need an explicit background: left transparent, the native
                         dropdown inherits the field's black and renders black-on-black. */}
-                    <option value="" className="bg-brand-surface text-white/60">
+                    <option value="" className={OPTION_PLACEHOLDER_CLASS}>
                       Select a service…
                     </option>
                     {SERVICE_TYPES.map((s) => (
-                      <option key={s} value={s} className="bg-brand-surface text-white">
+                      <option key={s} value={s} className={OPTION_CLASS}>
                         {s}
                       </option>
                     ))}
