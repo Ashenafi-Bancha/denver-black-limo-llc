@@ -92,8 +92,13 @@ export function ContactPage() {
 
   const visibleFaqs = showAllFaqs ? faqs : faqs.slice(0, 5)
 
-  const inputClass =
-    'w-full rounded-lg border border-white/10 bg-brand-black px-3.5 py-2.5 text-sm text-white outline-none transition focus:border-brand-gold/60'
+  // No text colour here on purpose: the select needs a dim "nothing chosen yet" state,
+  // and two competing `text-*` utilities on one element resolve by stylesheet order
+  // rather than by the order they are written.
+  const fieldBase =
+    'w-full rounded-lg border border-white/15 bg-brand-black/80 px-3.5 py-2.5 text-sm placeholder:text-white/45 outline-none transition ' +
+    'hover:border-white/25 focus:border-brand-gold focus:bg-brand-black focus:ring-2 focus:ring-brand-gold/25'
+  const inputClass = `${fieldBase} text-white`
 
   return (
     <>
@@ -246,68 +251,81 @@ export function ContactPage() {
                   </label>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <input
-                    required
-                    placeholder="Full Name"
-                    aria-label="Full Name"
-                    value={form.name}
-                    onChange={(e) => setField('name', e.target.value)}
-                    className={inputClass}
-                  />
-                  <input
-                    required
-                    type="tel"
-                    placeholder="Phone Number"
-                    aria-label="Phone Number"
-                    value={form.phone}
-                    onChange={(e) => setField('phone', e.target.value)}
-                    className={inputClass}
-                  />
+                  <ContactField label="Full Name" required>
+                    <input
+                      required
+                      placeholder="Jane Smith"
+                      value={form.name}
+                      onChange={(e) => setField('name', e.target.value)}
+                      className={inputClass}
+                    />
+                  </ContactField>
+                  <ContactField label="Phone" required>
+                    <input
+                      required
+                      type="tel"
+                      placeholder="(720) 555-1234"
+                      value={form.phone}
+                      onChange={(e) => setField('phone', e.target.value)}
+                      className={inputClass}
+                    />
+                  </ContactField>
                 </div>
-                <input
-                  required
-                  type="email"
-                  placeholder="Email Address"
-                  aria-label="Email Address"
-                  value={form.email}
-                  onChange={(e) => setField('email', e.target.value)}
-                  className={inputClass}
-                />
-                <select
-                  aria-label="Service Needed"
-                  value={form.service}
-                  onChange={(e) => setField('service', e.target.value)}
-                  className={`${inputClass} ${form.service ? 'text-white' : 'text-white/50'}`}
-                >
-                  <option value="">Service Needed</option>
-                  {SERVICE_TYPES.map((s) => (
-                    <option key={s} value={s} className="text-brand-black">
-                      {s}
+                <ContactField label="Email" required>
+                  <input
+                    required
+                    type="email"
+                    placeholder="jane@email.com"
+                    value={form.email}
+                    onChange={(e) => setField('email', e.target.value)}
+                    className={inputClass}
+                  />
+                </ContactField>
+                <ContactField label="Service Needed">
+                  <select
+                    value={form.service}
+                    onChange={(e) => setField('service', e.target.value)}
+                    className={`${fieldBase} ${form.service ? 'text-white' : 'text-white/45'}`}
+                  >
+                    {/* Options need an explicit background: left transparent, the native
+                        dropdown inherits the field's black and renders black-on-black. */}
+                    <option value="" className="bg-brand-surface text-white/60">
+                      Select a service…
                     </option>
-                  ))}
-                </select>
-                <input
-                  placeholder="Pick-Up Location"
-                  aria-label="Pick-Up Location"
-                  value={form.pickup}
-                  onChange={(e) => setField('pickup', e.target.value)}
-                  className={inputClass}
-                />
-                <input
-                  placeholder="Drop-Off Location"
-                  aria-label="Drop-Off Location"
-                  value={form.dropoff}
-                  onChange={(e) => setField('dropoff', e.target.value)}
-                  className={inputClass}
-                />
-                <textarea
-                  rows={4}
-                  placeholder="Additional Details / Message"
-                  aria-label="Additional Details / Message"
-                  value={form.message}
-                  onChange={(e) => setField('message', e.target.value)}
-                  className={inputClass}
-                />
+                    {SERVICE_TYPES.map((s) => (
+                      <option key={s} value={s} className="bg-brand-surface text-white">
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </ContactField>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ContactField label="Pick-Up Location">
+                    <input
+                      placeholder="Address, hotel or airport"
+                      value={form.pickup}
+                      onChange={(e) => setField('pickup', e.target.value)}
+                      className={inputClass}
+                    />
+                  </ContactField>
+                  <ContactField label="Drop-Off Location">
+                    <input
+                      placeholder="Where are you heading?"
+                      value={form.dropoff}
+                      onChange={(e) => setField('dropoff', e.target.value)}
+                      className={inputClass}
+                    />
+                  </ContactField>
+                </div>
+                <ContactField label="Additional Details">
+                  <textarea
+                    rows={4}
+                    placeholder="Passenger count, luggage, flight number, special requests…"
+                    value={form.message}
+                    onChange={(e) => setField('message', e.target.value)}
+                    className={inputClass}
+                  />
+                </ContactField>
                 {status === 'error' && (
                   <p className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
                     Something went wrong. Please try again or call us at {biz.phone}.
@@ -413,5 +431,18 @@ export function ContactPage() {
 
       <CTABanner title="Book Your Luxury Transportation Today" />
     </>
+  )
+}
+
+/** Labelled field wrapper — the form was placeholder-only, so the context vanished as soon as you typed. */
+function ContactField({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-gold/80">
+        {label}
+        {required && <span className="ml-0.5 text-brand-gold">*</span>}
+      </span>
+      {children}
+    </label>
   )
 }
