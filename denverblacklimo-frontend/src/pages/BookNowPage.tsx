@@ -54,7 +54,9 @@ import {
   ArrowRight,
   ArrowLeft,
   ShieldCheck,
+  AlertCircle,
 } from 'lucide-react'
+import { fmtDateTime, fmtTime } from '../lib/datetime'
 
 type TripType = 'One Way' | 'Round Trip' | 'Hourly (As Directed)'
 type FormErrors = Record<string, string | undefined>
@@ -107,6 +109,8 @@ export function BookNowPage() {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
+  /** How many fields failed on the last Continue press — drives the summary banner. */
+  const [errorCount, setErrorCount] = useState(0)
   const [step, setStep] = useState(1)
   const [reference, setReference] = useState('')
   /** Hidden field — only bots fill it in. */
@@ -221,6 +225,15 @@ export function BookNowPage() {
   // Keep the draft in sync so nothing is lost on refresh or accidental back.
   useEffect(() => {
     if (submitted) return
+    // Only once the visitor has actually typed something. Saving an untouched form
+    // meant a first-time visitor came back to "We restored the details you started
+    // earlier" over a completely empty form.
+    const started =
+      Boolean(form.name || form.email || form.phone || form.pickupLocation || form.dropoffLocation ||
+        form.pickupDate || form.flightNumber || form.eventVenue || form.fboName || airline) ||
+      stops.some(Boolean) ||
+      itinerary.some((s) => s.location)
+    if (!started) return
     try {
       localStorage.setItem(
         DRAFT_KEY,
@@ -327,14 +340,37 @@ export function BookNowPage() {
     return e
   }
 
-  /** Applies errors, scrolls up when something is wrong, and reports validity. */
+  /**
+   * Applies errors and reports validity. On failure it brings the FIRST invalid field
+   * into view and focuses it — scrolling to the top of the page instead just hid the
+   * reason the form refused to advance.
+   */
   const commit = (e: FormErrors) => {
     setErrors(e)
-    if (Object.keys(e).length > 0) {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      return false
-    }
-    return true
+    if (Object.keys(e).length === 0) return true
+    setErrorCount(Object.keys(e).length)
+    // Wait for the error nodes to render before locating the first one.
+    window.setTimeout(() => {
+      const first = document.querySelector('[data-field-error]')
+      if (!first) {
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      // Prefer a real input, but the airline picker is a <button> combobox — accept that too.
+      // The message is a sibling of the control, so start at its parent and walk up.
+      const findControl = (el: HTMLElement) =>
+        el.querySelector<HTMLElement>('input, select, textarea') ?? el.querySelector<HTMLElement>('button')
+
+      let group: HTMLElement = (first.parentElement as HTMLElement) ?? (first as HTMLElement)
+      let control = findControl(group)
+      while (!control && group.parentElement && group !== document.body) {
+        group = group.parentElement
+        control = findControl(group)
+      }
+      group.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      control?.focus({ preventScroll: true })
+    }, 0)
+    return false
   }
 
   const validateTrip = () => commit(collectTripErrors())
@@ -344,6 +380,7 @@ export function BookNowPage() {
   // ── Wizard navigation ──
   const goToStep = (next: number) => {
     setStep(next)
+    setErrorCount(0)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
@@ -488,6 +525,20 @@ export function BookNowPage() {
             >
               Start over
             </button>
+          </div>
+        )}
+
+        {errorCount > 0 && (
+          <div
+            role="alert"
+            className="mb-6 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700"
+          >
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span className="flex-1">
+              {errorCount === 1
+                ? 'One field still needs your attention — we’ve highlighted it below.'
+                : `${errorCount} fields still need your attention — we’ve highlighted them below.`}
+            </span>
           </div>
         )}
 
@@ -672,6 +723,19 @@ export function BookNowPage() {
                   <SummaryRow label="Vehicle" value={form.vehicleCategory} />
                   {vehicle && <p className="text-[11px] text-white/40">{vehicle.capacity}</p>}
                 </SummaryGroup>
+
+                {/* Contact details, so "Review & Submit" can actually be reviewed. */}
+                {(form.name || form.email || form.phone) && (
+                  <>
+                    <div className="border-t border-white/10" />
+                    <SummaryGroup icon={<User className="h-3.5 w-3.5" />} title="Your Details">
+                      {form.name && <SummaryRow label="Name" value={form.name} />}
+                      {form.phone && <SummaryRow label="Phone" value={form.phone} />}
+                      {form.email && <SummaryRow label="Email" value={form.email} />}
+                      {form.company && <SummaryRow label="Company" value={form.company} />}
+                    </SummaryGroup>
+                  </>
+                )}
 
                 <div className="rounded-lg border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/5 p-4" style={{ ['--gold' as string]: GOLD }}>
                   <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
@@ -1060,7 +1124,7 @@ export function BookNowPage() {
     }
     if (layout === 'event') {
       rows.push({ label: 'Venue', value: dash(form.eventVenue) })
-      if (form.eventDate) rows.push({ label: 'Event', value: `${form.eventDate}${form.eventTime ? ` at ${form.eventTime}` : ''}` })
+      if (form.eventDate) rows.push({ label: 'Event', value: fmtDateTime(form.eventDate, form.eventTime) })
     }
     if (layout === 'mountain') rows.push({ label: 'Pickup Type', value: form.pickupType })
     if (layout === 'hourly' || (layout === 'pointToPoint' && form.tripType === 'Hourly (As Directed)') || layout === 'nightlife') {
@@ -1069,15 +1133,15 @@ export function BookNowPage() {
     }
 
     if (layout === 'wedding' || layout === 'nightlife') {
-      itinerary.filter((s) => s.location).forEach((s) => rows.push({ label: s.label, value: `${s.location}${s.time ? ` · ${s.time}` : ''}` }))
+      itinerary.filter((s) => s.location).forEach((s) => rows.push({ label: s.label, value: `${s.location}${s.time ? ` · ${fmtTime(s.time)}` : ''}` }))
     } else {
-      if (form.pickupDate) rows.push({ label: 'Pickup', value: `${form.pickupDate}${form.pickupTime ? ` at ${form.pickupTime}` : ''}` })
+      if (form.pickupDate) rows.push({ label: 'Pickup', value: fmtDateTime(form.pickupDate, form.pickupTime) })
       if (derivedPickup) rows.push({ label: 'From', value: derivedPickup })
       const dropoff = derivedDropoff || form.resort
       if (dropoff) rows.push({ label: 'To', value: dropoff })
     }
 
-    if (showReturn && form.returnDate) rows.push({ label: 'Return', value: `${form.returnDate}${form.returnTime ? ` at ${form.returnTime}` : ''}` })
+    if (showReturn && form.returnDate) rows.push({ label: 'Return', value: fmtDateTime(form.returnDate, form.returnTime) })
     if (stops.filter(Boolean).length) rows.push({ label: 'Stops', value: stops.filter(Boolean).join(', ') })
     return rows
   }
@@ -1181,7 +1245,7 @@ function Input({ label, value, onChange, error, icon, required, optional, placeh
           onBlur={(e) => (e.currentTarget.style.borderColor = error ? '#fca5a5' : '#e5e7eb')}
         />
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error && <p data-field-error className="mt-1 text-xs text-red-500">{error}</p>}
     </Field>
   )
 }
@@ -1219,7 +1283,7 @@ function AddressInput({
           }`}
         />
       </div>
-      {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+      {error && <p data-field-error className="mt-1 text-xs text-red-500">{error}</p>}
     </Field>
   )
 }
@@ -1421,7 +1485,7 @@ function AirlineCombobox({ airline, setAirline, error, labelOverride }: { airlin
           )}
           <ChevronDown className="h-4 w-4 text-gray-400" />
         </button>
-        {error && <p className="mt-1 text-xs text-red-500">{error}</p>}
+        {error && <p data-field-error className="mt-1 text-xs text-red-500">{error}</p>}
 
         <AnimatePresence>
           {open && (

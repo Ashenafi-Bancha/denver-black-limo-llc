@@ -1,46 +1,15 @@
 /** Shared helpers for the admin dashboard: references, date handling and status styling. */
+import { dateOnly, toLocalDate, fmtDate, fmtTime } from '../lib/datetime'
+
+export { dateOnly, fmtDate, fmtTime }
+
+/** Build a local Date from a booking's pickup date + time. Returns null when unparseable. */
+export const pickupAt = toLocalDate
+
 
 /** Same short reference the backend puts on confirmation emails, so admins can search what the customer quotes. */
 export function bookingRef(id: string) {
   return `DBL-${String(id).replace(/-/g, '').slice(0, 6).toUpperCase()}`
-}
-
-/** Postgres `date` columns arrive as ISO timestamps; keep just the calendar day. */
-export function dateOnly(value?: string | null) {
-  if (!value) return ''
-  return value.includes('T') ? value.slice(0, 10) : value.trim()
-}
-
-/** Build a local Date from a booking's pickup date + time. Returns null when unparseable. */
-export function pickupAt(pickupDate?: string | null, pickupTime?: string | null) {
-  const day = dateOnly(pickupDate)
-  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return null
-  const [h, min] = (pickupTime || '00:00').split(':')
-  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(h) || 0, Number(min) || 0)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
-export function fmtDate(value?: string | null) {
-  const day = dateOnly(value)
-  const m = day.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (!m) return day || '—'
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).toLocaleDateString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-export function fmtTime(value?: string | null) {
-  if (!value) return ''
-  const [h, m] = value.split(':')
-  const hour = Number(h)
-  if (Number.isNaN(hour)) return value
-  const suffix = hour >= 12 ? 'PM' : 'AM'
-  const display = hour % 12 === 0 ? 12 : hour % 12
-  return `${display}:${(m || '00').padStart(2, '0')} ${suffix}`
 }
 
 /** Calendar days from today: 0 = today, 1 = tomorrow, negative = past. */
