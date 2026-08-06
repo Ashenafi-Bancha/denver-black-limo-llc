@@ -68,6 +68,12 @@ interface ItineraryStop {
 const GOLD = '#c9a227'
 const AIRPORT_LABEL = 'Denver International Airport (DEN)'
 
+/** Today in local YYYY-MM-DD — date pickers can't select earlier than this. */
+const todayISO = (() => {
+  const d = new Date()
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+})()
+
 const STEPS = ['Trip Details', 'Your Information', 'Review & Submit']
 
 export function BookNowPage() {
@@ -209,6 +215,12 @@ export function BookNowPage() {
 
   const collectTripErrors = () => {
     const e: FormErrors = {}
+    // A date picker can be bypassed, so re-check that no date is in the past.
+    if (form.pickupDate && form.pickupDate < todayISO) e.pickupDate = 'Please choose today or a future date'
+    if (form.eventDate && form.eventDate < todayISO) e.eventDate = 'Please choose today or a future date'
+    if (form.returnDate && form.pickupDate && form.returnDate < form.pickupDate) {
+      e.returnDate = 'Return date cannot be before the pickup date'
+    }
     if (layout === 'airport') {
       if (!airline) e.airline = 'Please select an airline'
       if (!form.flightNumber.trim()) e.flightNumber = 'Flight number is required'
@@ -689,7 +701,7 @@ export function BookNowPage() {
     return (
       <div className="space-y-6">
         <div className="grid gap-6 md:grid-cols-3">
-          <Input label="Pickup Date" type="date" required value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
+          <Input label="Pickup Date" type="date" required min={todayISO} value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
           <Input label="Pickup Time" type="time" required value={form.pickupTime} onChange={(v) => set('pickupTime', v)} error={errors.pickupTime} />
           {hourly && (
             <Field label="Duration / Hours" optional>
@@ -713,7 +725,7 @@ export function BookNowPage() {
           <span className="font-bold">Hourly Service (As Directed).</span> Your chauffeur will be at your service for the selected number of hours.
         </div>
         <div className="grid gap-6 md:grid-cols-3">
-          <Input label="Date" type="date" required value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
+          <Input label="Date" type="date" required min={todayISO} value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
           <Input label="Start Time" type="time" required value={form.pickupTime} onChange={(v) => set('pickupTime', v)} error={errors.pickupTime} />
           <Field label="Hourly Duration" required>
             <NativeSelect value={form.durationHours} onChange={(v) => set('durationHours', v)} placeholder="Select hours" options={HOURLY_DURATIONS.map((h) => ({ value: h, label: h }))} leftIcon={<Clock className="h-4 w-4" />} />
@@ -789,7 +801,7 @@ export function BookNowPage() {
             <NativeSelect value={form.eventVenue} onChange={(v) => set('eventVenue', v)} placeholder="Select venue" options={venues.map((v) => ({ value: v, label: v }))} leftIcon={<MapPin className="h-4 w-4" />} />
             {errors.eventVenue && <p className="mt-1 text-xs text-red-500">{errors.eventVenue}</p>}
           </Field>
-          <Input label="Event Date" type="date" required value={form.eventDate} onChange={(v) => set('eventDate', v)} error={errors.eventDate} />
+          <Input label="Event Date" type="date" required min={todayISO} value={form.eventDate} onChange={(v) => set('eventDate', v)} error={errors.eventDate} />
           <Input label="Event Time" type="time" value={form.eventTime} onChange={(v) => set('eventTime', v)} />
         </div>
         <div className="grid gap-6 md:grid-cols-2">
@@ -819,7 +831,7 @@ export function BookNowPage() {
           </div>
         )}
         <div className="grid gap-6 md:grid-cols-3">
-          <Input label={nightlife ? 'Date' : 'Wedding Date'} type="date" required value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
+          <Input label={nightlife ? 'Date' : 'Wedding Date'} type="date" required min={todayISO} value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} />
           {nightlife ? (
             <>
               <Input label="Start Time" type="time" value={form.pickupTime} onChange={(v) => set('pickupTime', v)} />
@@ -888,7 +900,7 @@ export function BookNowPage() {
         </p>
         <div className="grid gap-4 md:grid-cols-3">
           <AddressInput label="Return Pickup Location" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} placeholder="Return pickup address" />
-          <Input label="Return Date" type="date" value={form.returnDate} onChange={(v) => set('returnDate', v)} />
+          <Input label="Return Date" type="date" min={form.pickupDate || todayISO} value={form.returnDate} onChange={(v) => set('returnDate', v)} />
           <Input label="Return Time" type="time" value={form.returnTime} onChange={(v) => set('returnTime', v)} />
         </div>
       </div>
@@ -1036,7 +1048,7 @@ function Field({ label, required, optional, optionalText, icon, children }: { la
   )
 }
 
-function Input({ label, value, onChange, error, icon, required, optional, placeholder, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; error?: string; icon?: React.ReactNode; required?: boolean; optional?: boolean; placeholder?: string; type?: string }) {
+function Input({ label, value, onChange, error, icon, required, optional, placeholder, type = 'text', min }: { label: string; value: string; onChange: (v: string) => void; error?: string; icon?: React.ReactNode; required?: boolean; optional?: boolean; placeholder?: string; type?: string; min?: string }) {
   return (
     <Field label={label} required={required} optional={optional}>
       <div className="relative">
@@ -1046,6 +1058,7 @@ function Input({ label, value, onChange, error, icon, required, optional, placeh
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
+          min={min}
           className={`w-full rounded-lg border py-2.5 text-sm text-gray-900 outline-none transition-colors focus:bg-white ${error ? 'border-red-300' : 'border-gray-200 bg-gray-50/50'} ${icon ? 'pl-10 pr-3' : 'px-3'}`}
           style={{ ['--tw-ring-color' as string]: GOLD }}
           onFocus={(e) => (e.currentTarget.style.borderColor = GOLD)}
@@ -1135,7 +1148,7 @@ function ReadOnlyLocation({ label, value }: { label: string; value: string }) {
 function DateTimeRow({ dateLabel, timeLabel, form, set, errors }: { dateLabel: string; timeLabel: string; form: any; set: (k: string, v: unknown) => void; errors: FormErrors }) {
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Input label={dateLabel} type="date" required value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} icon={<Calendar className="h-4 w-4" />} />
+      <Input label={dateLabel} type="date" required min={todayISO} value={form.pickupDate} onChange={(v) => set('pickupDate', v)} error={errors.pickupDate} icon={<Calendar className="h-4 w-4" />} />
       <Input label={timeLabel} type="time" required value={form.pickupTime} onChange={(v) => set('pickupTime', v)} error={errors.pickupTime} icon={<Clock className="h-4 w-4" />} />
     </div>
   )
