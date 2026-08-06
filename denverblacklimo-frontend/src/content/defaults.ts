@@ -7,11 +7,21 @@
  */
 import { services as defaultServices } from '../data/services'
 import { fleet as defaultFleet } from '../data/fleet'
-import { reviews as defaultReviews } from '../data/reviews'
+import { reviews as defaultReviews, reviewPlatforms as defaultReviewPlatforms } from '../data/reviews'
 import { serviceAreas as defaultServiceAreas, homeCoverageList } from '../data/serviceAreas'
+import { defaultPricing } from '../data/pricing'
+import { posts as defaultPosts } from '../data/posts'
 import { FOUNDER } from '../constants'
 
-export { defaultServices, defaultFleet, defaultReviews, defaultServiceAreas }
+export {
+  defaultServices,
+  defaultFleet,
+  defaultReviews,
+  defaultReviewPlatforms,
+  defaultServiceAreas,
+  defaultPricing,
+  defaultPosts,
+}
 
 /** Build a `tel:` href from a display phone number. */
 export const telHref = (phone: string) => `tel:+1${phone.replace(/[^\d]/g, '')}`
@@ -176,5 +186,8 @@ export const CMS_KEYS = {
   fleet: 'fleet',
   serviceAreas: 'service_areas',
   reviews: 'reviews',
+  reviewPlatforms: 'review_platforms',
   faqs: 'faqs',
+  pricing: 'pricing',
+  posts: 'posts',
 } as const

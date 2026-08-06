@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 import { getServiceBySlug } from '../data/services'
 import { getServiceAreaBySlug } from '../data/serviceAreas'
+import { getPostBySlug } from '../data/posts'
 
 /** Production site origin — used for canonical + Open Graph URLs. */
 export const SITE_URL = 'https://denverblacklimo.llc'
@@ -29,6 +30,21 @@ const ROUTES: Record<string, Meta> = {
     title: `Service Areas Across Colorado's Front Range | ${BRAND}`,
     description:
       'Luxury chauffeured service across Denver Metro, Boulder, Colorado Springs, Fort Collins, and mountain resorts including Vail, Aspen, and Breckenridge.',
+  },
+  '/pricing': {
+    title: `Pricing & Rates — Transparent Limo Pricing in Denver | ${BRAND}`,
+    description:
+      'Clear, transparent pricing for Denver luxury transportation. Hourly, point-to-point and airport rates, what is always included, and our booking policies — every quote confirmed before you ride.',
+  },
+  '/reviews': {
+    title: `Client Reviews & Testimonials | ${BRAND}`,
+    description:
+      'Read reviews from Denver Black Limo clients — airport transfers, corporate travel, weddings and mountain trips across Colorado. Rated five stars for punctuality and professionalism.',
+  },
+  '/blog': {
+    title: `Colorado Travel Guides & Insights | ${BRAND}`,
+    description:
+      'Practical Denver travel guides from professional chauffeurs — DIA airport pickups, Red Rocks concerts, ski season mountain transfers, and getting around Colorado with ease.',
   },
   '/about': {
     title: `About Denver Black Limo — Colorado's Trusted Chauffeur Service`,
@@ -63,6 +79,10 @@ export function metaFor(pathname: string): Meta {
   if (path.startsWith('/service-areas/')) {
     const area = getServiceAreaBySlug(path.split('/')[2])
     if (area) return { title: `${area.title} Luxury Car Service | ${BRAND}`, description: area.subtitle }
+  }
+  if (path.startsWith('/blog/')) {
+    const post = getPostBySlug(path.split('/')[2])
+    if (post) return { title: `${post.title} | ${BRAND}`, description: post.excerpt }
   }
   return ROUTES['/']
 }

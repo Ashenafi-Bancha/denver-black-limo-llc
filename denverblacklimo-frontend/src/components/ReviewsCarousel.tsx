@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Star } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -69,6 +70,16 @@ export function ReviewsCarousel() {
           >
             <ChevronRight />
           </button>
+        </div>
+
+        <div className="mt-10 flex justify-center">
+          <Link
+            to="/reviews"
+            className="inline-flex items-center gap-2 rounded-full border border-brand-gold-dark/50 px-7 py-3 text-xs font-bold tracking-widest text-brand-gold-dark transition hover:border-brand-gold-dark hover:bg-brand-gold/10"
+          >
+            READ ALL REVIEWS
+            <ChevronRight className="h-4 w-4" />
+          </Link>
         </div>
       </div>
     </section>

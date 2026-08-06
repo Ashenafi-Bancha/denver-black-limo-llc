@@ -1,0 +1,129 @@
+/**
+ * Pricing page content.
+ *
+ * Rates are intentionally blank by default — the admin fills them in from the
+ * CMS (Pricing → Rates). Any row left blank renders as "Request Quote" so the
+ * page never shows a price the business has not set.
+ */
+
+export interface RateRow {
+  vehicle: string
+  capacity: string
+  /** e.g. "125" — leave blank to show "Request Quote" */
+  hourlyRate: string
+  /** e.g. "2 hours" */
+  minimumHours: string
+}
+
+export interface PricingItem {
+  title: string
+  text: string
+  icon: string
+}
+
+export interface PricingContent {
+  eyebrow: string
+  title: string
+  subtitle: string
+  intro: string
+  currency: string
+  models: PricingItem[]
+  includedTitle: string
+  included: PricingItem[]
+  ratesTitle: string
+  ratesNote: string
+  rates: RateRow[]
+  policiesTitle: string
+  policies: PricingItem[]
+  disclaimer: string
+}
+
+export const defaultPricing: PricingContent = {
+  eyebrow: 'Transparent Pricing',
+  title: 'Straightforward Rates, No Surprises',
+  subtitle:
+    'Clear pricing, professional chauffeurs, and every cost explained before you ride.',
+  intro:
+    'We believe luxury transportation should be simple to understand. Every quote we provide includes your chauffeur, the vehicle, taxes and fees — confirmed in writing before your trip so there are no surprises on the day.',
+  currency: '$',
+
+  models: [
+    {
+      title: 'Hourly / As Directed',
+      text: 'A dedicated chauffeur and vehicle for a set number of hours — ideal for events, roadshows, nights out and full-day itineraries with multiple stops.',
+      icon: 'clock',
+    },
+    {
+      title: 'Point-to-Point',
+      text: 'A fixed price from your pickup address to your destination. Best for straightforward transfers between two locations.',
+      icon: 'route',
+    },
+    {
+      title: 'Airport & Private Aviation',
+      text: 'Flight-tracked transfers to DIA, Centennial, Eagle County and private FBO terminals, with meet & greet and luggage assistance included.',
+      icon: 'plane',
+    },
+  ],
+
+  includedTitle: 'Always Included',
+  included: [
+    { title: 'Professional Chauffeur', text: 'Background-checked, courteous, and trained in discretion.', icon: 'user-check' },
+    { title: 'Flight Tracking', text: 'We monitor your flight and adjust pickup times automatically.', icon: 'radar' },
+    { title: 'Meet & Greet', text: 'Personal welcome inside the terminal with luggage assistance.', icon: 'luggage' },
+    { title: 'Licensed & Insured', text: 'Commercially licensed, fully insured, professionally maintained vehicles.', icon: 'shield' },
+    { title: 'Taxes & Fees Quoted', text: 'Your quote includes taxes and standard fees — no hidden charges.', icon: 'file-text' },
+    { title: '24/7 Availability', text: 'Day or night, weekday or holiday, our team is reachable.', icon: 'clock' },
+  ],
+
+  ratesTitle: 'Vehicle Rates',
+  ratesNote:
+    'Hourly rates below are starting prices and vary with date, distance and availability. Long-distance, mountain and event travel are quoted individually.',
+
+  // Rates are blank until the owner sets them in the CMS.
+  rates: [
+    { vehicle: 'Luxury Sedan', capacity: '3 passengers · 3 bags', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Luxury SUV', capacity: '6 passengers · 6 bags', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Executive SUV', capacity: '6 passengers · 6 bags', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Luxury Van', capacity: '14 passengers · 14 bags', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Mini Coach', capacity: '13 passengers · 14 bags', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Limo Bus', capacity: 'Up to 28 passengers', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Motor Coach', capacity: 'Up to 55 passengers', hourlyRate: '', minimumHours: '' },
+  ],
+
+  policiesTitle: 'Our Booking Policies',
+  policies: [
+    {
+      title: 'Quote Before You Ride',
+      text: 'Every reservation is confirmed with a written quote. You approve the price before your trip begins.',
+      icon: 'file-text',
+    },
+    {
+      title: 'Flexible Changes',
+      text: 'Plans change. Contact us as early as possible to modify or cancel and our team will take care of it.',
+      icon: 'calendar',
+    },
+    {
+      title: 'Gratuity at Your Discretion',
+      text: 'Tips are never automatically added. If your chauffeur takes great care of you, it is entirely your choice.',
+      icon: 'heart',
+    },
+    {
+      title: 'Wait Time & Extra Stops',
+      text: 'Reasonable airport wait time is included. Additional stops or extended waiting are quoted upfront.',
+      icon: 'map-pin',
+    },
+    {
+      title: 'Advance Booking',
+      text: 'We recommend booking early for weddings, ski season and major events. Same-day requests are welcome — call us.',
+      icon: 'clock',
+    },
+    {
+      title: 'Safety First',
+      text: 'Every vehicle is inspected and cleaned before each ride, and driven by an experienced professional chauffeur.',
+      icon: 'shield',
+    },
+  ],
+
+  disclaimer:
+    'Rates shown are starting prices for planning purposes and do not constitute a final quote. Final pricing depends on date, duration, distance, vehicle availability and trip requirements, and is confirmed by our team before your reservation.',
+}

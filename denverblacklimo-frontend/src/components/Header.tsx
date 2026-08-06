@@ -22,7 +22,10 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
 const NAV_LINKS: [string, string][] = [
   ['Home', '/'],
   ['Fleet', '/fleet'],
+  ['Pricing', '/pricing'],
   ['Service Areas', '/service-areas'],
+  ['Reviews', '/reviews'],
+  ['Blog', '/blog'],
   ['About Us', '/about'],
   ['Contact', '/contact'],
 ]
@@ -104,6 +107,9 @@ export function Header() {
           </div>
           <NavLink to="/fleet" className={navLinkClass}>
             FLEET
+          </NavLink>
+          <NavLink to="/pricing" className={navLinkClass}>
+            PRICING
           </NavLink>
           <div
             className="relative"

@@ -12,6 +12,9 @@ import {
   defaultFleet,
   defaultServiceAreas,
   defaultReviews,
+  defaultReviewPlatforms,
+  defaultPricing,
+  defaultPosts,
 } from '../content/defaults'
 
 export const DEFAULT_HERO = {
@@ -74,6 +77,19 @@ const SUBSERVICE_FIELDS: FieldSpec[] = [
   { key: 'description', label: 'Description', type: 'textarea' },
   { key: 'image', label: 'Image', type: 'image' },
   { key: 'icon', label: 'Icon name', type: 'text' },
+]
+
+const PRICING_ITEM_FIELDS: FieldSpec[] = [
+  { key: 'title', label: 'Title', type: 'text' },
+  { key: 'text', label: 'Description', type: 'textarea' },
+  { key: 'icon', label: 'Icon name', type: 'text', placeholder: 'e.g. clock, shield, plane' },
+]
+
+const RATE_FIELDS: FieldSpec[] = [
+  { key: 'vehicle', label: 'Vehicle', type: 'text' },
+  { key: 'capacity', label: 'Capacity', type: 'text' },
+  { key: 'hourlyRate', label: 'Hourly Rate (number only)', type: 'text', placeholder: 'e.g. 125 — blank shows "Request Quote"' },
+  { key: 'minimumHours', label: 'Minimum', type: 'text', placeholder: 'e.g. 2 hours' },
 ]
 
 const OFFER_FIELDS: FieldSpec[] = [
@@ -194,6 +210,65 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { key: 'bestFor', label: 'Best For (comma-separated)', type: 'text', full: true },
       { key: 'description', label: 'Description', type: 'textarea', full: true },
       { key: 'image', label: 'Image', type: 'image', full: true },
+    ],
+  },
+  {
+    key: 'pricing',
+    title: 'Pricing Page',
+    description: 'Rates, what is included, and booking policies shown on the Pricing page.',
+    icon: 'file-text',
+    kind: 'singleton',
+    default: defaultPricing,
+    fields: [
+      { key: 'eyebrow', label: 'Eyebrow', type: 'text' },
+      { key: 'title', label: 'Title', type: 'text', full: true },
+      { key: 'subtitle', label: 'Subtitle', type: 'textarea', full: true },
+      { key: 'intro', label: 'Intro Paragraph', type: 'textarea', full: true },
+      { key: 'currency', label: 'Currency Symbol', type: 'text' },
+      { key: 'ratesTitle', label: 'Rates Section Title', type: 'text' },
+      { key: 'ratesNote', label: 'Rates Note', type: 'textarea', full: true },
+      { key: 'rates', label: 'Vehicle Rates', type: 'objectList', itemFields: RATE_FIELDS, itemTitleKey: 'vehicle', full: true },
+      { key: 'includedTitle', label: 'Included Section Title', type: 'text' },
+      { key: 'included', label: 'Always Included', type: 'objectList', itemFields: PRICING_ITEM_FIELDS, itemTitleKey: 'title', full: true },
+      { key: 'models', label: 'How Pricing Works', type: 'objectList', itemFields: PRICING_ITEM_FIELDS, itemTitleKey: 'title', full: true },
+      { key: 'policiesTitle', label: 'Policies Section Title', type: 'text' },
+      { key: 'policies', label: 'Booking Policies', type: 'objectList', itemFields: PRICING_ITEM_FIELDS, itemTitleKey: 'title', full: true },
+      { key: 'disclaimer', label: 'Disclaimer', type: 'textarea', full: true },
+    ],
+  },
+  {
+    key: 'review_platforms',
+    title: 'Review Platforms',
+    description: 'Links shown on the Reviews page. Leave a URL blank to hide that platform.',
+    icon: 'star',
+    kind: 'collection',
+    itemTitleKey: 'name',
+    default: defaultReviewPlatforms,
+    fields: [
+      { key: 'name', label: 'Platform Name', type: 'text' },
+      { key: 'url', label: 'Profile URL', type: 'text', full: true },
+      { key: 'blurb', label: 'Short Description', type: 'text', full: true },
+      { key: 'icon', label: 'Icon name', type: 'text', placeholder: 'e.g. star, users, heart' },
+    ],
+  },
+  {
+    key: 'posts',
+    title: 'Blog Posts',
+    description: 'Articles on the Travel Blog. Use "## " for headings and "- " for bullet points.',
+    icon: 'file-text',
+    kind: 'collection',
+    itemTitleKey: 'title',
+    itemImageKey: 'image',
+    default: defaultPosts,
+    fields: [
+      { key: 'title', label: 'Title', type: 'text', full: true },
+      { key: 'slug', label: 'Slug (URL)', type: 'text' },
+      { key: 'tag', label: 'Category', type: 'text' },
+      { key: 'date', label: 'Date', type: 'text' },
+      { key: 'readMinutes', label: 'Read Time (minutes)', type: 'number' },
+      { key: 'image', label: 'Cover Image', type: 'image', full: true },
+      { key: 'excerpt', label: 'Excerpt', type: 'textarea', full: true },
+      { key: 'content', label: 'Article Content', type: 'textarea', full: true },
     ],
   },
   {

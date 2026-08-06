@@ -27,10 +27,18 @@ const AREA_SLUGS = [
   'airports-private-aviation', 'entertainment-sports-hotels', 'long-distance-interstate',
 ]
 
+const POST_SLUGS = [
+  'denver-airport-transportation-guide',
+  'red-rocks-concert-transportation',
+  'colorado-ski-resort-transfers',
+]
+
 const ROUTES = [
-  '/', '/services', '/fleet', '/service-areas', '/about', '/contact', '/book', '/quote',
+  '/', '/services', '/fleet', '/pricing', '/service-areas', '/reviews', '/blog',
+  '/about', '/contact', '/book', '/quote',
   ...SERVICE_SLUGS.map((s) => `/services/${s}`),
   ...AREA_SLUGS.map((s) => `/service-areas/${s}`),
+  ...POST_SLUGS.map((s) => `/blog/${s}`),
   '/admin',
 ]
 

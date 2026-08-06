@@ -10,6 +10,10 @@ import { ServiceAreaDetailPage } from './pages/ServiceAreaDetailPage'
 import { ServiceAreasPage } from './pages/ServiceAreasPage'
 import { ServiceDetailPage } from './pages/ServiceDetailPage'
 import { ServicesPage } from './pages/ServicesPage'
+import { PricingPage } from './pages/PricingPage'
+import { ReviewsPage } from './pages/ReviewsPage'
+import { BlogPage } from './pages/BlogPage'
+import { BlogPostPage } from './pages/BlogPostPage'
 import { AdminDashboard } from './pages/AdminDashboard'
 
 /** Route tree, router-agnostic so it can be wrapped by BrowserRouter (client) or StaticRouter (SSG). */
@@ -23,6 +27,10 @@ export function AppRoutes() {
         <Route path="service-areas" element={<ServiceAreasPage />} />
         <Route path="service-areas/:slug" element={<ServiceAreaDetailPage />} />
         <Route path="fleet" element={<FleetPage />} />
+        <Route path="pricing" element={<PricingPage />} />
+        <Route path="reviews" element={<ReviewsPage />} />
+        <Route path="blog" element={<BlogPage />} />
+        <Route path="blog/:slug" element={<BlogPostPage />} />
         <Route path="about" element={<AboutPage />} />
         <Route path="contact" element={<ContactPage />} />
         <Route path="book" element={<BookNowPage />} />

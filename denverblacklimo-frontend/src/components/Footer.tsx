@@ -27,7 +27,10 @@ export function Footer() {
               ['Home', '/'],
               ['About Us', '/about'],
               ['Fleet', '/fleet'],
+              ['Pricing', '/pricing'],
               ['Service Areas', '/service-areas'],
+              ['Reviews', '/reviews'],
+              ['Travel Blog', '/blog'],
               ['Contact', '/contact'],
               ['Book Now', '/book'],
             ].map(([label, path]) => (
