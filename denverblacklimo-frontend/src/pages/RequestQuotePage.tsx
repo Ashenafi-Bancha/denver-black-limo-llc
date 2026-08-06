@@ -9,6 +9,7 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 export function RequestQuotePage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', service: '', eventDate: '', message: '' })
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [honeypot, setHoneypot] = useState('')
 
   const setField = (k: string, v: string) => setForm((p) => ({ ...p, [k]: v }))
 
@@ -23,7 +24,7 @@ export function RequestQuotePage() {
       const res = await fetch(`${API_URL}/inquiries`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'Quote', ...form }),
+        body: JSON.stringify({ type: 'Quote', ...form, website: honeypot }),
       })
       setStatus(res.ok ? 'sent' : 'error')
     } catch {
@@ -47,6 +48,12 @@ export function RequestQuotePage() {
           </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4 border border-brand-gold/25 bg-brand-surface p-6 md:p-8">
+            <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+              <label>
+                Website
+                <input type="text" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
+              </label>
+            </div>
             <Field label="Name" value={form.name} onChange={(v) => setField('name', v)} required />
             <Field label="Email" type="email" value={form.email} onChange={(v) => setField('email', v)} required />
             <Field label="Phone" type="tel" value={form.phone} onChange={(v) => setField('phone', v)} required />

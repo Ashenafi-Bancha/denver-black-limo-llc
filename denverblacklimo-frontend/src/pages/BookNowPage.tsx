@@ -76,11 +76,42 @@ const todayISO = (() => {
 
 const STEPS = ['Trip Details', 'Your Information', 'Review & Submit']
 
+/** Key for the in-progress booking saved to the browser. */
+const DRAFT_KEY = 'dbl-booking-draft'
+
+function clearSavedDraft() {
+  try {
+    localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+}
+
+function readSavedDraft(): Record<string, unknown> | null {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { savedAt?: number }
+    // Ignore drafts older than a day so stale trips don't reappear.
+    if (!parsed.savedAt || Date.now() - parsed.savedAt > 24 * 60 * 60 * 1000) {
+      clearSavedDraft()
+      return null
+    }
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
 export function BookNowPage() {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errors, setErrors] = useState<FormErrors>({})
   const [step, setStep] = useState(1)
+  const [reference, setReference] = useState('')
+  /** Hidden field — only bots fill it in. */
+  const [honeypot, setHoneypot] = useState('')
+  const [draftRestored, setDraftRestored] = useState(false)
 
   const [form, setForm] = useState({
     // Customer
@@ -174,6 +205,32 @@ export function BookNowPage() {
     setStops([])
   }
 
+  // Restore an unfinished booking (e.g. after an accidental refresh).
+  useEffect(() => {
+    const draft = readSavedDraft()
+    if (!draft) return
+    if (draft.form) setForm((prev) => ({ ...prev, ...(draft.form as object) }))
+    if (Array.isArray(draft.stops)) setStops(draft.stops as string[])
+    if (Array.isArray(draft.itinerary)) setItinerary(draft.itinerary as ItineraryStop[])
+    if (draft.airline) setAirline(draft.airline as Airline)
+    if (typeof draft.step === 'number') setStep(draft.step)
+    setDraftRestored(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Keep the draft in sync so nothing is lost on refresh or accidental back.
+  useEffect(() => {
+    if (submitted) return
+    try {
+      localStorage.setItem(
+        DRAFT_KEY,
+        JSON.stringify({ form, stops, itinerary, airline, step, savedAt: Date.now() })
+      )
+    } catch {
+      /* storage full or blocked — drafts are a convenience, not a requirement */
+    }
+  }, [form, stops, itinerary, airline, step, submitted])
+
   // Seed itinerary on first mount if the initial service needs one (it doesn't here,
   // Airport is default) — kept for completeness when defaults change.
   useEffect(() => {
@@ -182,6 +239,13 @@ export function BookNowPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layout])
+
+  /** Pickup less than 3 hours away — we still accept it, but ask them to call. */
+  const shortNotice = useMemo(() => {
+    if (!form.pickupDate) return false
+    const stamp = Date.parse(`${form.pickupDate}T${form.pickupTime || '00:00'}`)
+    return !Number.isNaN(stamp) && stamp - Date.now() < 3 * 60 * 60 * 1000
+  }, [form.pickupDate, form.pickupTime])
 
   const showReturn =
     form.tripType === 'Round Trip' &&
@@ -356,11 +420,19 @@ export function BookNowPage() {
 
     try {
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
-      await fetch(`${API_URL}/bookings`, {
+      const res = await fetch(`${API_URL}/bookings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({ ...payload, website: honeypot }),
       })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        alert(body.error || 'There was a problem submitting your request. Please try again or call us directly.')
+        return
+      }
+      const body = await res.json().catch(() => ({}))
+      setReference(body.reference || '')
+      clearSavedDraft()
       setSubmitted(true)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } catch (err) {
@@ -372,7 +444,7 @@ export function BookNowPage() {
   }
 
   // ── Success screen ──
-  if (submitted) return <SuccessScreen name={form.name} phone={form.phone} email={form.email} />
+  if (submitted) return <SuccessScreen name={form.name} phone={form.phone} email={form.email} reference={reference} />
 
   const vehicle = getVehicleCategory(form.vehicleCategory)
   // Show the selected service's real banner (defaults to airport-transportation).
@@ -387,6 +459,37 @@ export function BookNowPage() {
           <p className="text-gray-500 mt-2">Fast, simple and secure booking in less than a minute.</p>
           <div className="mx-auto mt-4 h-1 w-16 rounded-full" style={{ backgroundColor: GOLD }} />
         </div>
+
+        {/* Hidden bot trap — real people never see or fill this */}
+        <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+          <label>
+            Website
+            <input
+              type="text"
+              tabIndex={-1}
+              autoComplete="off"
+              value={honeypot}
+              onChange={(e) => setHoneypot(e.target.value)}
+            />
+          </label>
+        </div>
+
+        {draftRestored && !submitted && (
+          <div className="mb-6 flex items-start gap-3 rounded-lg border border-gray-200 bg-white p-4 text-sm text-gray-600">
+            <Info className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
+            <span className="flex-1">We restored the details you started earlier.</span>
+            <button
+              type="button"
+              onClick={() => {
+                clearSavedDraft()
+                window.location.reload()
+              }}
+              className="shrink-0 text-xs font-bold uppercase tracking-wider text-gray-400 underline hover:text-gray-600"
+            >
+              Start over
+            </button>
+          </div>
+        )}
 
         {/* Progress */}
         <Stepper current={step} onSelect={(n) => n < step && goToStep(n)} />
@@ -465,6 +568,19 @@ export function BookNowPage() {
               <>
                 <div className="lg:hidden">{renderSummaryPanel()}</div>
                 <SectionCard step={3} title="Review & Submit">
+                  {shortNotice && (
+                    <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+                      <span>
+                        <strong>Short notice request.</strong> Your pickup is within the next few hours.
+                        Please submit this form and then{' '}
+                        <a href={PHONE_HREF} className="font-semibold underline">
+                          call or text {PHONE}
+                        </a>{' '}
+                        so we can confirm availability right away.
+                      </span>
+                    </div>
+                  )}
                   <div className="flex items-center gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
                     <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
                     Your information is secure and will only be used for your booking.
@@ -1363,7 +1479,7 @@ function AirlineLogo({ airline }: { airline: Airline }) {
   )
 }
 
-function SuccessScreen({ name, phone, email }: { name: string; phone: string; email: string }) {
+function SuccessScreen({ name, phone, email, reference }: { name: string; phone: string; email: string; reference?: string }) {
   const first = name ? name.split(' ')[0] : 'there'
   return (
     <div className="min-h-screen bg-[#f8f9fa] pt-24 pb-16 font-body text-gray-900">
@@ -1374,6 +1490,12 @@ function SuccessScreen({ name, phone, email }: { name: string; phone: string; em
           </div>
           <h1 className="font-display text-3xl font-bold uppercase tracking-widest text-[#16a34a]">Booking Request Submitted!</h1>
           <p className="mt-2 text-lg text-gray-900">Thank you, {first}!</p>
+          {reference && (
+            <div className="mx-auto mt-6 inline-block rounded-lg border border-gray-200 border-l-4 px-6 py-3" style={{ borderLeftColor: GOLD }}>
+              <p className="text-[11px] uppercase tracking-[0.2em] text-gray-400">Your reference</p>
+              <p className="mt-0.5 font-display text-2xl font-bold tracking-wider text-gray-900">{reference}</p>
+            </div>
+          )}
           <p className="mx-auto mt-4 max-w-lg text-gray-600">
             We’ve received your booking request and will review it shortly. You’ll receive a personalized quote by phone, text, or email — this is a <strong>booking request only</strong>, no payment is required now.
           </p>

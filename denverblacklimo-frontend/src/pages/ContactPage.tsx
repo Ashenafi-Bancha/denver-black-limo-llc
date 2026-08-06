@@ -53,6 +53,7 @@ export function ContactPage() {
     message: '',
   })
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
+  const [honeypot, setHoneypot] = useState('')
   const [openFaq, setOpenFaq] = useState<number | null>(null)
   const [showAllFaqs, setShowAllFaqs] = useState(false)
 
@@ -80,6 +81,7 @@ export function ContactPage() {
           phone: form.phone,
           service: form.service || undefined,
           message: details || 'Contact request',
+          website: honeypot,
         }),
       })
       setStatus(res.ok ? 'sent' : 'error')
@@ -237,6 +239,12 @@ export function ContactPage() {
               </div>
             ) : (
               <form onSubmit={onSubmit} className="mt-5 space-y-3">
+                <div aria-hidden="true" style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }}>
+                  <label>
+                    Website
+                    <input type="text" tabIndex={-1} autoComplete="off" value={honeypot} onChange={(e) => setHoneypot(e.target.value)} />
+                  </label>
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <input
                     required

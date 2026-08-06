@@ -63,6 +63,69 @@ const JWT_SECRET = process.env.JWT_SECRET || 'denver-black-limo-secret-2026';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@denverblacklimo.com';
 
+// Loud startup warnings for insecure defaults left in place.
+if (ADMIN_PASSWORD === 'admin') {
+  console.warn(
+    'SECURITY WARNING: ADMIN_PASSWORD is still the default "admin". ' +
+      'Anyone can sign into the admin dashboard. Set a strong ADMIN_PASSWORD environment variable.'
+  );
+}
+if (JWT_SECRET === 'denver-black-limo-secret-2026') {
+  console.warn('SECURITY WARNING: JWT_SECRET is using the built-in default. Set a random JWT_SECRET.');
+}
+
+// ─────────────────────────────────────────────
+// ABUSE PROTECTION
+// ─────────────────────────────────────────────
+
+/**
+ * Minimal in-memory rate limiter (no extra dependency). Public forms are the
+ * obvious target for bots, and unchecked they fill the owner's inbox and the
+ * database. Counts are per IP within a sliding window.
+ */
+const rateBuckets = new Map();
+
+function rateLimit({ windowMs, max, message }) {
+  return (req, res, next) => {
+    const key = `${req.baseUrl || ''}${req.path}|${req.ip}`;
+    const now = Date.now();
+    const hits = (rateBuckets.get(key) || []).filter((t) => now - t < windowMs);
+
+    if (hits.length >= max) {
+      console.warn(`Rate limit hit: ${key} (${hits.length} requests)`);
+      return res.status(429).json({ error: message || 'Too many requests. Please try again shortly.' });
+    }
+
+    hits.push(now);
+    rateBuckets.set(key, hits);
+    next();
+  };
+}
+
+// Keep the map from growing forever.
+setInterval(() => {
+  const cutoff = Date.now() - 60 * 60 * 1000;
+  for (const [key, hits] of rateBuckets) {
+    const fresh = hits.filter((t) => t > cutoff);
+    if (fresh.length) rateBuckets.set(key, fresh);
+    else rateBuckets.delete(key);
+  }
+}, 15 * 60 * 1000).unref();
+
+/**
+ * Honeypot: the forms include a hidden field real users never see. Anything
+ * that fills it is a bot — we return success so it does not retry, but store
+ * and send nothing.
+ */
+function isBot(body) {
+  return Boolean(body && typeof body.website === 'string' && body.website.trim());
+}
+
+/** Short, human-friendly booking reference derived from the UUID. */
+function bookingRef(id) {
+  return `DBL-${String(id).replace(/-/g, '').slice(0, 6).toUpperCase()}`;
+}
+
 // --- Auth Middleware ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -127,8 +190,12 @@ app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) =>
   }
 });
 
-// Login
-app.post('/api/admin/login', (req, res) => {
+// Login — rate limited to blunt password guessing
+app.post('/api/admin/login', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many sign-in attempts. Please wait a few minutes and try again.',
+}), (req, res) => {
   const { email, password } = req.body;
   if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
     const accessToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
@@ -139,10 +206,20 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // Submit a new booking
-app.post('/api/bookings', async (req, res) => {
+app.post('/api/bookings', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many booking requests from this device. Please call us at (720) 499-6744.',
+}), async (req, res) => {
   try {
     const data = req.body;
-    
+
+    // Hidden-field trap: pretend it worked, but store and send nothing.
+    if (isBot(data)) {
+      console.warn('Blocked bot booking submission (honeypot).');
+      return res.status(201).json({ id: 'ignored', message: 'Booking received' });
+    }
+
     // Basic validation
     if (!data.name || !data.email || !data.phone) {
       return res.status(400).json({ error: 'Name, email, and phone are required fields.' });
@@ -198,9 +275,10 @@ app.post('/api/bookings', async (req, res) => {
       vehicle_preference: data.vehiclePreference,
       special_requests: data.specialRequests,
       details: data.details,
+      reference: bookingRef(bookingId),
     }, bookingId);
 
-    res.status(201).json({ id: bookingId, message: 'Booking received' });
+    res.status(201).json({ id: bookingId, reference: bookingRef(bookingId), message: 'Booking received' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create booking' });
@@ -277,9 +355,19 @@ app.post('/api/bookings/:id/email', authenticateToken, async (req, res) => {
 // ─────────────────────────────────────────────
 
 // Submit a contact message or quote request (Public)
-app.post('/api/inquiries', async (req, res) => {
+app.post('/api/inquiries', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: 'Too many messages from this device. Please call us at (720) 499-6744.',
+}), async (req, res) => {
   try {
     const data = req.body;
+
+    if (isBot(data)) {
+      console.warn('Blocked bot inquiry submission (honeypot).');
+      return res.status(201).json({ id: 'ignored', message: 'Inquiry received' });
+    }
+
     if (!data.name || !data.email || !data.message) {
       return res.status(400).json({ error: 'Name, email, and message are required.' });
     }

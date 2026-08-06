@@ -222,8 +222,17 @@ function buildDetailRows(data) {
   return rows;
 }
 
+/** True when the pickup is less than `hours` away — flagged for the dispatcher. */
+function isShortNotice(data, hours = 3) {
+  if (!data.pickup_date) return false
+  const stamp = Date.parse(`${data.pickup_date}T${data.pickup_time || '00:00'}`)
+  if (Number.isNaN(stamp)) return false
+  return stamp - Date.now() < hours * 60 * 60 * 1000
+}
+
 function tripRows(data) {
   return [
+    { label: 'Reference', value: data.reference },
     { label: 'Service', value: data.service_type },
     { label: 'Trip Type', value: data.trip_type },
     { label: 'Pickup Date', value: data.pickup_date },
@@ -269,9 +278,20 @@ function buildCustomerConfirmationEmail(data) {
         Your reservation request has been received. Our team is reviewing the details and will contact you
         shortly by phone, text or email to confirm availability and provide your personalized quote.
       </p>
-      <p style="margin:0 0 22px; font-size:13px; line-height:1.6; color:${BRAND.muted};">
+      <p style="margin:0 0 18px; font-size:13px; line-height:1.6; color:${BRAND.muted};">
         This message confirms your request — it is not yet a confirmed reservation.
       </p>
+      ${
+        data.reference
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 6px;">
+              <tr><td style="border:1px solid ${BRAND.line}; border-left:3px solid ${BRAND.gold}; border-radius:6px; padding:12px 18px;">
+                <span style="font-size:11px; letter-spacing:1.5px; color:${BRAND.muted}; text-transform:uppercase;">Your reference</span><br>
+                <span style="font-size:19px; font-weight:700; letter-spacing:1px; color:${BRAND.text};">${esc(data.reference)}</span>
+              </td></tr>
+            </table>
+            <p style="margin:6px 0 22px; font-size:12px; color:${BRAND.muted};">Quote this reference when you call or text us about this trip.</p>`
+          : ''
+      }
     </div>
 
     <div class="pad" style="padding:0 32px 8px;">
@@ -313,9 +333,19 @@ function buildAdminAlertEmail(data, bookingId) {
       <h1 class="h1" style="margin:0 0 8px; font-size:23px; line-height:1.3; color:${BRAND.text}; font-weight:700;">
         New booking request
       </h1>
-      <p style="margin:0 0 22px; font-size:15px; line-height:1.6; color:${BRAND.muted};">
+      <p style="margin:0 0 ${isShortNotice(data) ? '16px' : '22px'}; font-size:15px; line-height:1.6; color:${BRAND.muted};">
         ${esc(data.name || 'A customer')} submitted a reservation request through the website.
       </p>
+      ${
+        isShortNotice(data)
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#fff8e1; border:1px solid ${BRAND.gold}; border-radius:8px; margin-bottom:22px;">
+              <tr><td style="padding:14px 18px;">
+                <p style="margin:0; font-size:14px; font-weight:700; color:#8a6d1a;">SHORT NOTICE — pickup is within 3 hours</p>
+                <p style="margin:4px 0 0; font-size:13px; color:#8a6d1a;">Contact this customer immediately to confirm availability.</p>
+              </td></tr>
+            </table>`
+          : ''
+      }
     </div>
 
     <div class="pad" style="padding:0 32px 8px;">
