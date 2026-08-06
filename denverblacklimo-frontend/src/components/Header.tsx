@@ -103,7 +103,7 @@ export function Header() {
     <>
       <header className="sticky top-0 z-50 border-b border-white/5 bg-brand-black/90 backdrop-blur-md">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 md:px-6">
-        <Logo />
+        <Logo tagline={false} />
 
         {/* Desktop nav */}
         <nav className="hidden items-center gap-2.5 lg:flex xl:gap-5">
@@ -155,8 +155,13 @@ export function Header() {
             CONTACT
           </NavLink>
 
-          {/* MORE — opens on click, not hover */}
-          <div className="relative" ref={moreRef}>
+          {/* MORE — opens on hover, click still toggles for touch and keyboard */}
+          <div
+            className="relative"
+            ref={moreRef}
+            onMouseEnter={() => setMoreOpen(true)}
+            onMouseLeave={() => setMoreOpen(false)}
+          >
             <button
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
@@ -167,6 +172,7 @@ export function Header() {
               MORE
               <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${moreOpen ? 'rotate-180' : ''}`} />
             </button>
+            {moreOpen && <span aria-hidden="true" className="absolute left-0 top-full h-3 w-full" />}
             <AnimatePresence>
               {moreOpen && (
                 <motion.div {...panelMotion} className={`${panelClass} right-0 w-52`}>
