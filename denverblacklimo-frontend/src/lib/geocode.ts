@@ -26,8 +26,10 @@ function formatAddress(p: PhotonProps): string {
   const streetLine = [p.housenumber, p.street].filter(Boolean).join(' ')
   const parts: string[] = []
 
-  // Landmarks/businesses lead with their name (e.g. "Red Rocks Amphitheatre").
-  if (p.name && p.name !== p.street) parts.push(p.name)
+  // Landmarks/businesses lead with their name (e.g. "Red Rocks Amphitheatre"), but
+  // skip it when it only repeats the street or the city — Photon returns
+  // name="Vail" with city="Vail" for resort towns, which read as "Vail, Vail, Colorado".
+  if (p.name && p.name !== p.street && p.name !== p.city) parts.push(p.name)
   if (streetLine && streetLine !== p.name) parts.push(streetLine)
 
   const cityState = [p.city, p.state].filter(Boolean).join(', ')
