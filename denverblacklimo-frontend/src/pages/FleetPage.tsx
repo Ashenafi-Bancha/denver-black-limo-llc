@@ -161,7 +161,8 @@ export function FleetPage() {
           {fleet.map((vehicle, index) => (
             <motion.article
               key={vehicle.id}
-              className="flex flex-col overflow-hidden rounded-2xl border border-brand-gold/40 bg-brand-cream shadow-lg shadow-brand-black/20 transition hover:border-brand-gold"
+              id={vehicle.id}
+              className="flex scroll-mt-28 flex-col overflow-hidden rounded-2xl border border-brand-gold/40 bg-brand-cream shadow-lg shadow-brand-black/20 transition hover:border-brand-gold"
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}

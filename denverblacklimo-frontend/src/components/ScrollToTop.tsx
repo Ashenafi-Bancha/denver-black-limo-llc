@@ -10,7 +10,15 @@ export function ScrollToTop() {
   const { pathname, hash } = useLocation()
 
   useEffect(() => {
-    if (hash) return
+    if (hash) {
+      // Cross-page anchors (e.g. /fleet#luxury-suv) mount after navigation, so
+      // wait a frame for the target to exist before scrolling to it.
+      const id = decodeURIComponent(hash.slice(1))
+      const timer = setTimeout(() => {
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 60)
+      return () => clearTimeout(timer)
+    }
     // Jump instantly (bypass the global `scroll-behavior: smooth`) on navigation.
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior })
   }, [pathname, hash])

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
-import { Link, NavLink } from 'react-router-dom'
-import { Calendar, ChevronDown, ChevronRight, Menu, Phone, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Link, NavLink, useLocation } from 'react-router-dom'
+import { Calendar, ChevronDown, Menu, Phone, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Logo } from './Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -13,14 +13,19 @@ import {
 } from '../content/defaults'
 import type { Service } from '../data/services'
 import type { ServiceArea } from '../data/serviceAreas'
+import { fleet as defaultFleet, type FleetVehicle } from '../data/fleet'
+
+/** Tracking tightens below xl so all eight items + both CTAs stay on one line. */
+const navBaseClass =
+  'flex items-center gap-1 whitespace-nowrap text-xs font-medium tracking-[0.08em] transition xl:tracking-[0.2em]'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `whitespace-nowrap text-xs font-medium tracking-[0.2em] transition ${
-    isActive ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'
-  }`
+  `${navBaseClass} ${isActive ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'}`
 
-const NAV_LINKS: [string, string][] = [
+/** Drawer links — flat on mobile: every item goes straight to its own page. */
+const MOBILE_LINKS: [string, string][] = [
   ['Home', '/'],
+  ['Services', '/services'],
   ['Fleet', '/fleet'],
   ['Pricing', '/pricing'],
   ['Service Areas', '/service-areas'],
@@ -30,15 +35,38 @@ const NAV_LINKS: [string, string][] = [
   ['Contact', '/contact'],
 ]
 
+/** Secondary desktop pages, grouped under the click-to-open MORE menu. */
+const MORE_LINKS: [string, string][] = [
+  ['Reviews', '/reviews'],
+  ['Blog', '/blog'],
+]
+
+const panelClass =
+  'absolute top-full z-50 mt-2 rounded-xl border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl'
+const panelItemClass =
+  'block border border-transparent px-3 py-2 text-sm text-white/85 transition hover:border-brand-gold/30 hover:bg-brand-surface hover:text-brand-gold-light'
+const panelFooterClass =
+  'mt-1 block border-t border-white/10 px-3 py-2 text-xs tracking-widest text-brand-gold-light'
+const panelMotion = {
+  initial: { opacity: 0, y: 12, scale: 0.98 },
+  animate: { opacity: 1, y: 0, scale: 1 },
+  exit: { opacity: 0, y: 8, scale: 0.98 },
+  transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
+}
+
 export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [servicesOpen, setServicesOpen] = useState(false)
+  const [fleetOpen, setFleetOpen] = useState(false)
   const [areasOpen, setAreasOpen] = useState(false)
-  const [mobileServicesOpen, setMobileServicesOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+  const { pathname } = useLocation()
   const { get } = useSiteSettings()
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
   const services = get<Service[]>('services', defaultServices)
   const areas = get<ServiceArea[]>('service_areas', defaultServiceAreas)
+  const vehicles = get<FleetVehicle[]>('fleet', defaultFleet)
 
   // Lock background scroll while the drawer is open
   useEffect(() => {
@@ -49,10 +77,27 @@ export function Header() {
     }
   }, [mobileOpen])
 
-  const closeMobile = () => {
-    setMobileOpen(false)
-    setMobileServicesOpen(false)
-  }
+  // MORE opens on click, so it needs to close on outside click / Escape.
+  useEffect(() => {
+    if (!moreOpen || typeof document === 'undefined') return
+    const onPointerDown = (e: MouseEvent) => {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false)
+    }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMoreOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [moreOpen])
+
+  // Never leave a menu hanging open after a navigation.
+  useEffect(() => setMoreOpen(false), [pathname])
+
+  const closeMobile = () => setMobileOpen(false)
 
   return (
     <>
@@ -61,115 +106,96 @@ export function Header() {
         <Logo />
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-4 xl:gap-6 lg:flex">
+        <nav className="hidden items-center gap-2.5 lg:flex xl:gap-5">
           <NavLink to="/" className={navLinkClass} end>
             HOME
           </NavLink>
-          <div
-            className="relative"
-            onMouseEnter={() => setServicesOpen(true)}
-            onMouseLeave={() => setServicesOpen(false)}
-          >
-            <button
-              type="button"
-              className="flex whitespace-nowrap items-center gap-1 text-xs font-medium tracking-[0.2em] text-white/80 transition hover:text-brand-gold-light"
-            >
-              SERVICES
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            <AnimatePresence>
-              {servicesOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                  className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl"
-                >
-                  {services.map((s) => (
-                    <Link
-                      key={s.slug}
-                      to={`/services/${s.slug}`}
-                      className="block border border-transparent px-3 py-2 text-sm text-white/85 transition hover:border-brand-gold/30 hover:bg-brand-surface hover:text-brand-gold-light"
-                    >
-                      {s.title}
-                    </Link>
-                  ))}
-                  <Link
-                    to="/services"
-                    className="mt-1 block border-t border-white/10 px-3 py-2 text-xs tracking-widest text-brand-gold-light"
-                  >
-                    VIEW ALL SERVICES →
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-          <NavLink to="/fleet" className={navLinkClass}>
-            FLEET
-          </NavLink>
+
+          <HoverMenu label="SERVICES" open={servicesOpen} setOpen={setServicesOpen} width="w-80">
+            {services.map((s) => (
+              <Link key={s.slug} to={`/services/${s.slug}`} className={panelItemClass}>
+                {s.title}
+              </Link>
+            ))}
+            <Link to="/services" className={panelFooterClass}>
+              VIEW ALL SERVICES →
+            </Link>
+          </HoverMenu>
+
+          <HoverMenu label="FLEET" open={fleetOpen} setOpen={setFleetOpen} width="w-72">
+            {vehicles.map((v) => (
+              <Link key={v.id} to={`/fleet#${v.id}`} className={panelItemClass}>
+                {v.name}
+              </Link>
+            ))}
+            <Link to="/fleet" className={panelFooterClass}>
+              VIEW FULL FLEET →
+            </Link>
+          </HoverMenu>
+
           <NavLink to="/pricing" className={navLinkClass}>
             PRICING
           </NavLink>
-          <div
-            className="relative"
-            onMouseEnter={() => setAreasOpen(true)}
-            onMouseLeave={() => setAreasOpen(false)}
-          >
-            <button
-              type="button"
-              className="flex whitespace-nowrap items-center gap-1 text-xs font-medium tracking-[0.2em] text-white/80 transition hover:text-brand-gold-light"
-            >
-              SERVICE AREAS
-              <ChevronDown className="h-3.5 w-3.5" />
-            </button>
-            <AnimatePresence>
-              {areasOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                  className="absolute left-0 top-full z-50 mt-2 w-80 rounded-xl border border-brand-gold/20 bg-brand-charcoal p-2 shadow-2xl"
-                >
-                  {areas.map((a) => (
-                    <Link
-                      key={a.slug}
-                      to={`/service-areas/${a.slug}`}
-                      className="block border border-transparent px-3 py-2 text-sm text-white/85 transition hover:border-brand-gold/30 hover:bg-brand-surface hover:text-brand-gold-light"
-                    >
-                      {a.title}
-                    </Link>
-                  ))}
-                  <Link
-                    to="/service-areas"
-                    className="mt-1 block border-t border-white/10 px-3 py-2 text-xs tracking-widest text-brand-gold-light"
-                  >
-                    VIEW ALL SERVICE AREAS →
-                  </Link>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+
+          <HoverMenu label="SERVICE AREAS" open={areasOpen} setOpen={setAreasOpen} width="w-80">
+            {areas.map((a) => (
+              <Link key={a.slug} to={`/service-areas/${a.slug}`} className={panelItemClass}>
+                {a.title}
+              </Link>
+            ))}
+            <Link to="/service-areas" className={panelFooterClass}>
+              VIEW ALL SERVICE AREAS →
+            </Link>
+          </HoverMenu>
+
           <NavLink to="/about" className={navLinkClass}>
             ABOUT US
           </NavLink>
           <NavLink to="/contact" className={navLinkClass}>
             CONTACT
           </NavLink>
+
+          {/* MORE — opens on click, not hover */}
+          <div className="relative" ref={moreRef}>
+            <button
+              type="button"
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-expanded={moreOpen}
+              aria-haspopup="true"
+              className={`${navBaseClass} ${moreOpen ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'}`}
+            >
+              MORE
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${moreOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {moreOpen && (
+                <motion.div {...panelMotion} className={`${panelClass} right-0 w-52`}>
+                  {MORE_LINKS.map(([label, path]) => (
+                    <Link key={path} to={path} onClick={() => setMoreOpen(false)} className={panelItemClass}>
+                      {label}
+                    </Link>
+                  ))}
+                  <Link to="/quote" onClick={() => setMoreOpen(false)} className={panelFooterClass}>
+                    GET A QUOTE →
+                  </Link>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden shrink-0 flex-nowrap items-center gap-3 whitespace-nowrap md:flex">
           <a
             href={telHref(biz.phone)}
-            className="flex items-center gap-2 rounded-full border border-brand-gold/50 px-4 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10"
+            className="flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-gold/50 px-3.5 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 xl:px-4"
           >
-            <Phone className="h-3.5 w-3.5" />
-            {biz.phone}
+            <Phone className="h-3.5 w-3.5 shrink-0" />
+            <span className="xl:hidden">CALL US</span>
+            <span className="hidden xl:inline">{biz.phone}</span>
           </a>
           <Link
             to="/book"
-            className="flex items-center gap-2 rounded-full bg-gold-gradient px-5 py-2 text-xs font-semibold tracking-widest text-brand-black shadow-md shadow-brand-gold/20 transition hover:brightness-110"
+            className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gold-gradient px-4 py-2 text-xs font-semibold tracking-widest text-brand-black shadow-md shadow-brand-gold/20 transition hover:brightness-110 xl:px-5"
           >
             <Calendar className="h-3.5 w-3.5" />
             BOOK NOW
@@ -226,60 +252,11 @@ export function Header() {
                 </button>
               </div>
 
+              {/* Flat list — every item navigates straight to its page, no accordions */}
               <nav className="flex-1 overflow-y-auto px-4 py-4">
                 <ul className="flex flex-col gap-1">
-                  {NAV_LINKS.slice(0, 1).map(([label, path]) => (
-                    <MobileNavItem key={path} label={label} path={path} onClick={closeMobile} end />
-                  ))}
-
-                  {/* Services accordion */}
-                  <li>
-                    <button
-                      type="button"
-                      onClick={() => setMobileServicesOpen((v) => !v)}
-                      className="flex min-h-12 w-full items-center justify-between rounded-lg px-4 py-3 text-[15px] font-medium tracking-wide text-white/90 transition hover:bg-white/5"
-                      aria-expanded={mobileServicesOpen}
-                    >
-                      Services
-                      <ChevronDown className={`h-4 w-4 text-brand-gold transition-transform ${mobileServicesOpen ? 'rotate-180' : ''}`} />
-                    </button>
-                    <AnimatePresence initial={false}>
-                      {mobileServicesOpen && (
-                        <motion.ul
-                          initial={{ height: 0, opacity: 0 }}
-                          animate={{ height: 'auto', opacity: 1 }}
-                          exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: 0.22 }}
-                          className="overflow-hidden pl-3"
-                        >
-                          {services.map((s) => (
-                            <li key={s.slug}>
-                              <Link
-                                to={`/services/${s.slug}`}
-                                onClick={closeMobile}
-                                className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm text-white/70 transition hover:bg-white/5 hover:text-brand-gold-light"
-                              >
-                                <ChevronRight className="h-3.5 w-3.5 shrink-0 text-brand-gold/50" />
-                                {s.title}
-                              </Link>
-                            </li>
-                          ))}
-                          <li>
-                            <Link
-                              to="/services"
-                              onClick={closeMobile}
-                              className="block rounded-lg px-4 py-2.5 text-xs font-semibold tracking-widest text-brand-gold-light"
-                            >
-                              VIEW ALL SERVICES →
-                            </Link>
-                          </li>
-                        </motion.ul>
-                      )}
-                    </AnimatePresence>
-                  </li>
-
-                  {NAV_LINKS.slice(1).map(([label, path]) => (
-                    <MobileNavItem key={path} label={label} path={path} onClick={closeMobile} />
+                  {MOBILE_LINKS.map(([label, path]) => (
+                    <MobileNavItem key={path} label={label} path={path} onClick={closeMobile} end={path === '/'} />
                   ))}
                 </ul>
               </nav>
@@ -314,6 +291,44 @@ export function Header() {
         </div>
       )}
     </>
+  )
+}
+
+/** Desktop nav dropdown that opens on hover with the shared gold panel animation. */
+function HoverMenu({
+  label,
+  open,
+  setOpen,
+  width,
+  children,
+}: {
+  label: string
+  open: boolean
+  setOpen: (v: boolean) => void
+  width: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-haspopup="true"
+        className={`${navBaseClass} ${open ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'}`}
+      >
+        {label}
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {/* Invisible bridge so the pointer can cross the gap into the panel without closing it */}
+      {open && <span aria-hidden="true" className="absolute left-0 top-full h-3 w-full" />}
+      <AnimatePresence>
+        {open && (
+          <motion.div {...panelMotion} className={`${panelClass} left-0 ${width}`}>
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   )
 }
 
