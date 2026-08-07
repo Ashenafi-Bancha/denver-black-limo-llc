@@ -231,9 +231,10 @@ app.post('/api/bookings', rateLimit({
         airline_code, airline_name, terminal, flight_number, pickup_date,
         pickup_time, pickup_location, dropoff_location, additional_stops,
         return_pickup_location, return_date, return_time, passengers,
-        luggage, vehicle_preference, special_requests, details
+        luggage, vehicle_preference, special_requests, details,
+        return_flight_number, return_airline_name, return_airline_code
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
       ) RETURNING id;
     `;
     const values = [
@@ -243,7 +244,8 @@ app.post('/api/bookings', rateLimit({
       data.dropoffLocation, data.additionalStops, data.returnPickupLocation,
       data.returnDate, data.returnTime, data.passengers, data.luggage,
       data.vehiclePreference, data.specialRequests,
-      data.details ? JSON.stringify(data.details) : null
+      data.details ? JSON.stringify(data.details) : null,
+      data.returnFlightNumber, data.returnAirline, data.returnAirlineCode
     ];
 
     const result = await pool.query(query, values);
@@ -270,6 +272,8 @@ app.post('/api/bookings', rateLimit({
       return_pickup_location: data.returnPickupLocation,
       return_date: data.returnDate,
       return_time: data.returnTime,
+      return_flight_number: data.returnFlightNumber,
+      return_airline_name: data.returnAirline,
       passengers: data.passengers,
       luggage: data.luggage,
       vehicle_preference: data.vehiclePreference,

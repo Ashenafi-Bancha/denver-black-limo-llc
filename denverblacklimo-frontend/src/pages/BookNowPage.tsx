@@ -194,6 +194,7 @@ export function BookNowPage() {
     returnPickupLocation: '',
     returnDate: '',
     returnTime: '',
+    returnFlightNumber: '',
     // Free text
     specialRequests: '',
   })
@@ -203,6 +204,7 @@ export function BookNowPage() {
 
   // Dynamic collections
   const [airline, setAirline] = useState<Airline | null>(null)
+  const [returnAirline, setReturnAirline] = useState<Airline | null>(null)
   const [stops, setStops] = useState<string[]>([]) // generic additional stops
   const [itinerary, setItinerary] = useState<ItineraryStop[]>(() => seedItineraryFor(requestedService?.layout)) // wedding / nightlife
 
@@ -238,6 +240,7 @@ export function BookNowPage() {
     if (Array.isArray(draft.stops)) setStops(draft.stops as string[])
     if (Array.isArray(draft.itinerary)) setItinerary(draft.itinerary as ItineraryStop[])
     if (draft.airline) setAirline(draft.airline as Airline)
+    if (draft.returnAirline) setReturnAirline(draft.returnAirline as Airline)
     if (typeof draft.step === 'number') setStep(draft.step)
     setDraftRestored(true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,12 +264,12 @@ export function BookNowPage() {
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ form, stops, itinerary, airline, step, savedAt: Date.now() })
+        JSON.stringify({ form, stops, itinerary, airline, returnAirline, step, savedAt: Date.now() })
       )
     } catch {
       /* storage full or blocked — drafts are a convenience, not a requirement */
     }
-  }, [form, stops, itinerary, airline, step, submitted])
+  }, [form, stops, itinerary, airline, returnAirline, step, submitted])
 
   // Seed itinerary on first mount if the initial service needs one (it doesn't here,
   // Airport is default) — kept for completeness when defaults change.
@@ -477,6 +480,10 @@ export function BookNowPage() {
       returnPickupLocation: showReturn ? form.returnPickupLocation : undefined,
       returnDate: showReturn ? form.returnDate : undefined,
       returnTime: showReturn ? form.returnTime : undefined,
+      // The return leg is usually a different flight — only airport trips collect it.
+      returnFlightNumber: showReturn && layout === 'airport' ? form.returnFlightNumber : undefined,
+      returnAirline: showReturn && layout === 'airport' ? returnAirline?.name : undefined,
+      returnAirlineCode: showReturn && layout === 'airport' ? returnAirline?.code : undefined,
       // passengers & vehicle
       passengers: String(form.passengers),
       luggage: String(form.luggage),
@@ -1216,6 +1223,25 @@ export function BookNowPage() {
           <Input label="Return Date" type="date" required min={form.pickupDate || todayISO} value={form.returnDate} onChange={(v) => set('returnDate', v)} error={errors.returnDate} />
           <Input label="Return Time" type="time" value={form.returnTime} onChange={(v) => set('returnTime', v)} />
         </div>
+
+        {/* The return leg is usually a different flight, so it needs its own details. */}
+        {layout === 'airport' && (
+          <div className="mt-4 grid gap-4 border-t border-gray-200 pt-4 md:grid-cols-2">
+            <AirlineCombobox
+              airline={returnAirline}
+              setAirline={setReturnAirline}
+              labelOverride="Return Airline"
+              optional
+            />
+            <Input
+              label="Return Flight Number"
+              optionalText="Optional — helps us time the pickup"
+              value={form.returnFlightNumber}
+              onChange={(v) => set('returnFlightNumber', v)}
+              placeholder="e.g. UA5678"
+            />
+          </div>
+        )}
       </div>
     )
   }
@@ -1274,7 +1300,11 @@ export function BookNowPage() {
       if (dropoff) rows.push({ label: 'To', value: dropoff })
     }
 
-    if (showReturn && form.returnDate) rows.push({ label: 'Return', value: fmtDateTime(form.returnDate, form.returnTime) })
+    if (showReturn && form.returnDate) {
+      rows.push({ label: 'Return', value: fmtDateTime(form.returnDate, form.returnTime) })
+      const returnFlight = [form.returnFlightNumber, returnAirline?.name].filter(Boolean).join(' · ')
+      if (returnFlight) rows.push({ label: 'Return Flight', value: returnFlight })
+    }
     if (stops.filter(Boolean).length) rows.push({ label: 'Stops', value: stops.filter(Boolean).join(', ') })
     return rows
   }
@@ -1624,7 +1654,7 @@ function SummaryRow({ label, value, inline }: { label: string; value: string; in
 }
 
 // ── Airline searchable combobox with logo + code-badge fallback ──
-function AirlineCombobox({ airline, setAirline, error, labelOverride }: { airline: Airline | null; setAirline: (a: Airline) => void; error?: string; labelOverride?: string }) {
+function AirlineCombobox({ airline, setAirline, error, labelOverride, optional }: { airline: Airline | null; setAirline: (a: Airline) => void; error?: string; labelOverride?: string; optional?: boolean }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const ref = useRef<HTMLDivElement>(null)
@@ -1644,7 +1674,7 @@ function AirlineCombobox({ airline, setAirline, error, labelOverride }: { airlin
   }, [query])
 
   return (
-    <Field label={labelOverride || 'Airline'} required>
+    <Field label={labelOverride || 'Airline'} required={!optional} optionalText={optional ? 'Optional' : undefined}>
       <div ref={ref} className="relative">
         <button
           type="button"

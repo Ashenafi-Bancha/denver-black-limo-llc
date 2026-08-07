@@ -14,22 +14,42 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   briefcase: Briefcase, car: Car, map: Map, star: Star,
 }
 
-async function uploadImage(file: File, token: string): Promise<string | null> {
+type Outcome = { ok: boolean; error?: string; expired?: boolean }
+
+/** Uploads an image and reports why it failed — a silent no-op reads as a broken button. */
+async function uploadImage(file: File, token: string): Promise<{ url?: string } & Outcome> {
   const fd = new FormData()
   fd.append('image', file)
-  const res = await fetch(`${API_URL}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
-  if (!res.ok) return null
-  const { url } = await res.json()
-  return url.startsWith('/') ? FILE_BASE + url : url
+  try {
+    const res = await fetch(`${API_URL}/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body: fd })
+    if (res.status === 401 || res.status === 403) return { ok: false, expired: true, error: 'Your session expired. Please sign in again.' }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      return { ok: false, error: body.error || `Upload failed (${res.status}). Try a smaller JPG or PNG.` }
+    }
+    const { url } = await res.json()
+    return { ok: true, url: url.startsWith('/') ? FILE_BASE + url : url }
+  } catch {
+    return { ok: false, error: 'Could not reach the server. Check your connection.' }
+  }
 }
 
-async function saveKey(key: string, value: unknown, token: string): Promise<boolean> {
-  const res = await fetch(`${API_URL}/settings`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ key, value }),
-  })
-  return res.ok
+async function saveKey(key: string, value: unknown, token: string): Promise<Outcome> {
+  try {
+    const res = await fetch(`${API_URL}/settings`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ key, value }),
+    })
+    if (res.status === 401 || res.status === 403) return { ok: false, expired: true, error: 'Your session expired. Please sign in again.' }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      return { ok: false, error: body.error || `The server rejected the change (${res.status}).` }
+    }
+    return { ok: true }
+  } catch {
+    return { ok: false, error: 'Could not reach the server. Check your connection.' }
+  }
 }
 
 // ─────────────────────────────────────────────
@@ -41,17 +61,29 @@ const inputCls =
 
 function ImageInput({ value, onChange, token }: { value: string; onChange: (v: string) => void; token: string }) {
   const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.[0]) return
+    const file = e.target.files?.[0]
+    if (!file) return
     setBusy(true)
-    const url = await uploadImage(e.target.files[0], token)
-    if (url) onChange(url)
+    setErr('')
+    const result = await uploadImage(file, token)
+    if (result.ok && result.url) onChange(result.url)
+    else setErr(result.error || 'Upload failed.')
     setBusy(false)
+    e.target.value = '' // let the same file be retried after a failure
   }
   return (
+    <>
     <div className="flex items-center gap-3">
       {value ? (
-        <img src={value} alt="" className="h-14 w-20 shrink-0 rounded object-cover ring-1 ring-white/10" />
+        <img
+          src={value}
+          alt=""
+          className="h-14 w-20 shrink-0 rounded object-cover ring-1 ring-white/10"
+          onError={(ev) => { ev.currentTarget.style.opacity = '0.25' }}
+          onLoad={(ev) => { ev.currentTarget.style.opacity = '1' }}
+        />
       ) : (
         <div className="flex h-14 w-20 shrink-0 items-center justify-center rounded bg-brand-black text-white/30 ring-1 ring-white/10"><ImageIcon className="h-5 w-5" /></div>
       )}
@@ -61,6 +93,8 @@ function ImageInput({ value, onChange, token }: { value: string; onChange: (v: s
         <input type="file" accept="image/*" className="hidden" onChange={handle} />
       </label>
     </div>
+    {err && <p className="mt-1.5 text-xs text-red-300">{err}</p>}
+    </>
   )
 }
 
@@ -172,41 +206,43 @@ function ItemFields({ fields, value, onChange, token }: { fields: FieldSpec[]; v
 // Editors
 // ─────────────────────────────────────────────
 
-function Toast({ msg }: { msg: string }) {
-  return <span className="flex items-center gap-1.5 text-sm text-green-400"><Check className="h-4 w-4" /> {msg}</span>
-}
-
 function SingletonEditor({ group, current, token, onBack, onSaved, onResult }: { group: ContentGroup; current: Record<string, unknown> | undefined; token: string; onBack: () => void; onSaved: () => void; onResult?: (r: { ok: boolean; title: string; message?: string }) => void }) {
   const [value, setValue] = useState<Record<string, unknown>>({ ...(group.default as object), ...(current || {}) })
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState('')
+  const [dirty, setDirty] = useState(false)
 
   const save = async () => {
     setSaving(true)
-    const ok = await saveKey(group.key, value, token)
+    const res = await saveKey(group.key, value, token)
     setSaving(false)
-    setMsg(ok ? 'Saved!' : 'Save failed')
-    if (ok) onSaved()
+    if (res.ok) {
+      setDirty(false)
+      onSaved()
+    }
     onResult?.(
-      ok
+      res.ok
         ? { ok: true, title: 'Changes saved', message: `${group.title} is now live on the website.` }
-        : { ok: false, title: 'Save failed', message: 'Your changes were not saved. Check your connection and try again.' }
+        : { ok: false, title: res.expired ? 'Session expired' : 'Save failed', message: res.error }
     )
-    setTimeout(() => setMsg(''), 2500)
   }
 
   return (
-    <EditorShell group={group} onBack={onBack} saving={saving} msg={msg} onSave={save}>
-      <ItemFields fields={group.fields} value={value} onChange={setValue} token={token} />
+    <EditorShell group={group} onBack={onBack} saving={saving} dirty={dirty} onSave={save}>
+      <ItemFields fields={group.fields} value={value} onChange={(v) => { setValue(v); setDirty(true) }} token={token} />
     </EditorShell>
   )
 }
 
 function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: { group: ContentGroup; current: Record<string, unknown>[] | undefined; token: string; onBack: () => void; onSaved: () => void; onResult?: (r: { ok: boolean; title: string; message?: string }) => void }) {
-  const [items, setItems] = useState<Record<string, unknown>[]>(current && current.length ? current : (group.default as Record<string, unknown>[]))
+  // Only fall back to defaults when nothing has been saved yet. Using `.length` here
+  // meant a deliberately emptied list reappeared as the factory defaults.
+  const [items, setItems] = useState<Record<string, unknown>[]>(
+    Array.isArray(current) ? current : (group.default as Record<string, unknown>[])
+  )
   const [editing, setEditing] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState('')
+  const [dirty, setDirty] = useState(false)
+  const update = (next: Record<string, unknown>[]) => { setItems(next); setDirty(true) }
   const titleKey = group.itemTitleKey || 'title'
   const imgKey = group.itemImageKey
 
@@ -215,25 +251,26 @@ function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: 
     if (j < 0 || j >= items.length) return
     const next = [...items]
     ;[next[i], next[j]] = [next[j], next[i]]
-    setItems(next)
+    update(next)
   }
 
   const save = async () => {
     setSaving(true)
-    const ok = await saveKey(group.key, items, token)
+    const res = await saveKey(group.key, items, token)
     setSaving(false)
-    setMsg(ok ? 'Saved!' : 'Save failed')
-    if (ok) onSaved()
+    if (res.ok) {
+      setDirty(false)
+      onSaved()
+    }
     onResult?.(
-      ok
+      res.ok
         ? { ok: true, title: 'Changes saved', message: `${group.title} is now live on the website.` }
-        : { ok: false, title: 'Save failed', message: 'Your changes were not saved. Check your connection and try again.' }
+        : { ok: false, title: res.expired ? 'Session expired' : 'Save failed', message: res.error }
     )
-    setTimeout(() => setMsg(''), 2500)
   }
 
   return (
-    <EditorShell group={group} onBack={onBack} saving={saving} msg={msg} onSave={save}>
+    <EditorShell group={group} onBack={onBack} saving={saving} dirty={dirty} onSave={save}>
       <div className="space-y-2">
         {items.map((item, i) => (
           <div key={i} className="flex items-center gap-3 rounded-lg border border-white/10 bg-brand-black/40 p-3">
@@ -248,11 +285,20 @@ function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: 
               <button onClick={() => move(i, -1)} className="rounded p-2 text-white/40 hover:text-white"><ArrowUp className="h-4 w-4" /></button>
               <button onClick={() => move(i, 1)} className="rounded p-2 text-white/40 hover:text-white"><ArrowDown className="h-4 w-4" /></button>
               <button onClick={() => setEditing(i)} className="flex items-center gap-1 rounded border border-brand-gold/40 px-3 py-1.5 text-xs font-semibold text-brand-gold hover:bg-brand-gold/10"><Pencil className="h-3.5 w-3.5" /> Edit</button>
-              <button onClick={() => setItems(items.filter((_, idx) => idx !== i))} className="rounded p-2 text-white/40 hover:text-red-400"><Trash2 className="h-4 w-4" /></button>
+              <button
+                onClick={() => {
+                  const label = String(item[titleKey] || 'this item')
+                  if (window.confirm(`Remove "${label}"? It disappears from the website once you press Save Changes.`)) {
+                    update(items.filter((_, idx) => idx !== i))
+                  }
+                }}
+                title="Remove"
+                className="rounded p-2 text-white/40 hover:text-red-400"
+              ><Trash2 className="h-4 w-4" /></button>
             </div>
           </div>
         ))}
-        <button onClick={() => { const next = [...items, blankFromFields(group.fields)]; setItems(next); setEditing(next.length - 1) }} className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-brand-gold/40 py-3 text-sm font-semibold text-brand-gold hover:bg-brand-gold/5">
+        <button onClick={() => { const next = [...items, blankFromFields(group.fields)]; update(next); setEditing(next.length - 1) }} className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-brand-gold/40 py-3 text-sm font-semibold text-brand-gold hover:bg-brand-gold/5">
           <Plus className="h-4 w-4" /> Add New {group.title.replace(/s$/, '')}
         </button>
       </div>
@@ -266,7 +312,7 @@ function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: 
                 <button onClick={() => setEditing(null)} className="rounded p-1 text-white/40 hover:bg-white/10 hover:text-white"><X className="h-5 w-5" /></button>
               </div>
               <div className="max-h-[70vh] overflow-y-auto p-5">
-                <ItemFields fields={group.fields} value={items[editing]} onChange={(v) => setItems(items.map((x, idx) => (idx === editing ? v : x)))} token={token} />
+                <ItemFields fields={group.fields} value={items[editing]} onChange={(v) => update(items.map((x, idx) => (idx === editing ? v : x)))} token={token} />
               </div>
               <div className="flex justify-end gap-3 border-t border-white/10 p-4">
                 <button onClick={() => setEditing(null)} className="rounded px-4 py-2 text-sm text-white/70 hover:bg-white/5">Done</button>
@@ -279,17 +325,26 @@ function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: 
   )
 }
 
-function EditorShell({ group, onBack, saving, msg, onSave, children }: { group: ContentGroup; onBack: () => void; saving: boolean; msg: string; onSave: () => void; children: React.ReactNode }) {
+function EditorShell({ group, onBack, saving, dirty, onSave, children }: { group: ContentGroup; onBack: () => void; saving: boolean; dirty: boolean; onSave: () => void; children: React.ReactNode }) {
+  // Leaving with unsaved edits used to discard them without a word.
+  const guardedBack = () => {
+    if (dirty && !window.confirm('You have unsaved changes. Leave without saving?')) return
+    onBack()
+  }
   return (
     <div>
-      <button onClick={onBack} className="mb-4 flex items-center gap-1.5 text-sm text-white/60 hover:text-brand-gold"><ChevronLeft className="h-4 w-4" /> Back to Content</button>
+      <button onClick={guardedBack} className="mb-4 flex items-center gap-1.5 text-sm text-white/60 hover:text-brand-gold"><ChevronLeft className="h-4 w-4" /> Back to Content</button>
       <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="font-display text-2xl text-brand-gold">{group.title}</h1>
           <p className="mt-1 text-sm text-white/60">{group.description}</p>
         </div>
         <div className="flex items-center gap-4">
-          {msg && <Toast msg={msg} />}
+          {dirty && (
+            <span className="flex items-center gap-1.5 text-xs text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-300" /> Unsaved changes
+            </span>
+          )}
           <button onClick={onSave} disabled={saving} className="flex items-center gap-2 rounded bg-gold-gradient px-6 py-2.5 text-xs font-bold uppercase tracking-wider text-brand-black transition hover:scale-[1.02] disabled:opacity-70">
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save Changes
           </button>

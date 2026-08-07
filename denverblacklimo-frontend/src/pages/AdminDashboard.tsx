@@ -35,6 +35,8 @@ type Booking = {
   airport_direction: string; airline_name: string; terminal: string; flight_number: string
   pickup_date: string; pickup_time: string; pickup_location: string; dropoff_location: string
   additional_stops: string; passengers: string; luggage: string; vehicle_preference: string; special_requests: string
+  return_pickup_location?: string; return_date?: string; return_time?: string
+  return_flight_number?: string; return_airline_name?: string
 }
 
 type Inquiry = {
@@ -622,6 +624,16 @@ export function AdminDashboard() {
                                 <p><span className="text-white/40">Pickup:</span> {b.pickup_location}</p>
                                 <p><span className="text-white/40">Drop-off:</span> {b.dropoff_location}</p>
                                 {b.additional_stops && <p><span className="text-white/40">Stops:</span> {b.additional_stops}</p>}
+                                {(b.return_date || b.return_flight_number) && (
+                                  <div className="mt-3 border-t border-white/10 pt-3">
+                                    <p className="mb-1 font-bold text-brand-gold">RETURN TRIP</p>
+                                    {b.return_date && <p><span className="text-white/40">Date:</span> {fmtDate(b.return_date)}{b.return_time ? ` at ${fmtTime(b.return_time)}` : ''}</p>}
+                                    {b.return_pickup_location && <p><span className="text-white/40">Pickup:</span> {b.return_pickup_location}</p>}
+                                    {(b.return_flight_number || b.return_airline_name) && (
+                                      <p><span className="text-white/40">Flight:</span> {[b.return_flight_number, b.return_airline_name].filter(Boolean).join(' · ')}</p>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                             <div className="space-y-3">

@@ -218,6 +218,9 @@ function buildDetailRows(data) {
   if (data.return_pickup_location || data.return_date || data.return_time) {
     const parts = [data.return_pickup_location, data.return_date, data.return_time].filter(Boolean).join(' · ');
     if (parts) rows.push({ label: 'Return Trip', value: parts });
+    // The return leg is often a different flight — dispatch needs it too.
+    const returnFlight = [data.return_flight_number, data.return_airline_name].filter(Boolean).join(' · ');
+    if (returnFlight) rows.push({ label: 'Return Flight', value: returnFlight });
   }
   return rows;
 }
