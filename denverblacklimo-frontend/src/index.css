@@ -168,7 +168,18 @@
 .glow-border::before {
   content: '';
   position: absolute;
-  inset: -100%;
+  /*
+   * The sweep must be SQUARE. On a wide, short button an `inset:-100%` box is a
+   * long rectangle, so the conic gradient races along the short edges and stalls
+   * on the long ones — the light looks broken rather than orbiting. Sizing it
+   * from the width with a 1:1 ratio keeps the rotation even at any shape.
+   */
+  top: 50%;
+  left: 50%;
+  width: 145%;
+  aspect-ratio: 1;
+  min-height: 145%;
+  translate: -50% -50%;
   background: conic-gradient(
     from 0deg,
     transparent 0deg 60deg,
