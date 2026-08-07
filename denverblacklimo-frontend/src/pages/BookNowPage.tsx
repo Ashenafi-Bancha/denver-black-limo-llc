@@ -1025,9 +1025,24 @@ export function BookNowPage() {
             ] as const).map((opt) => {
               const active = form.pickupType === opt.value
               return (
-                <button key={opt.value} type="button" onClick={() => set('pickupType', opt.value)} className={`rounded-lg border p-3 text-left transition-colors ${active ? 'border-[color:var(--gold)] bg-[color:var(--gold)]/5' : 'border-gray-200 hover:border-gray-300'}`} style={{ ['--gold' as string]: GOLD }}>
-                  <span className="flex items-center gap-2 text-sm font-semibold text-gray-900" style={active ? { color: GOLD } : undefined}>{opt.icon} {opt.label}</span>
-                  <span className="mt-0.5 block text-xs text-gray-500">{opt.sub}</span>
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => set('pickupType', opt.value)}
+                  aria-pressed={active}
+                  className={`rounded-lg border p-3 text-left transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[color:var(--gold)] ${
+                    active
+                      ? 'border-transparent shadow-sm hover:brightness-95'
+                      : 'border-gray-200 bg-white hover:border-[color:var(--gold)] hover:bg-[color:var(--gold)]/10'
+                  }`}
+                  style={{ ['--gold' as string]: GOLD, ...(active ? { backgroundColor: GOLD } : {}) }}
+                >
+                  <span className={`flex items-center gap-2 text-sm font-semibold ${active ? '' : 'text-gray-900'}`} style={{ color: active ? '#0a0a0a' : undefined }}>
+                    {opt.icon} {opt.label}
+                  </span>
+                  <span className={`mt-0.5 block text-xs ${active ? '' : 'text-gray-500'}`} style={{ color: active ? 'rgba(10,10,10,0.75)' : undefined }}>
+                    {opt.sub}
+                  </span>
                 </button>
               )
             })}
@@ -1440,6 +1455,31 @@ function Counter({ label, value, onChange, min = 0, icon }: { label: string; val
   )
 }
 
+/**
+ * Shared styling for the segmented choice buttons (trip type, arrival/departure, pickup type).
+ *
+ * The selected state used to be gold text on a 5%-gold tint — 2.3:1 contrast, which read
+ * as invisible. Selected now inverts to a solid gold fill with near-black text (8.2:1),
+ * and both states have a distinct hover so the control feels clickable.
+ */
+const SEGMENT_BASE =
+  'relative flex items-center justify-center gap-2 rounded-lg border font-semibold transition-all ' +
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[color:var(--gold)]'
+
+function segmentProps(active: boolean) {
+  return {
+    className: `${SEGMENT_BASE} ${
+      active
+        ? 'border-transparent shadow-sm hover:brightness-95'
+        : 'border-gray-200 bg-white text-gray-600 hover:border-[color:var(--gold)] hover:bg-[color:var(--gold)]/10 hover:text-gray-900'
+    }`,
+    style: {
+      ['--gold' as string]: GOLD,
+      ...(active ? { backgroundColor: GOLD, color: '#0a0a0a' } : {}),
+    },
+  }
+}
+
 function TripTypeToggle({ value, onChange }: { value: TripType; onChange: (v: TripType) => void }) {
   const options: TripType[] = ['One Way', 'Round Trip', 'Hourly (As Directed)']
   return (
@@ -1448,7 +1488,16 @@ function TripTypeToggle({ value, onChange }: { value: TripType; onChange: (v: Tr
         {options.map((opt) => {
           const active = value === opt
           return (
-            <button key={opt} type="button" onClick={() => onChange(opt)} className={`relative rounded-lg border px-2 py-2.5 text-xs font-semibold transition-colors ${active ? 'border-[color:var(--gold)] bg-[color:var(--gold)]/5' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`} style={{ ['--gold' as string]: GOLD, color: active ? GOLD : undefined }}>
+            <button
+              key={opt}
+              type="button"
+              onClick={() => onChange(opt)}
+              aria-pressed={active}
+              {...(() => {
+                const p = segmentProps(active)
+                return { ...p, className: `${p.className} px-2 py-2.5 text-xs` }
+              })()}
+            >
               {opt === 'Hourly (As Directed)' ? 'Hourly' : opt}
               {active && <Check className="absolute right-1.5 top-1.5 h-3 w-3" />}
             </button>
@@ -1466,7 +1515,16 @@ function SegmentToggle<T extends string>({ label, value, onChange, options }: { 
         {options.map((opt) => {
           const active = value === opt.value
           return (
-            <button key={opt.value} type="button" onClick={() => onChange(opt.value)} className={`flex items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${active ? 'border-[color:var(--gold)] bg-[color:var(--gold)]/5' : 'border-gray-200 text-gray-600 hover:border-gray-300'}`} style={{ ['--gold' as string]: GOLD, color: active ? GOLD : undefined }}>
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => onChange(opt.value)}
+              aria-pressed={active}
+              {...(() => {
+                const p = segmentProps(active)
+                return { ...p, className: `${p.className} py-2.5 text-sm` }
+              })()}
+            >
               {opt.icon} {opt.label}
             </button>
           )
