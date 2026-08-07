@@ -322,6 +322,8 @@ export function BookNowPage() {
     if (form.returnDate && form.pickupDate && form.returnDate < form.pickupDate) {
       e.returnDate = 'Return date cannot be before the pickup date'
     }
+    // A round trip without a return leg reaches the office as an incomplete booking.
+    if (showReturn && !form.returnDate) e.returnDate = 'Return date is required for a round trip'
     if (layout === 'airport') {
       // Airline stays required both ways — at DIA it decides which terminal we use.
       if (!airline) e.airline = 'Please select an airline'
@@ -1204,7 +1206,7 @@ export function BookNowPage() {
         </p>
         <div className="grid gap-4 md:grid-cols-3">
           <AddressInput label="Return Pickup Location" value={form.returnPickupLocation} onChange={(v) => set('returnPickupLocation', v)} placeholder="Return pickup address" />
-          <Input label="Return Date" type="date" min={form.pickupDate || todayISO} value={form.returnDate} onChange={(v) => set('returnDate', v)} />
+          <Input label="Return Date" type="date" required min={form.pickupDate || todayISO} value={form.returnDate} onChange={(v) => set('returnDate', v)} error={errors.returnDate} />
           <Input label="Return Time" type="time" value={form.returnTime} onChange={(v) => set('returnTime', v)} />
         </div>
       </div>

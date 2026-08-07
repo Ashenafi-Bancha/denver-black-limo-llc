@@ -10,6 +10,8 @@ export type ServiceArea = {
   number: number
   title: string
   subtitle: string
+  /** Longer hero paragraph — falls back to `intro` when unset. */
+  heroDescription?: string
   heroImage: string
   intro: string
   coverageAreas: string[]
@@ -54,6 +56,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 1,
     title: 'Denver Metro',
     subtitle: 'Premium Transportation Across the Heart of Denver',
+    heroDescription:
+      'Downtown offices, LoDo restaurants, Union Station and the Convention Center are all inside our core coverage. Chauffeurs who know which block to stop on and where the loading zones are, so you step out at the door rather than around the corner.',
     heroImage: S.denverDay,
     intro:
       'Denver Metro is the vibrant center of business, culture, entertainment, and luxury living. Denver Black Limo LLC provides reliable, professional, and comfortable transportation throughout the entire Metro area — day or night, 24/7.',
@@ -83,6 +87,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 2,
     title: 'South Denver Metro',
     subtitle: 'Premium Transportation Across South Denver',
+    heroDescription:
+      'The Denver Tech Center, Greenwood Village, Cherry Creek, Lone Tree and Highlands Ranch — Colorado’s business corridor. Early-morning executive pickups, client collections from Centennial Airport, and golf-club and country-club runs across the south metro.',
     heroImage: S.suburb,
     intro:
       'South Denver Metro is home to Colorado’s premier business districts, luxury communities, golf clubs, executive offices, and upscale neighborhoods. Denver Black Limo LLC provides first-class chauffeured transportation throughout the region with professional service, luxury vehicles, and dependable 24/7 availability.',
@@ -112,6 +118,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 3,
     title: 'North Denver Metro',
     subtitle: 'Premium Transportation Throughout North Denver',
+    heroDescription:
+      'Westminster, Thornton, Broomfield, Arvada and Northglenn, plus the fast-growing communities along I-25 and US-36. Reliable timing for DIA runs from the north metro, where traffic patterns are nothing like the ones downtown.',
     heroImage: S.suburb,
     intro:
       'North Denver Metro is a thriving community of residential neighborhoods, business centers, and growing cities. Denver Black Limo LLC provides safe, reliable, and professional transportation for residents, families, and businesses throughout the North Metro area, 24 hours a day, 7 days a week.',
@@ -139,6 +147,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 4,
     title: 'Boulder & Northern Colorado',
     subtitle: 'Premium Transportation Across Boulder and Northern Colorado',
+    heroDescription:
+      'Boulder, Longmont, Fort Collins, Loveland and Greeley. University visits and CU events, Pearl Street dinners, brewery tours in the Fort Collins district, and the long DIA transfers that need a driver who has done the run before.',
     heroImage: S.boulder,
     intro:
       'From the vibrant cities of Boulder and Fort Collins to the scenic mountain towns and growing communities across Northern Colorado, Denver Black Limo LLC offers luxury transportation with comfort, reliability, and professional service. Wherever you’re headed, we get you there in style.',
@@ -164,6 +174,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 5,
     title: 'Foothills & Mountain Gateway',
     subtitle: 'Premium Transportation Across Golden and the Foothills Corridor',
+    heroDescription:
+      'Golden, Morrison, Evergreen, Conifer and the canyon roads that connect them. Red Rocks show nights, Coors Brewery tours, School of Mines visits and mountain-wedding venues — narrow roads and tight parking handled for you.',
     heroImage: S.mountain,
     intro:
       'The Foothills & Mountain Gateway offers some of Colorado’s most breathtaking scenery and outdoor experiences. Denver Black Limo LLC provides luxury transportation to charming mountain towns, scenic destinations, and world-famous attractions with comfort and reliability. Relax and enjoy the ride — we handle the journey.',
@@ -181,6 +193,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 6,
     title: 'Colorado Mountain Resorts',
     subtitle: 'Premium Transportation to Colorado’s Top Mountain Destinations',
+    heroDescription:
+      'Vail, Beaver Creek, Breckenridge, Keystone, Copper, Winter Park, Aspen and Steamboat. Winter-equipped SUVs, chauffeurs who drive the I-70 corridor all season, and ski and board racks so your gear travels properly.',
     heroImage: S.ski,
     intro:
       'From world-class ski resorts to luxury mountain retreats, Denver Black Limo LLC provides comfortable, reliable, and stylish transportation to Colorado’s most iconic mountain destinations. Enjoy every mile of the journey while we handle the road.',
@@ -210,6 +224,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 7,
     title: 'Colorado Springs & Southern Colorado',
     subtitle: 'Premium Transportation Across Southern Colorado',
+    heroDescription:
+      'Colorado Springs, Pueblo, Trinidad, Garden of the Gods, the Air Force Academy and Cheyenne Mountain. Long-distance comfort for graduations, ceremonies, business travel and family visits down I-25.',
     heroImage: S.springs,
     intro:
       'From the beauty of Colorado Springs to the historic charm of Pueblo and Trinidad, Denver Black Limo LLC delivers exceptional transportation throughout Southern Colorado with comfort, professionalism, and reliability. We’re here for business, leisure, and everything in between.',
@@ -235,6 +251,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 8,
     title: 'Airports & Private Aviation',
     subtitle: 'Premium Airport & Private Aviation Transportation Across Colorado',
+    heroDescription:
+      'Denver International, Centennial, Rocky Mountain Metro, Eagle County and Aspen-Pitkin, plus every private FBO terminal. Flights tracked in real time, meet-and-greet inside the terminal, and planeside pickup for private aviation.',
     heroImage: S.airport,
     intro:
       'Denver Black Limo LLC provides seamless, luxury transportation to and from Colorado’s top airports, private aviation terminals, and FBOs. From commercial flights to private jets, our professional chauffeurs ensure a smooth, on-time, and discreet experience every time.',
@@ -261,6 +279,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 9,
     title: 'Entertainment, Sports & Luxury Hotels',
     subtitle: 'Premium Transportation to Denver’s Top Venues, Events & Luxury Accommodations',
+    heroDescription:
+      'Ball Arena, Empower Field, Coors Field, Red Rocks, Mission Ballroom, the Denver Performing Arts Complex and the city’s luxury hotels. Drop-off at the right gate, and a car waiting in the same place when the night ends.',
     heroImage: S.denverNight,
     intro:
       'From world-class arenas and iconic venues to luxury hotels and VIP events, Denver Black Limo LLC delivers first-class transportation with professionalism, discretion, and reliability. Arrive in style. Every time.',
@@ -289,6 +309,8 @@ export const serviceAreas: ServiceArea[] = [
     number: 10,
     title: 'Long-Distance & Interstate Travel',
     subtitle: 'Luxury Chauffeured Transportation Beyond Colorado',
+    heroDescription:
+      'Beyond Colorado when the trip calls for it — Cheyenne, Santa Fe, Albuquerque, Salt Lake City and Moab. A private vehicle door to door, with the comfort and luggage space that a full day on the road needs.',
     heroImage: S.mountain,
     intro:
       'Whether you’re traveling for business, family, or leisure, Denver Black Limo LLC provides premium long-distance transportation throughout Colorado and neighboring states. Sit back, relax, and enjoy a first-class travel experience while we handle every mile.',

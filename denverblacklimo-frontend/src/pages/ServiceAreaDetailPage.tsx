@@ -48,7 +48,12 @@ export function ServiceAreaDetailPage() {
           <h1 className="mt-2 font-display text-4xl text-white md:text-5xl">
             {area.number}. {area.title.toUpperCase()}
           </h1>
-          <p className="mt-3 max-w-2xl text-lg text-white/80">{area.subtitle}</p>
+          <p className="mt-3 max-w-2xl text-lg font-medium text-brand-gold-light/90 md:text-xl">
+            {area.subtitle}
+          </p>
+          <p className="mt-4 max-w-3xl text-base leading-relaxed text-white/75 md:text-lg">
+            {area.heroDescription || area.intro}
+          </p>
         </div>
       </section>
 

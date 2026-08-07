@@ -15,9 +15,14 @@ import type { Service } from '../data/services'
 import type { ServiceArea } from '../data/serviceAreas'
 import { fleet as defaultFleet, type FleetVehicle } from '../data/fleet'
 
-/** Tracking tightens below xl so all eight items + both CTAs stay on one line. */
+/**
+ * The nav sets its own size rather than using `text-xs`, which the desktop type scale
+ * lifts to 13px from 1024px up — enough extra width to push the bar onto two lines.
+ * Tracking and size both step up at xl, where there is room for them.
+ */
 const navBaseClass =
-  'flex items-center gap-1 whitespace-nowrap text-xs font-medium tracking-[0.08em] transition xl:tracking-[0.2em]'
+  'flex items-center gap-1 whitespace-nowrap text-[11px] font-medium tracking-[0.04em] transition ' +
+  'xl:text-[13px] xl:tracking-[0.16em]'
 
 const navLinkClass = ({ isActive }: { isActive: boolean }) =>
   `${navBaseClass} ${isActive ? 'text-brand-gold-light' : 'text-white/80 hover:text-brand-gold-light'}`
@@ -106,7 +111,7 @@ export function Header() {
         <Logo tagline={false} />
 
         {/* Desktop nav */}
-        <nav className="hidden items-center gap-2.5 lg:flex xl:gap-5">
+        <nav className="hidden items-center gap-2 lg:flex xl:gap-4">
           <NavLink to="/" className={navLinkClass} end>
             HOME
           </NavLink>
@@ -193,15 +198,14 @@ export function Header() {
         <div className="hidden shrink-0 flex-nowrap items-center gap-3 whitespace-nowrap md:flex">
           <a
             href={telHref(biz.phone)}
-            className="flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-gold/50 px-3.5 py-2 text-xs font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 xl:px-4"
+            className="flex items-center gap-2 whitespace-nowrap rounded-full border border-brand-gold/50 px-3 py-2 text-[11px] font-medium tracking-wide text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 xl:px-4 xl:text-xs"
           >
             <Phone className="h-3.5 w-3.5 shrink-0" />
-            <span className="xl:hidden">CALL US</span>
-            <span className="hidden xl:inline">{biz.phone}</span>
+            <span className="sr-only xl:not-sr-only">{biz.phone}</span>
           </a>
           <Link
             to="/book"
-            className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gold-gradient px-4 py-2 text-xs font-semibold tracking-widest text-brand-black shadow-md shadow-brand-gold/20 transition hover:brightness-110 xl:px-5"
+            className="flex items-center gap-2 whitespace-nowrap rounded-full bg-gold-gradient px-3.5 py-2 text-[11px] font-semibold tracking-wider text-brand-black shadow-md shadow-brand-gold/20 transition hover:brightness-110 xl:px-5 xl:text-xs xl:tracking-widest"
           >
             <Calendar className="h-3.5 w-3.5" />
             BOOK NOW
