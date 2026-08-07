@@ -176,7 +176,7 @@ export function PricingPage() {
       </section>
 
       {/* Policies */}
-      <section className="border-y border-brand-gold/15 bg-brand-charcoal py-14">
+      <section id="policies" className="scroll-mt-28 border-y border-brand-gold/15 bg-brand-charcoal py-14">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
           <SectionHeading className="mb-10">{p.policiesTitle}</SectionHeading>
           <div className="grid gap-4 md:grid-cols-2">

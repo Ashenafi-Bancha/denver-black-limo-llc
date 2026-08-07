@@ -17,7 +17,7 @@ import {
   PHONE_HREF,
   type Airline,
 } from '../constants'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   SERVICE_CONFIGS,
   getServiceConfig,
@@ -684,9 +684,16 @@ export function BookNowPage() {
                 {renderSummaryPanel(true)}
 
                 <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
-                  <div className="flex items-center gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
-                    <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
-                    Your information is secure and will only be used for your booking.
+                  <div className="flex items-start gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
+                    <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
+                    <span>
+                      Your information is secure and will only be used for your booking. Free
+                      cancellation up to 48 hours before pickup —{' '}
+                      <Link to="/pricing#policies" className="font-semibold underline" style={{ color: GOLD }}>
+                        see our booking policies
+                      </Link>
+                      .
+                    </span>
                   </div>
                   <button
                     type="button"

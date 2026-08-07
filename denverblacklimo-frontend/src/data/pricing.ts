@@ -97,9 +97,14 @@ export const defaultPricing: PricingContent = {
       icon: 'file-text',
     },
     {
-      title: 'Flexible Changes',
-      text: 'Plans change. Contact us as early as possible to modify or cancel and our team will take care of it.',
+      title: 'Cancellations & Refunds',
+      text: 'Cancel more than 48 hours before pickup for a full refund. Between 24 and 48 hours, half the fare is refunded. Inside 24 hours the booking is non-refundable, because the vehicle and chauffeur are already committed to you.',
       icon: 'calendar',
+    },
+    {
+      title: 'Changes to Your Booking',
+      text: 'Plans shift. Call or text us as early as you can and we will move your time, vehicle or route wherever availability allows — there is no charge for a change we can accommodate.',
+      icon: 'file-text',
     },
     {
       title: 'Gratuity at Your Discretion',
