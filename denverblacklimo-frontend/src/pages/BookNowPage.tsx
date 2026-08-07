@@ -323,8 +323,13 @@ export function BookNowPage() {
       e.returnDate = 'Return date cannot be before the pickup date'
     }
     if (layout === 'airport') {
+      // Airline stays required both ways — at DIA it decides which terminal we use.
       if (!airline) e.airline = 'Please select an airline'
-      if (!form.flightNumber.trim()) e.flightNumber = 'Flight number is required'
+      // Arrivals are timed off the inbound flight, so the number is essential. Departures
+      // are timed off the pickup address, so it only helps us watch for schedule changes.
+      if (form.airportDirection === 'Arrival' && !form.flightNumber.trim()) {
+        e.flightNumber = 'Flight number is required so we can track your arrival'
+      }
       if (!form.pickupDate) e.pickupDate = 'Date is required'
       if (!form.pickupTime) e.pickupTime = 'Time is required'
       if (form.airportDirection === 'Arrival' && !form.dropoffLocation.trim()) e.dropoffLocation = 'Destination is required'
@@ -879,7 +884,12 @@ export function BookNowPage() {
         <SegmentToggle
           label="Arrival / Departure"
           value={form.airportDirection}
-          onChange={(v) => set('airportDirection', v)}
+          onChange={(v) => {
+            set('airportDirection', v)
+            // Switching to Departure makes the flight number optional — drop any
+            // "required" error still on screen from the arrival rules.
+            if (v === 'Departure') setErrors((prev) => ({ ...prev, flightNumber: undefined }))
+          }}
           options={[
             { value: 'Arrival', label: 'Arrival', icon: <PlaneLanding className="h-4 w-4" /> },
             { value: 'Departure', label: 'Departure', icon: <PlaneTakeoff className="h-4 w-4" /> },
@@ -887,7 +897,15 @@ export function BookNowPage() {
         />
         <div className="grid gap-6 md:grid-cols-2">
           <AirlineCombobox airline={airline} setAirline={(a) => { setAirline(a); setErrors((p) => ({ ...p, airline: undefined })) }} error={errors.airline} />
-          <Input label="Flight Number" required value={form.flightNumber} onChange={(v) => set('flightNumber', v)} error={errors.flightNumber} placeholder="e.g. UA1234" />
+          <Input
+            label="Flight Number"
+            required={arriving}
+            optionalText={arriving ? undefined : 'Optional — helps us track delays'}
+            value={form.flightNumber}
+            onChange={(v) => set('flightNumber', v)}
+            error={errors.flightNumber}
+            placeholder="e.g. UA1234"
+          />
         </div>
         <DateTimeRow
           dateLabel={arriving ? 'Arrival Date' : 'Departure Date'}
@@ -1334,9 +1352,9 @@ function Field({ label, required, optional, optionalText, icon, children }: { la
   )
 }
 
-function Input({ label, value, onChange, error, icon, required, optional, placeholder, type = 'text', min }: { label: string; value: string; onChange: (v: string) => void; error?: string; icon?: React.ReactNode; required?: boolean; optional?: boolean; placeholder?: string; type?: string; min?: string }) {
+function Input({ label, value, onChange, error, icon, required, optional, optionalText, placeholder, type = 'text', min }: { label: string; value: string; onChange: (v: string) => void; error?: string; icon?: React.ReactNode; required?: boolean; optional?: boolean; optionalText?: string; placeholder?: string; type?: string; min?: string }) {
   return (
-    <Field label={label} required={required} optional={optional}>
+    <Field label={label} required={required} optional={optional} optionalText={optionalText}>
       <div className="relative">
         {icon && <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{icon}</div>}
         <input
