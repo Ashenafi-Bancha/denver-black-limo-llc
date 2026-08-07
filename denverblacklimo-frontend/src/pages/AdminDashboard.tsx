@@ -5,7 +5,6 @@ import {
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
   RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { CmsManager } from '../admin/CmsManager'
@@ -436,7 +435,7 @@ export function AdminDashboard() {
       <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/10 bg-brand-surface flex flex-col shadow-2xl shadow-black/50 transition-transform duration-300 lg:static lg:z-10 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="p-6 border-b border-white/10 flex items-center gap-3">
           <Logo iconOnly />
-          <span className="font-display text-sm font-bold tracking-widest text-brand-gold uppercase">Workspace</span>
+          <span className="font-display text-sm font-bold tracking-widest text-brand-gold uppercase">Admin Workspace</span>
           <button onClick={() => setSidebarOpen(false)} aria-label="Close menu" className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-md border border-white/10 text-white/60 lg:hidden"><X className="h-4 w-4" /></button>
         </div>
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
@@ -449,13 +448,7 @@ export function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <div className="space-y-1 border-t border-white/10 p-4">
-          <Link
-            to="/"
-            className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-brand-gold-light"
-          >
-            <ExternalLink className="h-4 w-4" /> Back to Site
-          </Link>
+        <div className="border-t border-white/10 p-4">
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-red-400/80 hover:bg-red-400/10 hover:text-red-400 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
         </div>
       </aside>
@@ -463,9 +456,13 @@ export function AdminDashboard() {
       <main className="flex-1 overflow-y-auto relative">
         {/* Top bar — hamburger on mobile, plus a link back to the live site on every screen.
             The sidebar link alone was easy to miss, and invisible on mobile until you open the drawer. */}
-        <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur">
-          <div className="flex items-center gap-2 lg:hidden"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Workspace</span></div>
-          <p className="hidden text-xs uppercase tracking-widest text-white/40 lg:block">Denver Black Limo · Admin</p>
+        <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur lg:relative">
+          <div className="flex items-center gap-2 lg:hidden"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Admin Workspace</span></div>
+          {/* Absolutely centred so the title sits mid-bar regardless of how wide the
+              buttons on either side happen to be. */}
+          <p className="pointer-events-none absolute left-1/2 hidden -translate-x-1/2 whitespace-nowrap font-display text-base font-bold uppercase tracking-[0.18em] text-brand-gold lg:block">
+            Denver Black Limo LLC · Admin Dashboard
+          </p>
           <div className="flex items-center gap-2">
             <a
               href="/"
