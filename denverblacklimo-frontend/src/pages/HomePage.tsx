@@ -297,13 +297,7 @@ export function HomePage() {
               ))}
             </div>
             <div className="mt-8 flex justify-center">
-              <Link
-                to="/service-areas"
-                className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
-              >
-                VIEW ALL SERVICE AREAS
-                <ArrowRight className="h-4 w-4" />
-              </Link>
+              <OutlineButton to="/service-areas">VIEW ALL SERVICE AREAS</OutlineButton>
             </div>
           </motion.div>
         </div>
@@ -354,13 +348,7 @@ export function HomePage() {
                 Available 24/7
               </p>
               <div className="mt-8 flex justify-center">
-                <Link
-                  to="/about"
-                  className="inline-flex items-center gap-2 rounded-full border border-brand-gold/60 px-7 py-3 text-xs font-semibold tracking-widest text-brand-gold-light shadow-[0_0_14px_rgba(212,175,55,0.35)] transition hover:border-brand-gold hover:bg-brand-gold/5 hover:shadow-[0_0_26px_rgba(212,175,55,0.6)]"
-                >
-                  LEARN MORE ABOUT US
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+                <OutlineButton to="/about">LEARN MORE ABOUT US</OutlineButton>
               </div>
             </motion.div>
           </div>
