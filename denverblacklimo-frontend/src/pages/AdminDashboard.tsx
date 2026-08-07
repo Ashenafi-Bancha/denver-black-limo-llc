@@ -468,11 +468,14 @@ export function AdminDashboard() {
               href="/"
               target="_blank"
               rel="noopener noreferrer"
+              // Both labels exist in the markup for the responsive swap, so assistive
+              // tech would otherwise read them concatenated as "View Public SiteSite".
+              aria-label="View public site (opens in a new tab)"
               className="flex items-center gap-2 rounded-lg border border-brand-gold/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-brand-gold-light transition hover:bg-brand-gold/10"
             >
-              <ExternalLink className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">View Public Site</span>
-              <span className="sm:hidden">Site</span>
+              <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+              <span aria-hidden="true" className="hidden sm:inline">View Public Site</span>
+              <span aria-hidden="true" className="sm:hidden">Site</span>
             </a>
             <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95 lg:hidden"><Menu className="h-5 w-5" /></button>
           </div>
