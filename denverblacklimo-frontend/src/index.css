@@ -13,14 +13,14 @@
 }
 
 /**
- * Mobile readability.
+ * Desktop readability.
  *
  * The design leans on `text-sm` and `text-xs` for body copy, which reads small on a
- * phone. Tailwind's font-size utilities resolve through these variables, so raising
- * them here lifts every body-text size at once on small screens — no per-component
- * overrides, and desktop is untouched.
+ * large screen. Tailwind's font-size utilities resolve through these variables, so
+ * raising them here lifts every body-text size at once from the laptop breakpoint up.
+ * Phones keep the original scale, where the smaller sizes suit the narrow column.
  */
-@media (max-width: 767px) {
+@media (min-width: 1024px) {
   :root {
     --text-xs: 0.8125rem; /* 12 → 13px */
     --text-sm: 0.9375rem; /* 14 → 15px */

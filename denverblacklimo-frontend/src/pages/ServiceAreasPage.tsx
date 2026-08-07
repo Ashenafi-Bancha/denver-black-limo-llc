@@ -54,7 +54,7 @@ export function ServiceAreasPage() {
                   <p className="text-xs tracking-widest text-brand-gold/80">REGION {area.number}</p>
                   <h2 className="mt-1 font-display text-xl text-brand-gold-light">{area.title}</h2>
                   <p className="mt-1 text-sm text-brand-gold/70">{area.subtitle}</p>
-                  <p className="mt-2 line-clamp-4 text-base leading-relaxed text-white/60 md:text-sm">
+                  <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-white/60">
                     {area.intro}
                   </p>
                   <ul className="mt-4 space-y-1">

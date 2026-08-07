@@ -70,7 +70,8 @@ export function ServiceSection({ service }: { service: Service }) {
               </div>
 
               <div className="mt-8">
-                <GoldButton to="/book" className="w-full sm:w-auto">
+                {/* Carries the service through so the booking form opens on this one. */}
+                <GoldButton to={`/book?service=${service.slug}`} className="w-full sm:w-auto">
                   RESERVE YOUR RIDE NOW
                 </GoldButton>
               </div>

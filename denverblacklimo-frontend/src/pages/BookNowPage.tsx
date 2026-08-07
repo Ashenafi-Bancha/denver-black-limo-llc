@@ -17,12 +17,14 @@ import {
   PHONE_HREF,
   type Airline,
 } from '../constants'
+import { useSearchParams } from 'react-router-dom'
 import {
   SERVICE_CONFIGS,
   getServiceConfig,
   numberedServiceLabel,
   isSportingService,
   type ServiceConfig,
+  type ServiceLayout,
 } from '../data/bookingServices'
 import { PlaceInput } from '../components/PlaceInput'
 import {
@@ -105,6 +107,30 @@ function readSavedDraft(): Record<string, unknown> | null {
   }
 }
 
+/** Wedding and nightlife bookings open with a pre-labelled multi-stop itinerary. */
+function seedItineraryFor(layout?: ServiceLayout): ItineraryStop[] {
+  if (layout === 'wedding')
+    return [
+      { label: 'Pickup (From)', location: '', time: '' },
+      { label: 'Wedding Venue', location: '', time: '' },
+      { label: 'Return Drop-off', location: '', time: '' },
+    ]
+  if (layout === 'nightlife')
+    return [
+      { label: 'Pickup (Start)', location: '', time: '' },
+      { label: 'Stop 1', location: '', time: '' },
+      { label: 'Return Drop-off', location: '', time: '' },
+    ]
+  return []
+}
+
+/** Trip type a service opens on — hourly services default to hourly, events to round trip. */
+function defaultTripFor(layout?: ServiceLayout): TripType {
+  if (layout === 'hourly' || layout === 'nightlife') return 'Hourly (As Directed)'
+  if (layout === 'wedding' || layout === 'event') return 'Round Trip'
+  return 'One Way'
+}
+
 export function BookNowPage() {
   const [submitted, setSubmitted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -116,6 +142,16 @@ export function BookNowPage() {
   /** Hidden field — only bots fill it in. */
   const [honeypot, setHoneypot] = useState('')
   const [draftRestored, setDraftRestored] = useState(false)
+  const [searchParams] = useSearchParams()
+  /**
+   * "Reserve Your Ride Now" on a service page links here as /book?service=<slug>.
+   * Resolved once at first render and used to seed the initial state directly —
+   * doing it in an effect raced with the draft restore and the draft-persist write.
+   */
+  const [requestedService] = useState(() => {
+    const slug = searchParams.get('service')
+    return (slug && SERVICE_CONFIGS.find((c) => c.slug === slug)) || null
+  })
 
   const [form, setForm] = useState({
     // Customer
@@ -126,10 +162,10 @@ export function BookNowPage() {
     // Passengers & vehicle
     passengers: 2,
     luggage: 2,
-    vehicleCategory: 'Cadillac Escalade ESV',
+    vehicleCategory: requestedService?.defaultVehicle ?? 'Cadillac Escalade ESV',
     // Service & trip
-    serviceType: SERVICE_TYPES[0] as string,
-    tripType: 'One Way' as TripType,
+    serviceType: (requestedService?.name ?? SERVICE_TYPES[0]) as string,
+    tripType: defaultTripFor(requestedService?.layout),
     // Common route
     pickupDate: '',
     pickupTime: '',
@@ -168,7 +204,7 @@ export function BookNowPage() {
   // Dynamic collections
   const [airline, setAirline] = useState<Airline | null>(null)
   const [stops, setStops] = useState<string[]>([]) // generic additional stops
-  const [itinerary, setItinerary] = useState<ItineraryStop[]>([]) // wedding / nightlife
+  const [itinerary, setItinerary] = useState<ItineraryStop[]>(() => seedItineraryFor(requestedService?.layout)) // wedding / nightlife
 
   const set = (key: string, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -178,12 +214,7 @@ export function BookNowPage() {
   // When the service changes, reset trip type, vehicle default and structured stops.
   const changeService = (name: string) => {
     const cfg = getServiceConfig(name)
-    const defaultTrip: TripType =
-      cfg.layout === 'hourly' || cfg.layout === 'nightlife'
-        ? 'Hourly (As Directed)'
-        : cfg.layout === 'wedding' || cfg.layout === 'event'
-          ? 'Round Trip'
-          : 'One Way'
+    const defaultTrip = defaultTripFor(cfg.layout)
     setForm((prev) => ({
       ...prev,
       serviceType: name,
@@ -191,21 +222,7 @@ export function BookNowPage() {
       vehicleCategory: cfg.defaultVehicle,
     }))
     setErrors({})
-    if (cfg.layout === 'wedding') {
-      setItinerary([
-        { label: 'Pickup (From)', location: '', time: '' },
-        { label: 'Wedding Venue', location: '', time: '' },
-        { label: 'Return Drop-off', location: '', time: '' },
-      ])
-    } else if (cfg.layout === 'nightlife') {
-      setItinerary([
-        { label: 'Pickup (Start)', location: '', time: '' },
-        { label: 'Stop 1', location: '', time: '' },
-        { label: 'Return Drop-off', location: '', time: '' },
-      ])
-    } else {
-      setItinerary([])
-    }
+    setItinerary(seedItineraryFor(cfg.layout))
     setStops([])
   }
 
@@ -213,6 +230,10 @@ export function BookNowPage() {
   useEffect(() => {
     const draft = readSavedDraft()
     if (!draft) return
+    // An explicit ?service= means the visitor just asked for a different service —
+    // an older draft for something else must not override it.
+    const draftService = (draft.form as { serviceType?: string } | undefined)?.serviceType
+    if (requestedService && draftService && draftService !== requestedService.name) return
     if (draft.form) setForm((prev) => ({ ...prev, ...(draft.form as object) }))
     if (Array.isArray(draft.stops)) setStops(draft.stops as string[])
     if (Array.isArray(draft.itinerary)) setItinerary(draft.itinerary as ItineraryStop[])
@@ -228,9 +249,12 @@ export function BookNowPage() {
     // Only once the visitor has actually typed something. Saving an untouched form
     // meant a first-time visitor came back to "We restored the details you started
     // earlier" over a completely empty form.
+    // NB: only fields that start empty count. `fboName` is preset to the first FBO in
+    // the list, so including it made this always true — every mount then overwrote a
+    // good draft with pre-restore state before the restore above had settled.
     const started =
       Boolean(form.name || form.email || form.phone || form.pickupLocation || form.dropoffLocation ||
-        form.pickupDate || form.flightNumber || form.eventVenue || form.fboName || airline) ||
+        form.pickupDate || form.flightNumber || form.eventVenue || airline) ||
       stops.some(Boolean) ||
       itinerary.some((s) => s.location)
     if (!started) return

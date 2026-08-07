@@ -404,7 +404,7 @@ export function HomePage() {
                 <div className="p-5">
                   <p className="text-xs text-brand-gold/80">{String(s.number).padStart(2, '0')}</p>
                   <h3 className="mt-1 font-display text-xl text-brand-gold-light">{s.title}</h3>
-                  <p className="mt-2 line-clamp-4 text-base leading-relaxed text-white/60 md:text-sm">
+                  <p className="mt-2 line-clamp-4 text-sm leading-relaxed text-white/60">
                     {s.intro}
                   </p>
                   <span className="mt-4 inline-flex items-center gap-1 text-xs tracking-widest text-brand-gold-light">
@@ -424,7 +424,7 @@ export function HomePage() {
       {previewRates.length > 0 && (
         <section className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-20">
           <SectionHeading className="mb-3">Transparent Hourly Rates</SectionHeading>
-          <p className="mx-auto mb-10 max-w-2xl text-center text-base text-white/65 md:text-sm">
+          <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-white/65">
             Clear starting prices with no surge pricing — every quote is confirmed in writing before you ride.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
@@ -463,7 +463,7 @@ export function HomePage() {
         <section className="border-y border-brand-gold/15 bg-brand-surface/40 py-16">
           <div className="mx-auto max-w-7xl px-4 md:px-6">
             <SectionHeading className="mb-3">Colorado Travel Guides</SectionHeading>
-            <p className="mx-auto mb-10 max-w-2xl text-center text-base text-white/65 md:text-sm">
+            <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-white/65">
               Local advice on airport timing, mountain travel and event nights from the chauffeurs who drive them daily.
             </p>
             <div className="grid gap-6 md:grid-cols-3">
@@ -488,7 +488,7 @@ export function HomePage() {
                       {post.tag} · {post.readMinutes} MIN READ
                     </p>
                     <h3 className="mt-1 font-display text-xl text-brand-gold-light">{post.title}</h3>
-                    <p className="mt-2 text-base leading-relaxed text-white/60 md:text-sm">{post.excerpt}</p>
+                    <p className="mt-2 text-sm leading-relaxed text-white/60">{post.excerpt}</p>
                     <span className="mt-4 inline-flex items-center gap-1 text-xs tracking-widest text-brand-gold-light">
                       READ ARTICLE <ArrowRight className="h-3 w-3" />
                     </span>

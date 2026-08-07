@@ -62,7 +62,7 @@ export const services: Service[] = [
       'Luxury ground transfers to and from Denver International Airport with flight tracking and meet & greet.',
     heroImage: img.airport,
     intro:
-      'Arrive or depart in comfort with professional chauffeurs, real-time flight monitoring, luggage assistance, and seamless curbside or meet-and-greet service at Denver International Airport and regional airports.',
+      'Arrive or depart without watching the clock. We track your flight in real time and adjust pickup automatically when it is early or delayed, so your chauffeur is already waiting. Choose curbside or a meet-and-greet inside the terminal with luggage assistance, at Denver International and every regional airport we serve.',
     trustIcons: [
       { label: 'Flight Tracking', icon: 'plane' },
       { label: 'Luggage Assistance', icon: 'luggage' },
@@ -110,7 +110,7 @@ export const services: Service[] = [
       'Discreet tarmac-side service for private jet travelers, executives, and VIP arrivals.',
     heroImage: img.aviation,
     intro:
-      'Premium transportation for private aviation clients arriving or departing through FBO terminals. Our chauffeurs coordinate directly with your flight crew for seamless tarmac transfers.',
+      'Private aviation runs on its own schedule, so we work to your tail number rather than a timetable. Your chauffeur coordinates directly with your flight crew and FBO, then meets you planeside at Signature, Atlantic, jetCenter or Centennial. Bags move straight from aircraft to vehicle with no terminal and no waiting.',
     trustIcons: [
       { label: 'Private Jet', icon: 'plane' },
       { label: 'VIP Service', icon: 'crown' },
@@ -164,7 +164,7 @@ export const services: Service[] = [
       'Professional chauffeured service for meetings, roadshows, conferences, and VIP guests.',
     heroImage: img.corporate,
     intro:
-      'Impress clients and keep executives on schedule with immaculate vehicles, corporate billing options, and chauffeurs trained in discretion and professionalism.',
+      'Keep executives on schedule and clients impressed. Immaculate sedans and SUVs, chauffeurs trained in discretion, and quiet interiors you can take a call from between meetings. We handle multi-stop roadshows, client pickups and conference travel, with corporate billing and a named account contact for your assistant.',
     trustIcons: [
       { label: 'Executive Travel', icon: 'briefcase' },
       { label: 'On-Time Service', icon: 'clock' },
@@ -212,7 +212,7 @@ export const services: Service[] = [
       'Flexible hourly service with a dedicated chauffeur for meetings, dining, and events.',
     heroImage: img.hourly,
     intro:
-      'Keep a professional chauffeur on standby for multiple stops, shopping, dining, nightlife, or a full day of appointments — all in complete comfort.',
+      'Book a chauffeur and vehicle for a block of hours and use them however the day unfolds. Ideal for back-to-back meetings, shopping, dinner and a show, or a full day of appointments with luggage and bags left safely on board. Your driver waits at every stop, so you never wait for a ride or hunt for parking.',
     trustIcons: [
       { label: 'Dedicated Chauffeur', icon: 'user' },
       { label: 'Flexible Schedule', icon: 'calendar' },
@@ -260,7 +260,7 @@ export const services: Service[] = [
       'All-season luxury transfers to Vail, Aspen, Breckenridge, and Colorado ski destinations.',
     heroImage: img.mountain,
     intro:
-      'Experienced mountain drivers, all-wheel-drive luxury SUVs, and careful routing for snow, events, and resort drop-offs year-round.',
+      'I-70 in a storm is no place to learn. Our chauffeurs drive the mountain corridor year-round and know the passes, chain laws and the timing that keeps you ahead of ski traffic. All-wheel-drive luxury SUVs with winter tyres, ski and board racks, and door-to-door service to Vail, Aspen, Breckenridge, Keystone and beyond.',
     trustIcons: [
       { label: 'Mountain Experts', icon: 'mountain' },
       { label: 'All-Season Fleet', icon: 'car' },
@@ -308,7 +308,7 @@ export const services: Service[] = [
       'Elegant arrivals for couples, wedding parties, and guest shuttles.',
     heroImage: img.wedding,
     intro:
-      'From bridal party limousines to coordinated guest shuttles, we deliver picture-perfect timing and white-glove service on your most important day.',
+      'Timing matters more than anything on a wedding day. We build a minute-by-minute plan around your ceremony and reception, then run it quietly in the background so nobody is left waiting. Bridal party limousines, guest shuttles between hotel and venue, and a decorated getaway car for the couple.',
     trustIcons: [
       { label: 'Bridal Packages', icon: 'heart' },
       { label: 'Guest Shuttles', icon: 'users' },
@@ -356,7 +356,7 @@ export const services: Service[] = [
       'Skip parking stress with private rides to Red Rocks and major Denver venues.',
     heroImage: img.concert,
     intro:
-      'Arrive relaxed for shows at Red Rocks Amphitheatre, Ball Arena, and top Denver concert venues — with pickup when the encore ends.',
+      'Skip the canyon parking queue and the surge pricing. We drop you at the Red Rocks gate and are waiting in the same spot when the encore ends, no walk back up the hill in the dark. The same service covers Ball Arena, Mission Ballroom, Fiddler’s Green and every major Denver venue.',
     trustIcons: [
       { label: 'Red Rocks Experts', icon: 'music' },
       { label: 'Post-Show Pickup', icon: 'clock' },
@@ -404,7 +404,7 @@ export const services: Service[] = [
       'Luxury transportation to Denver’s major sporting events with convenient pickup, professional chauffeurs, and stress-free travel.',
     heroImage: img.sports,
     intro:
-      'Luxury transportation to Denver’s major sporting events — Broncos at Empower Field, Nuggets and Avalanche at Ball Arena, Rockies at Coors Field, and Rapids at DICK’S Sporting Goods Park — with convenient pickup, professional chauffeurs, and stress-free travel.',
+      'Get to the game without the parking lot. We run to Empower Field for Broncos games, Ball Arena for Nuggets and Avalanche, Coors Field for the Rockies and DICK’S Sporting Goods Park for the Rapids. Tailgate parties, group vehicles for the whole section, and a chauffeur waiting outside the gate at the final whistle.',
     trustIcons: [
       { label: 'Game Day Travel', icon: 'ticket' },
       { label: 'Group Service', icon: 'users' },
@@ -470,7 +470,7 @@ export const services: Service[] = [
       'Premium transportation for bachelor and bachelorette parties, nightlife, dinner, clubs, and celebration events.',
     heroImage: img.bachelor,
     intro:
-      'Premium transportation for bachelor and bachelorette parties — from nightlife and clubs to dinners and celebration events — with a dedicated chauffeur so your whole group travels together safely and in style.',
+      'Keep the whole group together and nobody stuck as designated driver. One chauffeur, one vehicle, every stop of the night — dinner, clubs, the brewery crawl, the late-night food run — running to a plan you set in advance. Party buses, limousines and Sprinters sized to your party, from a dozen friends to thirty.',
     trustIcons: [
       { label: 'Night Out', icon: 'sparkles' },
       { label: 'Group Travel', icon: 'users' },
@@ -518,7 +518,7 @@ export const services: Service[] = [
       'Explore Denver and Colorado in comfort with private chauffeured city tours designed around your schedule and interests.',
     heroImage: img.city,
     intro:
-      'Explore Denver and Colorado in comfort with private chauffeured city tours — designed around your schedule and interests, from downtown landmarks and scenic drives to Golden, Boulder, Garden of the Gods, and Rocky Mountain National Park.',
+      'See Colorado from the back seat with someone else navigating. Private tours built around what you actually want to see, at your own pace, with as many stops and photo breaks as you like. Downtown landmarks and LoDo, Golden and Boulder, Garden of the Gods, or a full day in Rocky Mountain National Park.',
     trustIcons: [
       { label: 'Private Tour', icon: 'car' },
       { label: 'Custom Route', icon: 'route' },
@@ -572,7 +572,7 @@ export const services: Service[] = [
       'Enjoy Denver’s brewery, winery, and whiskey experiences with a private chauffeur so your group can relax and enjoy the day safely.',
     heroImage: img.brewery,
     intro:
-      'Enjoy Denver’s brewery, winery, and whiskey experiences with a private chauffeur so your group can relax and enjoy the day safely — from craft taprooms and scenic wineries to premium distilleries, all with custom stops and no worries about driving.',
+      'Colorado’s best taprooms, wineries and distilleries are worth enjoying properly, which means nobody driving. We plan the route, handle the reservations timing and wait at every stop, from the RiNo brewery district to the wineries of Palisade and Denver’s craft distilleries. Custom stops welcome, no rush at any of them.',
     trustIcons: [
       { label: 'Private Chauffeur', icon: 'user-check' },
       { label: 'Safe Return', icon: 'shield' },
@@ -620,7 +620,7 @@ export const services: Service[] = [
       'Comfortable and professional group transportation for corporate teams, families, events, schools, universities, and private groups.',
     heroImage: img.group,
     intro:
-      'Comfortable and professional group transportation for corporate teams, families, events, schools, universities, and private groups — from executive Sprinters and shuttles to full-size motor coaches, coordinated for groups of any size.',
+      'Moving a whole group is a logistics problem, not just a ride. We size the fleet to your headcount and run staggered arrivals so everyone lands together — executive Sprinters, mini coaches and full-size motor coaches. Corporate offsites, conference shuttles, school and university groups, family reunions and weddings.',
     trustIcons: [
       { label: 'Group Travel', icon: 'users' },
       { label: 'Large Capacity', icon: 'bus' },
@@ -674,7 +674,7 @@ export const services: Service[] = [
       'Discreet, professional transportation for VIP guests, entertainers, executives, luxury events, and special occasions.',
     heroImage: img.aviation,
     intro:
-      'From celebrities and entertainers to executives and government officials, we deliver discreet, secure, first-class transportation for VIP guests and unforgettable special events — with professional chauffeurs and immaculate luxury vehicles at every arrival.',
+      'Discretion first. We move celebrities, entertainers, executives and government officials on itineraries that stay private, with chauffeurs who have handled high-profile clients and know when not to speak. Immaculate vehicles, secure arrivals away from the main entrance, and coordination with your security team.',
     trustIcons: [
       { label: 'Discreet Service', icon: 'eye-off' },
       { label: 'VIP Experience', icon: 'crown' },
