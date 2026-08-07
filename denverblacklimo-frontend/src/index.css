@@ -187,6 +187,34 @@
 .glow-border-pill {
   border-radius: 9999px;
 }
+
+/**
+ * "View more" variant — the light travelling round the border runs light-yellow
+ * into red, so the section CTAs read as a distinct call to action against the
+ * plain gold outline buttons used elsewhere.
+ */
+.glow-border-warm {
+  background: rgba(244, 227, 161, 0.22);
+}
+.glow-border-warm::before {
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 45deg,
+    rgba(255, 240, 170, 0.9) 90deg,
+    #ffe27a 110deg,
+    #ff6b35 135deg,
+    rgba(220, 60, 40, 0.9) 155deg,
+    transparent 200deg 360deg
+  );
+  animation: border-spin 2.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow-border::before,
+  .glow-border-warm::before {
+    animation: none;
+  }
+}
 @keyframes border-spin {
   to {
     transform: rotate(360deg);

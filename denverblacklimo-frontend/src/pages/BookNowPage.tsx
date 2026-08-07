@@ -916,7 +916,7 @@ export function BookNowPage() {
           <Input
             label="Flight Number"
             required={arriving}
-            optionalText={arriving ? undefined : 'Optional — helps us track delays'}
+            optional={!arriving}
             value={form.flightNumber}
             onChange={(v) => set('flightNumber', v)}
             error={errors.flightNumber}
@@ -1235,7 +1235,7 @@ export function BookNowPage() {
             />
             <Input
               label="Return Flight Number"
-              optionalText="Optional — helps us time the pickup"
+              optional
               value={form.returnFlightNumber}
               onChange={(v) => set('returnFlightNumber', v)}
               placeholder="e.g. UA5678"
@@ -1381,9 +1381,10 @@ function Field({ label, required, optional, optionalText, icon, children }: { la
       <label className="mb-2 flex items-center justify-between text-xs font-semibold uppercase tracking-wider text-gray-700">
         <span className="flex items-center gap-1.5">
           {icon && <span className="text-gray-400">{icon}</span>}
-          {label} {required && <span className="text-red-500">*</span>}
+          {label}
+          {required && <span className="text-red-500">*</span>}
+          {optional && <span className="font-normal normal-case tracking-normal text-gray-400">(Optional)</span>}
         </span>
-        {optional && <span className="font-normal normal-case tracking-normal text-gray-400">(Optional)</span>}
         {optionalText && <span className="font-normal normal-case tracking-normal text-gray-400">{optionalText}</span>}
       </label>
       {children}
@@ -1674,7 +1675,7 @@ function AirlineCombobox({ airline, setAirline, error, labelOverride, optional }
   }, [query])
 
   return (
-    <Field label={labelOverride || 'Airline'} required={!optional} optionalText={optional ? 'Optional' : undefined}>
+    <Field label={labelOverride || 'Airline'} required={!optional} optional={optional}>
       <div ref={ref} className="relative">
         <button
           type="button"

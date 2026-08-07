@@ -49,14 +49,17 @@ export function OutlineButton({
   children: React.ReactNode
   className?: string
 }) {
+  // The travelling yellow-to-red border marks these as the "see more" CTAs.
   return (
-    <Link
-      to={to}
-      className={`inline-flex items-center justify-center gap-2 rounded-full border border-brand-gold/60 px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 ${className}`}
-    >
-      {children}
-      <ArrowRight className="h-4 w-4" />
-    </Link>
+    <span className={`glow-border glow-border-pill glow-border-warm inline-flex ${className}`}>
+      <Link
+        to={to}
+        className="inline-flex items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-3 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:bg-brand-charcoal hover:text-white"
+      >
+        {children}
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+    </span>
   )
 }
 

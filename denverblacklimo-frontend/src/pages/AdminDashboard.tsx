@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
-  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink,
+  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
@@ -50,6 +50,11 @@ type Tab = 'overview' | 'bookings' | 'inbox' | 'content' | 'analytics'
 
 type BookingSort = 'pickup' | 'newest'
 
+const SORT_LABELS: Record<BookingSort, string> = {
+  pickup: 'Sort by pickup date',
+  newest: 'Sort by newest request',
+}
+
 export function AdminDashboard() {
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
@@ -76,6 +81,8 @@ export function AdminDashboard() {
   const [bookingQuery, setBookingQuery] = useState('')
   const [bookingStatusFilter, setBookingStatusFilter] = useState<string>('All')
   const [bookingSort, setBookingSort] = useState<BookingSort>('pickup')
+  const [sortOpen, setSortOpen] = useState(false)
+  const sortRef = useRef<HTMLDivElement>(null)
   const [inquiryQuery, setInquiryQuery] = useState('')
   const [inquiryStatusFilter, setInquiryStatusFilter] = useState<string>('All')
 
@@ -150,6 +157,20 @@ export function AdminDashboard() {
   useEffect(() => {
     if (token) loadData('initial')
   }, [token, loadData])
+
+  useEffect(() => {
+    if (!sortOpen) return
+    const onDown = (e: MouseEvent) => {
+      if (!sortRef.current?.contains(e.target as Node)) setSortOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setSortOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [sortOpen])
 
   // Poll quietly so a dashboard left open still shows new bookings.
   useEffect(() => {
@@ -440,9 +461,24 @@ export function AdminDashboard() {
       </aside>
 
       <main className="flex-1 overflow-y-auto relative">
-        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur lg:hidden">
-          <div className="flex items-center gap-2"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Workspace</span></div>
-          <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95"><Menu className="h-5 w-5" /></button>
+        {/* Top bar — hamburger on mobile, plus a link back to the live site on every screen.
+            The sidebar link alone was easy to miss, and invisible on mobile until you open the drawer. */}
+        <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur">
+          <div className="flex items-center gap-2 lg:hidden"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Workspace</span></div>
+          <p className="hidden text-xs uppercase tracking-widest text-white/40 lg:block">Denver Black Limo · Admin</p>
+          <div className="flex items-center gap-2">
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 rounded-lg border border-brand-gold/50 px-3 py-2 text-xs font-bold uppercase tracking-wider text-brand-gold-light transition hover:bg-brand-gold/10"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">View Public Site</span>
+              <span className="sm:hidden">Site</span>
+            </a>
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95 lg:hidden"><Menu className="h-5 w-5" /></button>
+          </div>
         </div>
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-gold/5 via-brand-black to-brand-black opacity-30 pointer-events-none"></div>
         <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -541,13 +577,48 @@ export function AdminDashboard() {
               <div className="mb-6 space-y-3">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                   <SearchInput value={bookingQuery} onChange={setBookingQuery} placeholder="Search name, phone, reference, address…" />
-                  <button
-                    onClick={() => setBookingSort((s) => (s === 'pickup' ? 'newest' : 'pickup'))}
-                    className="flex items-center gap-2 self-start rounded-lg border border-white/10 bg-brand-black px-3 py-2.5 text-xs text-white/70 transition hover:border-white/25 hover:text-white"
-                  >
-                    <ArrowUpDown className="h-3.5 w-3.5" />
-                    {bookingSort === 'pickup' ? 'Sorted by pickup date' : 'Sorted by newest request'}
-                  </button>
+                  <div className="relative self-start" ref={sortRef}>
+                    <button
+                      onClick={() => setSortOpen((v) => !v)}
+                      aria-expanded={sortOpen}
+                      aria-haspopup="listbox"
+                      className="flex items-center gap-2 rounded-lg border border-white/10 bg-brand-black px-3 py-2.5 text-xs text-white/70 transition hover:border-white/25 hover:text-white"
+                    >
+                      <ArrowUpDown className="h-3.5 w-3.5 text-brand-gold" />
+                      {SORT_LABELS[bookingSort]}
+                      <ChevronDown className={`h-3.5 w-3.5 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    <AnimatePresence>
+                      {sortOpen && (
+                        <motion.ul
+                          role="listbox"
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={{ duration: 0.15 }}
+                          className="absolute left-0 top-full z-40 mt-1 w-56 overflow-hidden rounded-lg border border-white/10 bg-brand-surface shadow-2xl"
+                        >
+                          {(Object.keys(SORT_LABELS) as BookingSort[]).map((key) => (
+                            <li key={key}>
+                              <button
+                                role="option"
+                                aria-selected={bookingSort === key}
+                                onClick={() => { setBookingSort(key); setSortOpen(false) }}
+                                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs transition ${
+                                  bookingSort === key
+                                    ? 'bg-brand-gold/15 text-brand-gold-light'
+                                    : 'text-white/70 hover:bg-white/5 hover:text-white'
+                                }`}
+                              >
+                                <Check className={`h-3.5 w-3.5 ${bookingSort === key ? 'opacity-100' : 'opacity-0'}`} />
+                                {SORT_LABELS[key]}
+                              </button>
+                            </li>
+                          ))}
+                        </motion.ul>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <FilterChip label="All" count={bookings.length} active={bookingStatusFilter === 'All'} onClick={() => setBookingStatusFilter('All')} />
