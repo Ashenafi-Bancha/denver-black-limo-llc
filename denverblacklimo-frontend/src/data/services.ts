@@ -260,7 +260,7 @@ export const services: Service[] = [
       'All-season luxury transfers to Vail, Aspen, Breckenridge, and Colorado ski destinations.',
     heroImage: img.mountain,
     intro:
-      'I-70 in a storm is no place to learn. Our chauffeurs drive the mountain corridor year-round and know the passes, chain laws and the timing that keeps you ahead of ski traffic. All-wheel-drive luxury SUVs with winter tyres, ski and board racks, and door-to-door service to Vail, Aspen, Breckenridge, Keystone and beyond.',
+      'I-70 in a storm is no place to learn. Our chauffeurs drive the mountain corridor year-round and know the passes, chain laws and the timing that keeps you ahead of ski traffic. All-wheel-drive luxury SUVs with winter tires, ski and board racks, and door-to-door service to Vail, Aspen, Breckenridge, Keystone and beyond.',
     trustIcons: [
       { label: 'Mountain Experts', icon: 'mountain' },
       { label: 'All-Season Fleet', icon: 'car' },
