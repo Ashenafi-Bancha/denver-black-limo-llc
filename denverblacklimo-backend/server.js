@@ -12,24 +12,47 @@ const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
-// Setup Multer for Image Uploads
-const uploadDir = path.join(__dirname, 'public', 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
+/**
+ * CMS image uploads.
+ *
+ * Files are held in memory then written to Postgres, because App Platform gives
+ * each container an ephemeral disk — anything saved to ./public/uploads is gone
+ * on the next deploy. Serving them back under /api/images also matters: only
+ * /api is routed to this service, so a /uploads URL would hit the static site
+ * and return index.html instead of the picture.
+ */
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMAGE_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.mimetype)) {
+      return cb(new Error('Please choose a JPG, PNG, WebP, GIF or AVIF image.'));
+    }
+    cb(null, true);
   },
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+});
+
+// Legacy path — kept so any pre-existing /uploads/... value still resolves locally.
+const uploadDir = path.join(__dirname, 'public', 'uploads');
+if (fs.existsSync(uploadDir)) app.use('/uploads', express.static(uploadDir));
+
+/** Serves an uploaded image. Public: these appear on the website. */
+app.get('/api/images/:id', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT mime_type, data FROM site_images WHERE id = $1', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Image not found' });
+    res.set('Content-Type', rows[0].mime_type);
+    // The id is unique per upload, so the bytes behind a URL never change.
+    res.set('Cache-Control', 'public, max-age=31536000, immutable');
+    res.send(rows[0].data);
+  } catch (err) {
+    console.error('Image fetch error:', err);
+    res.status(500).json({ error: 'Failed to load image' });
   }
 });
-const upload = multer({ storage });
-
-// Serve uploaded files statically
-app.use('/uploads', express.static(uploadDir));
 
 // Health check (used by DigitalOcean App Platform)
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
@@ -176,18 +199,29 @@ app.put('/api/settings', authenticateToken, async (req, res) => {
 });
 
 // Image Upload Endpoint (Protected)
-app.post('/api/upload', authenticateToken, upload.single('image'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No image uploaded.' });
+app.post('/api/upload', authenticateToken, (req, res) => {
+  upload.single('image')(req, res, async (err) => {
+    if (err) {
+      const tooBig = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(400).json({
+        error: tooBig
+          ? `That image is larger than ${MAX_IMAGE_BYTES / 1024 / 1024}MB. Please choose a smaller one.`
+          : err.message || 'Upload failed.',
+      });
     }
-    // Return the public URL
-    const imageUrl = `/uploads/${req.file.filename}`;
-    res.json({ url: imageUrl });
-  } catch (err) {
-    console.error('Upload Error:', err);
-    res.status(500).json({ error: 'Failed to upload image' });
-  }
+    if (!req.file) return res.status(400).json({ error: 'No image uploaded.' });
+    try {
+      const { rows } = await pool.query(
+        'INSERT INTO site_images (mime_type, byte_size, data) VALUES ($1, $2, $3) RETURNING id;',
+        [req.file.mimetype, req.file.size, req.file.buffer]
+      );
+      console.log(`Image stored (${req.file.mimetype}, ${Math.round(req.file.size / 1024)}KB) as ${rows[0].id}`);
+      res.json({ url: `/api/images/${rows[0].id}` });
+    } catch (e) {
+      console.error('Upload Error:', e);
+      res.status(500).json({ error: 'Could not save the image. Please try again.' });
+    }
+  });
 });
 
 // Login — rate limited to blunt password guessing

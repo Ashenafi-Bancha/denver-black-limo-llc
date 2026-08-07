@@ -7,6 +7,8 @@ import {
 import { CONTENT_GROUPS, blankFromFields, type ContentGroup, type FieldSpec } from './cmsSchema'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
+// In production VITE_API_URL is "/api", so this resolves to "" and an uploaded
+// image is stored as the relative "/api/images/<id>" — portable and same-origin.
 const FILE_BASE = API_URL.replace(/\/api\/?$/, '')
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
