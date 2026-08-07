@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Building, Image as ImageIcon, Layout, Info, Briefcase, Car, Map, Star,
@@ -10,6 +10,10 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 // In production VITE_API_URL is "/api", so this resolves to "" and an uploaded
 // image is stored as the relative "/api/images/<id>" — portable and same-origin.
 const FILE_BASE = API_URL.replace(/\/api\/?$/, '')
+
+/** Must match MAX_IMAGE_BYTES in denverblacklimo-backend/server.js. */
+const MAX_IMAGE_MB = 5
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   building: Building, image: ImageIcon, layout: Layout, info: Info,
@@ -64,14 +68,36 @@ const inputCls =
 function ImageInput({ value, onChange, token }: { value: string; onChange: (v: string) => void; token: string }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [done, setDone] = useState('')
+
+  // Clear the confirmation on its own so it can't be mistaken for the saved state.
+  useEffect(() => {
+    if (!done) return
+    const t = setTimeout(() => setDone(''), 6000)
+    return () => clearTimeout(t)
+  }, [done])
+
   const handle = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
+    setDone('')
+    if (file.size > MAX_IMAGE_BYTES) {
+      setErr(
+        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${MAX_IMAGE_MB}MB. ` +
+        'Please resize it and try again.'
+      )
+      e.target.value = ''
+      return
+    }
     setBusy(true)
     setErr('')
     const result = await uploadImage(file, token)
-    if (result.ok && result.url) onChange(result.url)
-    else setErr(result.error || 'Upload failed.')
+    if (result.ok && result.url) {
+      onChange(result.url)
+      setDone(`“${file.name}” uploaded`)
+    } else {
+      setErr(result.error || 'Upload failed.')
+    }
     setBusy(false)
     e.target.value = '' // let the same file be retried after a failure
   }
@@ -95,7 +121,16 @@ function ImageInput({ value, onChange, token }: { value: string; onChange: (v: s
         <input type="file" accept="image/*" className="hidden" onChange={handle} />
       </label>
     </div>
+    <p className="mt-1.5 text-[11px] text-white/40">
+      JPG, PNG, WebP, GIF or AVIF · max {MAX_IMAGE_MB}MB · about 1600px wide loads fastest
+    </p>
     {err && <p className="mt-1.5 text-xs text-red-300">{err}</p>}
+    {done && !err && (
+      <p className="mt-1.5 flex items-center gap-1.5 rounded border border-emerald-500/40 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-medium text-emerald-300">
+        <Check className="h-3.5 w-3.5 shrink-0" />
+        {done} — now press <span className="font-bold">Save Changes</span> to publish it.
+      </p>
+    )}
     </>
   )
 }
