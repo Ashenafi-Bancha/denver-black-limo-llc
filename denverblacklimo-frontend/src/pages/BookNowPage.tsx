@@ -545,7 +545,11 @@ export function BookNowPage() {
         {/* Progress */}
         <Stepper current={step} onSelect={(n) => n < step && goToStep(n)} />
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+        <div
+          className={`grid items-start gap-6 ${
+            step === 3 ? 'mx-auto max-w-3xl' : 'lg:grid-cols-[1fr_360px]'
+          }`}
+        >
           {/* ─────────── LEFT: FORM ─────────── */}
           <div className="space-y-6">
             {/* STEP 1 — TRIP DETAILS */}
@@ -614,10 +618,11 @@ export function BookNowPage() {
             </SectionCard>
             )}
 
-            {/* STEP 3 — REVIEW & SUBMIT (mobile shows the full summary here) */}
+            {/* STEP 3 — REVIEW & SUBMIT
+                Reads top to bottom on every screen: what to do → what you entered → submit.
+                The sticky sidebar is dropped here so the summary gets the full width. */}
             {step === 3 && (
               <>
-                <div className="lg:hidden">{renderSummaryPanel()}</div>
                 <SectionCard step={3} title="Review & Submit">
                   {shortNotice && (
                     <div className="mb-4 flex items-start gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -632,6 +637,22 @@ export function BookNowPage() {
                       </span>
                     </div>
                   )}
+                  <p className="text-sm leading-relaxed text-gray-600">
+                    Please check your details below. If something needs changing, use{' '}
+                    <button type="button" onClick={() => goToStep(1)} className="font-semibold underline" style={{ color: GOLD }}>
+                      Trip Details
+                    </button>{' '}
+                    or{' '}
+                    <button type="button" onClick={() => goToStep(2)} className="font-semibold underline" style={{ color: GOLD }}>
+                      Your Information
+                    </button>
+                    . Nothing is charged now — we&rsquo;ll send you a personalized quote.
+                  </p>
+                </SectionCard>
+
+                {renderSummaryPanel(true)}
+
+                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm sm:p-6">
                   <div className="flex items-center gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
                     <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: GOLD }} />
                     Your information is secure and will only be used for your booking.
@@ -645,8 +666,8 @@ export function BookNowPage() {
                   >
                     {isSubmitting ? 'Submitting…' : <>Submit Booking Request <ArrowRight className="h-4 w-4" /></>}
                   </button>
-                  <p className="mt-3 text-center text-xs text-gray-400">🔒 We will contact you shortly with your personalized quote.</p>
-                </SectionCard>
+                  <p className="mt-3 text-center text-xs text-gray-400">We will contact you shortly with your personalized quote.</p>
+                </div>
               </>
             )}
 
@@ -674,87 +695,133 @@ export function BookNowPage() {
             </div>
           </div>
 
-          {/* ─────────── RIGHT: LIVE SUMMARY (desktop only) ─────────── */}
-          <aside className="hidden lg:sticky lg:top-24 lg:block">{renderSummaryPanel()}</aside>
+          {/* ─────────── RIGHT: LIVE SUMMARY (desktop, steps 1–2 only) ─────────── */}
+          {step < 3 && (
+            <aside className="hidden lg:sticky lg:top-24 lg:block">{renderSummaryPanel()}</aside>
+          )}
         </div>
       </div>
     </div>
   )
 
   // Summary "cart" — sticky sidebar on desktop, shown on the final step on mobile.
-  function renderSummaryPanel() {
+  /**
+   * The booking summary.
+   *
+   * `wide` is used on the review step, where the panel spans the full column instead
+   * of sitting in the 360px sidebar — the groups move into two columns so the rows
+   * don't stretch into unreadably long label/value pairs.
+   */
+  function renderSummaryPanel(wide = false) {
+    const tripGroup = (
+      <SummaryGroup icon={<Plane className="h-3.5 w-3.5" />} title="Trip Details">
+        {buildTripSummary().map((row, i) => (
+          <SummaryRow key={i} label={row.label} value={row.value} />
+        ))}
+      </SummaryGroup>
+    )
+
+    const vehicleGroup = (
+      <SummaryGroup icon={<Users className="h-3.5 w-3.5" />} title="Passenger & Vehicle">
+        <SummaryRow label="Passengers" value={String(form.passengers)} inline />
+        <SummaryRow label="Luggage" value={String(form.luggage)} inline />
+        <SummaryRow label="Vehicle" value={form.vehicleCategory} />
+        {vehicle && <p className="text-[11px] text-white/40">{vehicle.capacity}</p>}
+      </SummaryGroup>
+    )
+
+    // Contact details, so "Review & Submit" can actually be reviewed.
+    const contactGroup =
+      form.name || form.email || form.phone ? (
+        <SummaryGroup icon={<User className="h-3.5 w-3.5" />} title="Your Details">
+          {form.name && <SummaryRow label="Name" value={form.name} />}
+          {form.phone && <SummaryRow label="Phone" value={form.phone} />}
+          {form.email && <SummaryRow label="Email" value={form.email} />}
+          {form.company && <SummaryRow label="Company" value={form.company} />}
+        </SummaryGroup>
+      ) : null
+
+    const noticeCard = (
+      <div className="rounded-lg border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/5 p-4" style={{ ['--gold' as string]: GOLD }}>
+        <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
+          <Info className="h-3.5 w-3.5" /> Booking Request Only
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-white/60">
+          You will receive a personalized quote by phone, text, or email after we review your reservation.
+        </p>
+      </div>
+    )
+
+    const helpCard = (
+      <a href={PHONE_HREF} className="block rounded-lg border border-[color:var(--gold)]/40 p-4 transition-colors hover:bg-white/5" style={{ ['--gold' as string]: GOLD }}>
+        <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
+          <Phone className="h-3.5 w-3.5" /> Need Help Booking?
+        </p>
+        <p className="mt-1 text-sm font-semibold text-white">Call or Text {PHONE}</p>
+        <p className="text-xs text-white/50">We’re here for you 24/7.</p>
+      </a>
+    )
+
+    const divider = <div className="border-t border-white/10" />
+
     return (
-            <div className="overflow-hidden rounded-xl bg-[#0a0a0a] text-white shadow-2xl shadow-black/30 ring-1 ring-white/10">
-              <div className="flex items-center justify-between px-5 pt-5">
-                <h2 className="text-sm font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>Your Booking Summary</h2>
-              </div>
-              <div className="mt-4 h-40 w-full overflow-hidden">
-                <img
-                  key={config.slug}
-                  src={summaryImage}
-                  alt={form.serviceType}
-                  className="h-full w-full object-cover"
-                  onError={(e) => {
-                    const t = e.currentTarget
-                    const step = t.dataset.step
-                    if (!step) {
-                      t.dataset.step = 'jpg'
-                      t.src = `/images/services/service-banner-${config.number}.jpg`
-                    } else if (step === 'jpg') {
-                      t.dataset.step = 'stock'
-                      t.src = config.summaryImage
-                    }
-                  }}
-                />
-              </div>
+      <div className="overflow-hidden rounded-xl bg-[#0a0a0a] text-white shadow-2xl shadow-black/30 ring-1 ring-white/10">
+        <div className="flex items-center justify-between px-5 pt-5">
+          <h2 className="text-sm font-bold uppercase tracking-[0.15em]" style={{ color: GOLD }}>Your Booking Summary</h2>
+        </div>
+        <div className={`mt-4 w-full overflow-hidden ${wide ? 'h-36 sm:h-44' : 'h-40'}`}>
+          <img
+            key={config.slug}
+            src={summaryImage}
+            alt={form.serviceType}
+            className="h-full w-full object-cover"
+            onError={(e) => {
+              const t = e.currentTarget
+              const step = t.dataset.step
+              if (!step) {
+                t.dataset.step = 'jpg'
+                t.src = `/images/services/service-banner-${config.number}.jpg`
+              } else if (step === 'jpg') {
+                t.dataset.step = 'stock'
+                t.src = config.summaryImage
+              }
+            }}
+          />
+        </div>
 
-              <div className="space-y-5 p-5">
-                <SummaryGroup icon={<Plane className="h-3.5 w-3.5" />} title="Trip Details">
-                  {buildTripSummary().map((row, i) => (
-                    <SummaryRow key={i} label={row.label} value={row.value} />
-                  ))}
-                </SummaryGroup>
-
-                <div className="border-t border-white/10" />
-
-                <SummaryGroup icon={<Users className="h-3.5 w-3.5" />} title="Passenger & Vehicle">
-                  <SummaryRow label="Passengers" value={String(form.passengers)} inline />
-                  <SummaryRow label="Luggage" value={String(form.luggage)} inline />
-                  <SummaryRow label="Vehicle" value={form.vehicleCategory} />
-                  {vehicle && <p className="text-[11px] text-white/40">{vehicle.capacity}</p>}
-                </SummaryGroup>
-
-                {/* Contact details, so "Review & Submit" can actually be reviewed. */}
-                {(form.name || form.email || form.phone) && (
-                  <>
-                    <div className="border-t border-white/10" />
-                    <SummaryGroup icon={<User className="h-3.5 w-3.5" />} title="Your Details">
-                      {form.name && <SummaryRow label="Name" value={form.name} />}
-                      {form.phone && <SummaryRow label="Phone" value={form.phone} />}
-                      {form.email && <SummaryRow label="Email" value={form.email} />}
-                      {form.company && <SummaryRow label="Company" value={form.company} />}
-                    </SummaryGroup>
-                  </>
-                )}
-
-                <div className="rounded-lg border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/5 p-4" style={{ ['--gold' as string]: GOLD }}>
-                  <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
-                    <Info className="h-3.5 w-3.5" /> Booking Request Only
-                  </p>
-                  <p className="mt-1.5 text-xs leading-relaxed text-white/60">
-                    You will receive a personalized quote by phone, text, or email after we review your reservation.
-                  </p>
-                </div>
-
-                <a href={PHONE_HREF} className="block rounded-lg border border-[color:var(--gold)]/40 p-4 transition-colors hover:bg-white/5" style={{ ['--gold' as string]: GOLD }}>
-                  <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
-                    <Phone className="h-3.5 w-3.5" /> Need Help Booking?
-                  </p>
-                  <p className="mt-1 text-sm font-semibold text-white">Call or Text {PHONE}</p>
-                  <p className="text-xs text-white/50">We’re here for you 24/7.</p>
-                </a>
-              </div>
+        {wide ? (
+          <div className="grid gap-x-8 gap-y-6 p-5 sm:grid-cols-2 sm:p-6">
+            <div className="space-y-5">{tripGroup}</div>
+            <div className="space-y-5">
+              {vehicleGroup}
+              {contactGroup && (
+                <>
+                  {divider}
+                  {contactGroup}
+                </>
+              )}
             </div>
+            <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
+              {noticeCard}
+              {helpCard}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-5 p-5">
+            {tripGroup}
+            {divider}
+            {vehicleGroup}
+            {contactGroup && (
+              <>
+                {divider}
+                {contactGroup}
+              </>
+            )}
+            {noticeCard}
+            {helpCard}
+          </div>
+        )}
+      </div>
     )
   }
 
