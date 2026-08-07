@@ -176,7 +176,7 @@ function Toast({ msg }: { msg: string }) {
   return <span className="flex items-center gap-1.5 text-sm text-green-400"><Check className="h-4 w-4" /> {msg}</span>
 }
 
-function SingletonEditor({ group, current, token, onBack, onSaved }: { group: ContentGroup; current: Record<string, unknown> | undefined; token: string; onBack: () => void; onSaved: () => void }) {
+function SingletonEditor({ group, current, token, onBack, onSaved, onResult }: { group: ContentGroup; current: Record<string, unknown> | undefined; token: string; onBack: () => void; onSaved: () => void; onResult?: (r: { ok: boolean; title: string; message?: string }) => void }) {
   const [value, setValue] = useState<Record<string, unknown>>({ ...(group.default as object), ...(current || {}) })
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState('')
@@ -187,6 +187,11 @@ function SingletonEditor({ group, current, token, onBack, onSaved }: { group: Co
     setSaving(false)
     setMsg(ok ? 'Saved!' : 'Save failed')
     if (ok) onSaved()
+    onResult?.(
+      ok
+        ? { ok: true, title: 'Changes saved', message: `${group.title} is now live on the website.` }
+        : { ok: false, title: 'Save failed', message: 'Your changes were not saved. Check your connection and try again.' }
+    )
     setTimeout(() => setMsg(''), 2500)
   }
 
@@ -197,7 +202,7 @@ function SingletonEditor({ group, current, token, onBack, onSaved }: { group: Co
   )
 }
 
-function CollectionEditor({ group, current, token, onBack, onSaved }: { group: ContentGroup; current: Record<string, unknown>[] | undefined; token: string; onBack: () => void; onSaved: () => void }) {
+function CollectionEditor({ group, current, token, onBack, onSaved, onResult }: { group: ContentGroup; current: Record<string, unknown>[] | undefined; token: string; onBack: () => void; onSaved: () => void; onResult?: (r: { ok: boolean; title: string; message?: string }) => void }) {
   const [items, setItems] = useState<Record<string, unknown>[]>(current && current.length ? current : (group.default as Record<string, unknown>[]))
   const [editing, setEditing] = useState<number | null>(null)
   const [saving, setSaving] = useState(false)
@@ -219,6 +224,11 @@ function CollectionEditor({ group, current, token, onBack, onSaved }: { group: C
     setSaving(false)
     setMsg(ok ? 'Saved!' : 'Save failed')
     if (ok) onSaved()
+    onResult?.(
+      ok
+        ? { ok: true, title: 'Changes saved', message: `${group.title} is now live on the website.` }
+        : { ok: false, title: 'Save failed', message: 'Your changes were not saved. Check your connection and try again.' }
+    )
     setTimeout(() => setMsg(''), 2500)
   }
 
@@ -294,7 +304,7 @@ function EditorShell({ group, onBack, saving, msg, onSave, children }: { group: 
 // Manager (group grid + routing)
 // ─────────────────────────────────────────────
 
-export function CmsManager({ token, settings, refresh }: { token: string; settings: Record<string, unknown>; refresh: () => Promise<void> }) {
+export function CmsManager({ token, settings, refresh, onResult }: { token: string; settings: Record<string, unknown>; refresh: () => Promise<void>; onResult?: (r: { ok: boolean; title: string; message?: string }) => void }) {
   const [active, setActive] = useState<string | null>(null)
   const group = CONTENT_GROUPS.find((g) => g.key === active)
 
@@ -302,9 +312,9 @@ export function CmsManager({ token, settings, refresh }: { token: string; settin
     const current = settings[group.key]
     const back = () => setActive(null)
     return group.kind === 'singleton' ? (
-      <SingletonEditor group={group} current={current as Record<string, unknown> | undefined} token={token} onBack={back} onSaved={refresh} />
+      <SingletonEditor group={group} current={current as Record<string, unknown> | undefined} token={token} onBack={back} onSaved={refresh} onResult={onResult} />
     ) : (
-      <CollectionEditor group={group} current={current as Record<string, unknown>[] | undefined} token={token} onBack={back} onSaved={refresh} />
+      <CollectionEditor group={group} current={current as Record<string, unknown>[] | undefined} token={token} onBack={back} onSaved={refresh} onResult={onResult} />
     )
   }
 

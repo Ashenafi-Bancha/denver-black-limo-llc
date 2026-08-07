@@ -3,8 +3,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
-  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home,
+  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { CmsManager } from '../admin/CmsManager'
@@ -13,7 +14,7 @@ import {
   bookingRef, pickupAt, fmtDate, fmtTime, relativeDay, daysFromToday, isShortNotice,
   BOOKING_STATUSES, INQUIRY_STATUSES, statusStyle, matchesQuery,
 } from '../admin/adminUtils'
-import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, type Toast } from '../admin/AdminUI'
+import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, ConfirmDialog, ResultDialog, type Toast } from '../admin/AdminUI'
 import { OPTION_CLASS } from '../lib/formStyles'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
@@ -82,6 +83,12 @@ export function AdminDashboard() {
   const [sendingEmail, setSendingEmail] = useState(false)
   const [emailSuccess, setEmailSuccess] = useState('')
   const [emailSendError, setEmailSendError] = useState('')
+
+  /** Row queued for deletion, held until the centred card is confirmed. */
+  const [pendingDelete, setPendingDelete] = useState<{ kind: 'booking' | 'inquiry'; id: string; label: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  /** Outcome card shown in the middle of the screen after a delete or a save. */
+  const [actionResult, setActionResult] = useState<{ ok: boolean; title: string; message?: string } | null>(null)
 
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastSeq = useRef(0)
@@ -201,6 +208,42 @@ export function AdminDashboard() {
     } catch {
       setInquiries((list) => list.map((q) => (q.id === id ? { ...q, status: previous } : q)))
       pushToast('Could not update the message. Please try again.', 'err')
+    }
+  }
+
+  /** Permanently removes a booking or a message. Confirmed via the centred card first. */
+  const confirmDelete = async () => {
+    if (!pendingDelete) return
+    const { kind, id, label } = pendingDelete
+    setDeleting(true)
+    try {
+      const path = kind === 'booking' ? 'bookings' : 'inquiries'
+      const res = await fetch(`${API_URL}/${path}/${id}`, { method: 'DELETE', headers: authHeaders() })
+      if (res.status === 401 || res.status === 403) {
+        setPendingDelete(null)
+        return handleAuthFailure()
+      }
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || 'The server rejected the request.')
+      }
+      if (kind === 'booking') setBookings((list) => list.filter((b) => b.id !== id))
+      else setInquiries((list) => list.filter((q) => q.id !== id))
+      setExpanded((cur) => (cur === id ? null : cur))
+      setActionResult({
+        ok: true,
+        title: kind === 'booking' ? 'Booking deleted' : 'Message deleted',
+        message: `${label} has been permanently removed.`,
+      })
+    } catch (err) {
+      setActionResult({
+        ok: false,
+        title: 'Could not delete',
+        message: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
+      })
+    } finally {
+      setDeleting(false)
+      setPendingDelete(null)
     }
   }
 
@@ -383,7 +426,13 @@ export function AdminDashboard() {
             </button>
           ))}
         </nav>
-        <div className="p-4 border-t border-white/10">
+        <div className="space-y-1 border-t border-white/10 p-4">
+          <Link
+            to="/"
+            className="flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-brand-gold-light"
+          >
+            <ExternalLink className="h-4 w-4" /> Back to Site
+          </Link>
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-red-400/80 hover:bg-red-400/10 hover:text-red-400 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
         </div>
       </aside>
@@ -542,6 +591,14 @@ export function AdminDashboard() {
                           <select value={b.status} onChange={(e) => { e.stopPropagation(); updateBookingStatus(b.id, e.target.value, b.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
                             {BOOKING_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
                           </select>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPendingDelete({ kind: 'booking', id: b.id, label: `${b.name} (${bookingRef(b.id)})` }) }}
+                            title="Delete this booking"
+                            aria-label={`Delete booking ${bookingRef(b.id)}`}
+                            className="rounded border border-white/15 p-2 text-white/40 transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                       {expanded === b.id && (
@@ -640,6 +697,14 @@ export function AdminDashboard() {
                           <select value={q.status} onChange={(e) => { e.stopPropagation(); updateInquiryStatus(q.id, e.target.value, q.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
                             {INQUIRY_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
                           </select>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setPendingDelete({ kind: 'inquiry', id: q.id, label: `${q.type} from ${q.name}` }) }}
+                            title="Delete this message"
+                            aria-label={`Delete message from ${q.name}`}
+                            className="rounded border border-white/15 p-2 text-white/40 transition-colors hover:border-red-500/50 hover:bg-red-500/10 hover:text-red-300"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
                       </div>
                       {expanded === q.id && (
@@ -663,7 +728,7 @@ export function AdminDashboard() {
           )}
 
           {/* CONTENT (CMS) */}
-          {activeTab === 'content' && <CmsManager token={token} settings={settings} refresh={refreshSettings} />}
+          {activeTab === 'content' && <CmsManager token={token} settings={settings} refresh={refreshSettings} onResult={setActionResult} />}
 
           {/* ANALYTICS */}
           {activeTab === 'analytics' && (
@@ -721,6 +786,22 @@ export function AdminDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ConfirmDialog
+        open={Boolean(pendingDelete)}
+        busy={deleting}
+        title={pendingDelete?.kind === 'booking' ? 'Delete this booking?' : 'Delete this message?'}
+        message={
+          <>
+            <span className="font-semibold text-white">{pendingDelete?.label}</span> will be removed
+            permanently. This cannot be undone.
+          </>
+        }
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+
+      <ResultDialog result={actionResult} onClose={() => setActionResult(null)} />
 
       <ToastStack toasts={toasts} dismiss={dismissToast} />
     </div>

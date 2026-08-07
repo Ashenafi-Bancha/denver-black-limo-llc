@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, Copy, Search, X } from 'lucide-react'
+import { AlertTriangle, Check, Copy, Loader2, Search, Trash2, X } from 'lucide-react'
 
 /** Toast messages so status changes and saves confirm themselves instead of failing silently. */
 export type Toast = { id: number; text: string; kind: 'ok' | 'err' }
@@ -169,5 +169,150 @@ export function EmptyState({ icon, text, hint }: { icon?: React.ReactNode; text:
       <p>{text}</p>
       {hint && <p className="mt-1 text-sm text-white/35">{hint}</p>}
     </div>
+  )
+}
+
+/**
+ * Centred confirmation card.
+ *
+ * Deleting a booking or a message cannot be undone, so it always goes through here
+ * rather than firing straight from the row button.
+ */
+export function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Delete',
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean
+  title: string
+  message: React.ReactNode
+  confirmLabel?: string
+  busy?: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open, onCancel])
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ duration: 0.18 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-xl border border-white/10 bg-brand-surface p-6 text-center shadow-2xl"
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-red-500/40 bg-red-500/10 text-red-300">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <h2 className="mt-4 font-display text-xl text-white">{title}</h2>
+            <div className="mt-2 text-sm leading-relaxed text-white/65">{message}</div>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                onClick={onCancel}
+                disabled={busy}
+                className="rounded-lg border border-white/15 px-5 py-2.5 text-sm text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={busy}
+                className="flex items-center gap-2 rounded-lg bg-red-500/90 px-5 py-2.5 text-sm font-bold text-white transition hover:bg-red-500 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                {busy ? 'Deleting…' : confirmLabel}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  )
+}
+
+/** Centred result card shown after a save or delete finishes. */
+export function ResultDialog({
+  result,
+  onClose,
+}: {
+  result: { ok: boolean; title: string; message?: string } | null
+  onClose: () => void
+}) {
+  useEffect(() => {
+    if (!result) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    // Successes close themselves; failures stay until dismissed so the reason is read.
+    const timer = result.ok ? setTimeout(onClose, 2600) : undefined
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      if (timer) clearTimeout(timer)
+    }
+  }, [result, onClose])
+
+  return (
+    <AnimatePresence>
+      {result && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ duration: 0.18 }}
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full max-w-md rounded-xl border p-6 text-center shadow-2xl ${
+              result.ok ? 'border-emerald-500/40 bg-brand-surface' : 'border-red-500/40 bg-brand-surface'
+            }`}
+          >
+            <div
+              className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border ${
+                result.ok
+                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                  : 'border-red-500/40 bg-red-500/10 text-red-300'
+              }`}
+            >
+              {result.ok ? <Check className="h-7 w-7" /> : <X className="h-7 w-7" />}
+            </div>
+            <h2 className="mt-4 font-display text-xl text-white">{result.title}</h2>
+            {result.message && <p className="mt-2 text-sm leading-relaxed text-white/65">{result.message}</p>}
+            <button
+              onClick={onClose}
+              className="mt-6 rounded-lg border border-white/15 px-6 py-2.5 text-sm text-white/80 transition hover:bg-white/5 hover:text-white"
+            >
+              Close
+            </button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

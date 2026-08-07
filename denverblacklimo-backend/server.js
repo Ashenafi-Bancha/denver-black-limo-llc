@@ -317,6 +317,21 @@ app.put('/api/bookings/:id/status', authenticateToken, async (req, res) => {
   }
 });
 
+// Delete a booking permanently (Protected). Used to clear test records and
+// cancelled requests the office no longer needs.
+app.delete('/api/bookings/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM bookings WHERE id = $1 RETURNING id;', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Booking not found' });
+    console.log(`Booking ${id} deleted by admin.`);
+    res.json({ message: 'Booking deleted', id });
+  } catch (err) {
+    console.error('Delete booking error:', err);
+    res.status(500).json({ error: 'Failed to delete booking' });
+  }
+});
+
 // Admin sends a custom email to a customer (Protected)
 app.post('/api/bookings/:id/email', authenticateToken, async (req, res) => {
   if (!process.env.RESEND_API_KEY) {
@@ -414,6 +429,20 @@ app.put('/api/inquiries/:id/status', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to update status' });
+  }
+});
+
+// Delete an inquiry permanently (Protected).
+app.delete('/api/inquiries/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('DELETE FROM inquiries WHERE id = $1 RETURNING id;', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Message not found' });
+    console.log(`Inquiry ${id} deleted by admin.`);
+    res.json({ message: 'Message deleted', id });
+  } catch (err) {
+    console.error('Delete inquiry error:', err);
+    res.status(500).json({ error: 'Failed to delete message' });
   }
 });
 
