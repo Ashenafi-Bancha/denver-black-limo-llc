@@ -1,9 +1,9 @@
 /**
  * Pricing page content.
  *
- * Rates are intentionally blank by default — the admin fills them in from the
- * CMS (Pricing → Rates). Any row left blank renders as "Request Quote" so the
- * page never shows a price the business has not set.
+ * Rates follow the client-approved Arion rate card, matched to our fleet by
+ * vehicle class and capacity. Any row left blank renders as "Coming soon", so
+ * the page never shows a price the business has not set.
  */
 
 export interface RateRow {
@@ -77,17 +77,16 @@ export const defaultPricing: PricingContent = {
 
   ratesTitle: 'Vehicle Rates',
   ratesNote:
-    'Hourly rates below are starting prices and vary with date, distance and availability. Long-distance, mountain and event travel are quoted individually.',
+    'Hourly rates below are starting prices. Every hourly trip includes up to 40 miles of travel per hour; longer routes are quoted per mile before you book. Gratuity and taxes are not included. Long-distance, mountain and event travel are quoted individually.',
 
-  // Rates are blank until the owner sets them in the CMS.
   rates: [
-    { vehicle: 'Luxury Sedan', capacity: '3 passengers · 3 bags', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Luxury SUV', capacity: '6 passengers · 6 bags', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Executive SUV', capacity: '6 passengers · 6 bags', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Luxury Van', capacity: '14 passengers · 14 bags', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Mini Coach', capacity: '13 passengers · 14 bags', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Limo Bus', capacity: 'Up to 28 passengers', hourlyRate: '', minimumHours: '' },
-    { vehicle: 'Motor Coach', capacity: 'Up to 55 passengers', hourlyRate: '', minimumHours: '' },
+    { vehicle: 'Luxury Sedan', capacity: '3 passengers · 3 bags', hourlyRate: '150', minimumHours: '2 hours' },
+    { vehicle: 'Luxury SUV', capacity: '6 passengers · 6 bags', hourlyRate: '150', minimumHours: '2 hours' },
+    { vehicle: 'Executive SUV', capacity: '6 passengers · 6 bags', hourlyRate: '125', minimumHours: '2 hours' },
+    { vehicle: 'Luxury Van', capacity: '14 passengers · 14 bags', hourlyRate: '250', minimumHours: '3 hours' },
+    { vehicle: 'Mini Coach', capacity: '13 passengers · 14 bags', hourlyRate: '275', minimumHours: '4 hours' },
+    { vehicle: 'Limo Bus', capacity: 'Up to 28 passengers', hourlyRate: '325', minimumHours: '4 hours' },
+    { vehicle: 'Motor Coach', capacity: 'Up to 55 passengers', hourlyRate: '425', minimumHours: '4 hours' },
   ],
 
   policiesTitle: 'Our Booking Policies',
@@ -120,6 +119,16 @@ export const defaultPricing: PricingContent = {
     {
       title: 'Safety First',
       text: 'Every vehicle is inspected and cleaned before each ride, and driven by an experienced professional chauffeur.',
+      icon: 'shield',
+    },
+    {
+      title: '40 Miles Included Per Hour',
+      text: 'Hourly bookings include up to 40 miles of travel for each hour reserved. Longer routes are priced per mile and shown to you before you confirm.',
+      icon: 'route',
+    },
+    {
+      title: 'No Surge Pricing',
+      text: 'Our rates stay the same on holidays, peak weekends and busy ski days. The price you are quoted is the price you pay.',
       icon: 'shield',
     },
   ],

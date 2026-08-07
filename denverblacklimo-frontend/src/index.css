@@ -12,6 +12,23 @@
   --font-body: "Inter", system-ui, sans-serif;
 }
 
+/**
+ * Mobile readability.
+ *
+ * The design leans on `text-sm` and `text-xs` for body copy, which reads small on a
+ * phone. Tailwind's font-size utilities resolve through these variables, so raising
+ * them here lifts every body-text size at once on small screens — no per-component
+ * overrides, and desktop is untouched.
+ */
+@media (max-width: 767px) {
+  :root {
+    --text-xs: 0.8125rem; /* 12 → 13px */
+    --text-sm: 0.9375rem; /* 14 → 15px */
+    --text-base: 1.0625rem; /* 16 → 17px */
+    --text-lg: 1.1875rem; /* 18 → 19px */
+  }
+}
+
 @layer base {
   html {
     scroll-behavior: smooth;

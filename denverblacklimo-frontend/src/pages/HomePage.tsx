@@ -10,6 +10,8 @@ import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { homeCoverageList } from '../data/serviceAreas'
 import { services } from '../data/services'
+import { defaultPricing, type PricingContent } from '../data/pricing'
+import { posts as defaultPosts, type Post } from '../data/posts'
 import { IMAGES } from '../config/images'
 
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -62,6 +64,10 @@ export function HomePage() {
   const heroImages = heroData.images;
   const about = { ...DEFAULT_ABOUT, ...get<Partial<AboutContent>>('about', {}) }
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
+  const pricing = { ...defaultPricing, ...get<Partial<PricingContent>>('pricing', {}) }
+  const posts = get<Post[]>('posts', defaultPosts)
+  // Only advertise rates that are actually set, so the homepage never shows a blank price.
+  const previewRates = pricing.rates.filter((r) => r.hourlyRate?.trim()).slice(0, 3)
 
   useEffect(() => {
     if (heroImages.length < 2) return
@@ -398,7 +404,9 @@ export function HomePage() {
                 <div className="p-5">
                   <p className="text-xs text-brand-gold/80">{String(s.number).padStart(2, '0')}</p>
                   <h3 className="mt-1 font-display text-xl text-brand-gold-light">{s.title}</h3>
-                  <p className="mt-2 text-sm text-white/60">{s.shortDescription}</p>
+                  <p className="mt-2 line-clamp-4 text-base leading-relaxed text-white/60 md:text-sm">
+                    {s.intro}
+                  </p>
                   <span className="mt-4 inline-flex items-center gap-1 text-xs tracking-widest text-brand-gold-light">
                     LEARN MORE <ArrowRight className="h-3 w-3" />
                   </span>
@@ -411,6 +419,89 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* Pricing glimpse — same preview-plus-View-More pattern as the sections above */}
+      {previewRates.length > 0 && (
+        <section className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-20">
+          <SectionHeading className="mb-3">Transparent Hourly Rates</SectionHeading>
+          <p className="mx-auto mb-10 max-w-2xl text-center text-base text-white/65 md:text-sm">
+            Clear starting prices with no surge pricing — every quote is confirmed in writing before you ride.
+          </p>
+          <div className="grid gap-6 md:grid-cols-3">
+            {previewRates.map((rate, index) => (
+              <motion.div
+                key={rate.vehicle}
+                className="premium-card flex flex-col p-6 text-center"
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.2 }}
+                transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
+              >
+                <h3 className="font-display text-xl text-brand-gold-light">{rate.vehicle}</h3>
+                <p className="mt-1 text-sm text-white/55">{rate.capacity}</p>
+                <p className="mt-4 font-display text-4xl text-white">
+                  {pricing.currency}
+                  {rate.hourlyRate}
+                  <span className="text-base text-white/50"> /hr</span>
+                </p>
+                {rate.minimumHours && (
+                  <p className="mt-1 text-xs uppercase tracking-widest text-brand-gold/80">
+                    {rate.minimumHours} minimum
+                  </p>
+                )}
+              </motion.div>
+            ))}
+          </div>
+          <div className="mt-10 text-center">
+            <OutlineButton to="/pricing">VIEW FULL PRICING</OutlineButton>
+          </div>
+        </section>
+      )}
+
+      {/* Blog glimpse */}
+      {posts.length > 0 && (
+        <section className="border-y border-brand-gold/15 bg-brand-surface/40 py-16">
+          <div className="mx-auto max-w-7xl px-4 md:px-6">
+            <SectionHeading className="mb-3">Colorado Travel Guides</SectionHeading>
+            <p className="mx-auto mb-10 max-w-2xl text-center text-base text-white/65 md:text-sm">
+              Local advice on airport timing, mountain travel and event nights from the chauffeurs who drive them daily.
+            </p>
+            <div className="grid gap-6 md:grid-cols-3">
+              {posts.slice(0, 3).map((post, index) => (
+                <Link key={post.slug} to={`/blog/${post.slug}`} className="premium-card group overflow-hidden">
+                  <motion.div
+                    className="aspect-[16/10] overflow-hidden"
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, amount: 0.2 }}
+                    transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
+                  >
+                    <img
+                      src={post.image}
+                      alt={post.title}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  </motion.div>
+                  <div className="p-5">
+                    <p className="text-xs tracking-widest text-brand-gold/80">
+                      {post.tag} · {post.readMinutes} MIN READ
+                    </p>
+                    <h3 className="mt-1 font-display text-xl text-brand-gold-light">{post.title}</h3>
+                    <p className="mt-2 text-base leading-relaxed text-white/60 md:text-sm">{post.excerpt}</p>
+                    <span className="mt-4 inline-flex items-center gap-1 text-xs tracking-widest text-brand-gold-light">
+                      READ ARTICLE <ArrowRight className="h-3 w-3" />
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+            <div className="mt-10 text-center">
+              <OutlineButton to="/blog">VIEW ALL ARTICLES</OutlineButton>
+            </div>
+          </div>
+        </section>
+      )}
 
       <ReviewsCarousel />
       <CTABanner />

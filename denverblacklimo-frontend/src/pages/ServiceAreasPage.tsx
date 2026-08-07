@@ -53,7 +53,10 @@ export function ServiceAreasPage() {
                 <div className="p-5">
                   <p className="text-xs tracking-widest text-brand-gold/80">REGION {area.number}</p>
                   <h2 className="mt-1 font-display text-xl text-brand-gold-light">{area.title}</h2>
-                  <p className="mt-2 text-sm text-white/60">{area.subtitle}</p>
+                  <p className="mt-1 text-sm text-brand-gold/70">{area.subtitle}</p>
+                  <p className="mt-2 line-clamp-4 text-base leading-relaxed text-white/60 md:text-sm">
+                    {area.intro}
+                  </p>
                   <ul className="mt-4 space-y-1">
                     {area.coverageAreas.slice(0, 4).map((c) => (
                       <li key={c} className="flex items-center gap-2 text-xs text-white/70">
