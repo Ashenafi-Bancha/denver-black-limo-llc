@@ -5,6 +5,7 @@ import {
   Plus, Trash2, Upload, Check, Loader2, ChevronLeft, Pencil, X, ArrowUp, ArrowDown,
 } from 'lucide-react'
 import { CONTENT_GROUPS, blankFromFields, type ContentGroup, type FieldSpec } from './cmsSchema'
+import { prepareImage, formatBytes } from './imageResize'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 // In production VITE_API_URL is "/api", so this resolves to "" and an uploaded
@@ -14,6 +15,12 @@ const FILE_BASE = API_URL.replace(/\/api\/?$/, '')
 /** Must match MAX_IMAGE_BYTES in denverblacklimo-backend/server.js. */
 const MAX_IMAGE_MB = 5
 const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024
+/**
+ * Ceiling on what we will even attempt to decode. Images are shrunk in the browser
+ * first, so a big phone photo is fine — this only stops something absurd (a RAW
+ * file, a mislabelled video) from tying up the tab.
+ */
+const MAX_SOURCE_BYTES = 40 * 1024 * 1024
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   building: Building, image: ImageIcon, layout: Layout, info: Info,
@@ -69,6 +76,7 @@ function ImageInput({ value, onChange, token }: { value: string; onChange: (v: s
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState('')
+  const [stage, setStage] = useState('')
 
   // Clear the confirmation on its own so it can't be mistaken for the saved state.
   useEffect(() => {
@@ -81,24 +89,43 @@ function ImageInput({ value, onChange, token }: { value: string; onChange: (v: s
     const file = e.target.files?.[0]
     if (!file) return
     setDone('')
-    if (file.size > MAX_IMAGE_BYTES) {
-      setErr(
-        `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB — the limit is ${MAX_IMAGE_MB}MB. ` +
-        'Please resize it and try again.'
-      )
+    setErr('')
+    if (file.size > MAX_SOURCE_BYTES) {
+      setErr(`That file is ${formatBytes(file.size)} — too large to process. Please choose a photo.`)
       e.target.value = ''
       return
     }
+
     setBusy(true)
-    setErr('')
-    const result = await uploadImage(file, token)
+    setStage('Optimising image…')
+    const prepared = await prepareImage(file)
+
+    // The limit applies to what actually gets uploaded, so a large photo that
+    // shrinks below it is perfectly fine.
+    if (prepared.file.size > MAX_IMAGE_BYTES) {
+      setErr(
+        `Even after optimising, this image is ${formatBytes(prepared.file.size)} — the limit is ` +
+        `${MAX_IMAGE_MB}MB. Please choose a smaller photo.`
+      )
+      setBusy(false)
+      setStage('')
+      e.target.value = ''
+      return
+    }
+
+    setStage('Uploading…')
+    const result = await uploadImage(prepared.file, token)
     if (result.ok && result.url) {
       onChange(result.url)
-      setDone(`“${file.name}” uploaded`)
+      const saved = prepared.optimised
+        ? ` — optimised ${formatBytes(prepared.originalBytes)} → ${formatBytes(prepared.finalBytes)}`
+        : ''
+      setDone(`“${file.name}” uploaded${saved}`)
     } else {
       setErr(result.error || 'Upload failed.')
     }
     setBusy(false)
+    setStage('')
     e.target.value = '' // let the same file be retried after a failure
   }
   return (
@@ -121,8 +148,9 @@ function ImageInput({ value, onChange, token }: { value: string; onChange: (v: s
         <input type="file" accept="image/*" className="hidden" onChange={handle} />
       </label>
     </div>
+    {busy && stage && <p className="mt-1.5 text-xs text-brand-gold/80">{stage}</p>}
     <p className="mt-1.5 text-[11px] text-white/40">
-      JPG, PNG, WebP, GIF or AVIF · max {MAX_IMAGE_MB}MB · about 1600px wide loads fastest
+      JPG, PNG, WebP, GIF or AVIF · large photos are resized automatically
     </p>
     {err && <p className="mt-1.5 text-xs text-red-300">{err}</p>}
     {done && !err && (
