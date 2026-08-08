@@ -36,6 +36,7 @@ type Booking = {
   additional_stops: string; passengers: string; luggage: string; vehicle_preference: string; special_requests: string
   return_pickup_location?: string; return_date?: string; return_time?: string
   return_flight_number?: string; return_airline_name?: string
+  return_dropoff_location?: string; return_additional_stops?: string
 }
 
 type Inquiry = {
@@ -48,6 +49,11 @@ type EmailTarget = { id: string; name: string; email: string; kind: 'booking' | 
 type Tab = 'overview' | 'bookings' | 'inbox' | 'content' | 'analytics'
 
 type BookingSort = 'pickup' | 'newest'
+
+/** Stops are stored joined with " || ". */
+function formatStops(raw?: string) {
+  return String(raw || '').split('||').map((x) => x.trim()).filter(Boolean).join(', ')
+}
 
 const SORT_LABELS: Record<BookingSort, string> = {
   pickup: 'Sort by pickup date',
@@ -692,17 +698,20 @@ export function AdminDashboard() {
                               <div className="space-y-1 text-sm text-white/80 p-4 bg-brand-surface rounded border border-white/5">
                                 <p><span className="text-white/40">Type:</span> {b.trip_type}</p>
                                 <p><span className="text-white/40">Date:</span> {fmtDate(b.pickup_date)}{b.pickup_time ? ` at ${fmtTime(b.pickup_time)}` : ''}</p>
+                                {/* Journey order: pickup, stops along the way, then drop-off. */}
                                 <p><span className="text-white/40">Pickup:</span> {b.pickup_location}</p>
+                                {b.additional_stops && <p><span className="text-white/40">Stops:</span> {formatStops(b.additional_stops)}</p>}
                                 <p><span className="text-white/40">Drop-off:</span> {b.dropoff_location}</p>
-                                {b.additional_stops && <p><span className="text-white/40">Stops:</span> {b.additional_stops}</p>}
-                                {(b.return_date || b.return_flight_number) && (
+                                {(b.return_date || b.return_flight_number || b.return_pickup_location) && (
                                   <div className="mt-3 border-t border-white/10 pt-3">
                                     <p className="mb-1 font-bold text-brand-gold">RETURN TRIP</p>
                                     {b.return_date && <p><span className="text-white/40">Date:</span> {fmtDate(b.return_date)}{b.return_time ? ` at ${fmtTime(b.return_time)}` : ''}</p>}
-                                    {b.return_pickup_location && <p><span className="text-white/40">Pickup:</span> {b.return_pickup_location}</p>}
                                     {(b.return_flight_number || b.return_airline_name) && (
                                       <p><span className="text-white/40">Flight:</span> {[b.return_flight_number, b.return_airline_name].filter(Boolean).join(' · ')}</p>
                                     )}
+                                    {b.return_pickup_location && <p><span className="text-white/40">Pickup:</span> {b.return_pickup_location}</p>}
+                                    {b.return_additional_stops && <p><span className="text-white/40">Stops:</span> {formatStops(b.return_additional_stops)}</p>}
+                                    {b.return_dropoff_location && <p><span className="text-white/40">Drop-off:</span> {b.return_dropoff_location}</p>}
                                   </div>
                                 )}
                               </div>

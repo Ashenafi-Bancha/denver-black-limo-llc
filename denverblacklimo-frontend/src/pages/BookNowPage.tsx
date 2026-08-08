@@ -195,6 +195,7 @@ export function BookNowPage() {
     returnDate: '',
     returnTime: '',
     returnFlightNumber: '',
+    returnDropoffLocation: '',
     // Free text
     specialRequests: '',
   })
@@ -205,7 +206,9 @@ export function BookNowPage() {
   // Dynamic collections
   const [airline, setAirline] = useState<Airline | null>(null)
   const [returnAirline, setReturnAirline] = useState<Airline | null>(null)
-  const [stops, setStops] = useState<string[]>([]) // generic additional stops
+  const [stops, setStops] = useState<string[]>([])
+  /** Extra stops on the way back — independent of the outbound leg. */
+  const [returnStops, setReturnStops] = useState<string[]>([]) // generic additional stops
   const [itinerary, setItinerary] = useState<ItineraryStop[]>(() => seedItineraryFor(requestedService?.layout)) // wedding / nightlife
 
   const set = (key: string, value: unknown) => {
@@ -226,6 +229,7 @@ export function BookNowPage() {
     setErrors({})
     setItinerary(seedItineraryFor(cfg.layout))
     setStops([])
+    setReturnStops([])
   }
 
   // Restore an unfinished booking (e.g. after an accidental refresh).
@@ -238,6 +242,7 @@ export function BookNowPage() {
     if (requestedService && draftService && draftService !== requestedService.name) return
     if (draft.form) setForm((prev) => ({ ...prev, ...(draft.form as object) }))
     if (Array.isArray(draft.stops)) setStops(draft.stops as string[])
+    if (Array.isArray(draft.returnStops)) setReturnStops(draft.returnStops as string[])
     if (Array.isArray(draft.itinerary)) setItinerary(draft.itinerary as ItineraryStop[])
     if (draft.airline) setAirline(draft.airline as Airline)
     if (draft.returnAirline) setReturnAirline(draft.returnAirline as Airline)
@@ -259,17 +264,18 @@ export function BookNowPage() {
       Boolean(form.name || form.email || form.phone || form.pickupLocation || form.dropoffLocation ||
         form.pickupDate || form.flightNumber || form.eventVenue || airline) ||
       stops.some(Boolean) ||
+      returnStops.some(Boolean) ||
       itinerary.some((s) => s.location)
     if (!started) return
     try {
       localStorage.setItem(
         DRAFT_KEY,
-        JSON.stringify({ form, stops, itinerary, airline, returnAirline, step, savedAt: Date.now() })
+        JSON.stringify({ form, stops, returnStops, itinerary, airline, returnAirline, step, savedAt: Date.now() })
       )
     } catch {
       /* storage full or blocked — drafts are a convenience, not a requirement */
     }
-  }, [form, stops, itinerary, airline, returnAirline, step, submitted])
+  }, [form, stops, returnStops, itinerary, airline, returnAirline, step, submitted])
 
   // Seed itinerary on first mount if the initial service needs one (it doesn't here,
   // Airport is default) — kept for completeness when defaults change.
@@ -481,6 +487,8 @@ export function BookNowPage() {
       returnDate: showReturn ? form.returnDate : undefined,
       returnTime: showReturn ? form.returnTime : undefined,
       // The return leg is usually a different flight — only airport trips collect it.
+      returnDropoffLocation: showReturn ? form.returnDropoffLocation : undefined,
+      returnAdditionalStops: showReturn ? returnStops.filter(Boolean).join(' || ') : undefined,
       returnFlightNumber: showReturn && layout === 'airport' ? form.returnFlightNumber : undefined,
       returnAirline: showReturn && layout === 'airport' ? returnAirline?.name : undefined,
       returnAirlineCode: showReturn && layout === 'airport' ? returnAirline?.code : undefined,
@@ -606,10 +614,13 @@ export function BookNowPage() {
 
               <div className="mt-6">{renderTripFields()}</div>
 
-              {/* Additional stops (not for itinerary layouts, which build their own list) */}
+              {/* Stops sit between pickup and the return leg so the whole form reads
+                  in journey order. Itinerary layouts build their own stop list. */}
               {layout !== 'wedding' && layout !== 'nightlife' && (
                 <AdditionalStops stops={stops} setStops={setStops} />
               )}
+
+              {renderReturnBlock()}
 
               {/* Special requests */}
               <div className="mt-6">
@@ -944,7 +955,6 @@ export function BookNowPage() {
             </>
           )}
         </div>
-        {renderReturnBlock()}
       </div>
     )
   }
@@ -996,7 +1006,6 @@ export function BookNowPage() {
             </>
           )}
         </div>
-        {renderReturnBlock()}
       </div>
     )
   }
@@ -1018,7 +1027,6 @@ export function BookNowPage() {
           <AddressInput label="Pickup Location" required value={form.pickupLocation} onChange={(v) => set('pickupLocation', v)} error={errors.pickupLocation} placeholder="Home, hotel or business address" />
           <AddressInput label="Destination" required value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} error={errors.dropoffLocation} placeholder="Drop-off address" />
         </div>
-        {renderReturnBlock()}
       </div>
     )
   }
@@ -1102,7 +1110,6 @@ export function BookNowPage() {
           </Field>
           <AddressInput label="Resort / Hotel Address" optional value={form.dropoffLocation} onChange={(v) => set('dropoffLocation', v)} placeholder="Specific lodge or address (optional)" />
         </div>
-        {renderReturnBlock()}
       </div>
     )
   }
@@ -1224,6 +1231,19 @@ export function BookNowPage() {
           <Input label="Return Time" type="time" value={form.returnTime} onChange={(v) => set('returnTime', v)} />
         </div>
 
+        {/* Same running order as the outbound leg: pickup, then stops, then drop-off. */}
+        <AdditionalStops stops={returnStops} setStops={setReturnStops} label="Return Additional Stops" />
+
+        <div className="mt-4">
+          <AddressInput
+            label="Return Drop-off Location"
+            optional
+            value={form.returnDropoffLocation}
+            onChange={(v) => set('returnDropoffLocation', v)}
+            placeholder="Where should the return trip end?"
+          />
+        </div>
+
         {/* The return leg is usually a different flight, so it needs its own details. */}
         {layout === 'airport' && (
           <div className="mt-4 grid gap-4 border-t border-gray-200 pt-4 md:grid-cols-2">
@@ -1294,18 +1314,25 @@ export function BookNowPage() {
     if (layout === 'wedding' || layout === 'nightlife') {
       itinerary.filter((s) => s.location).forEach((s) => rows.push({ label: s.label, value: `${s.location}${s.time ? ` · ${fmtTime(s.time)}` : ''}` }))
     } else {
+      // Journey order: pickup, then any stops along the way, then the drop-off.
       if (form.pickupDate) rows.push({ label: 'Pickup', value: fmtDateTime(form.pickupDate, form.pickupTime) })
       if (derivedPickup) rows.push({ label: 'From', value: derivedPickup })
+      if (stops.filter(Boolean).length) rows.push({ label: 'Stops', value: stops.filter(Boolean).join(', ') })
       const dropoff = derivedDropoff || form.resort
       if (dropoff) rows.push({ label: 'To', value: dropoff })
     }
 
+    // The return leg repeats the same running order.
     if (showReturn && form.returnDate) {
       rows.push({ label: 'Return', value: fmtDateTime(form.returnDate, form.returnTime) })
       const returnFlight = [form.returnFlightNumber, returnAirline?.name].filter(Boolean).join(' · ')
       if (returnFlight) rows.push({ label: 'Return Flight', value: returnFlight })
+      if (form.returnPickupLocation) rows.push({ label: 'Return From', value: form.returnPickupLocation })
+      if (returnStops.filter(Boolean).length) {
+        rows.push({ label: 'Return Stops', value: returnStops.filter(Boolean).join(', ') })
+      }
+      if (form.returnDropoffLocation) rows.push({ label: 'Return To', value: form.returnDropoffLocation })
     }
-    if (stops.filter(Boolean).length) rows.push({ label: 'Stops', value: stops.filter(Boolean).join(', ') })
     return rows
   }
 }
@@ -1603,10 +1630,10 @@ function MeetGreetBox({ terminal }: { terminal: 'East' | 'West' }) {
   )
 }
 
-function AdditionalStops({ stops, setStops }: { stops: string[]; setStops: (s: string[]) => void }) {
+function AdditionalStops({ stops, setStops, label = 'Additional Stops' }: { stops: string[]; setStops: (s: string[]) => void; label?: string }) {
   return (
     <div className="mt-6">
-      <Field label="Additional Stops" optional icon={<MapPin className="h-4 w-4" />}>
+      <Field label={label} optional icon={<MapPin className="h-4 w-4" />}>
         <div className="space-y-2">
           {stops.map((s, i) => (
             <div key={i} className="flex gap-2">

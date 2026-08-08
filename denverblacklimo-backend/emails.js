@@ -214,14 +214,8 @@ function buildDetailRows(data) {
   for (const [key, label] of Object.entries(DETAIL_LABELS)) {
     if (d[key]) rows.push({ label, value: String(d[key]) });
   }
-  if (data.additional_stops) rows.push({ label: 'Additional Stops', value: String(data.additional_stops) });
-  if (data.return_pickup_location || data.return_date || data.return_time) {
-    const parts = [data.return_pickup_location, data.return_date, data.return_time].filter(Boolean).join(' · ');
-    if (parts) rows.push({ label: 'Return Trip', value: parts });
-    // The return leg is often a different flight — dispatch needs it too.
-    const returnFlight = [data.return_flight_number, data.return_airline_name].filter(Boolean).join(' · ');
-    if (returnFlight) rows.push({ label: 'Return Flight', value: returnFlight });
-  }
+  // Stops and the return leg are rendered by tripRows()/returnRows() so that both
+  // legs read in the same pickup → stops → drop-off order.
   return rows;
 }
 
@@ -233,7 +227,14 @@ function isShortNotice(data, hours = 3) {
   return stamp - Date.now() < hours * 60 * 60 * 1000
 }
 
+/** Stops are stored joined with " || " — show them as a readable list. */
+function formatStops(raw) {
+  if (!raw) return '';
+  return String(raw).split('||').map((s) => s.trim()).filter(Boolean).join(', ');
+}
+
 function tripRows(data) {
+  // Listed in journey order: pickup, then stops along the way, then the drop-off.
   return [
     { label: 'Reference', value: data.reference },
     { label: 'Service', value: data.service_type },
@@ -241,7 +242,24 @@ function tripRows(data) {
     { label: 'Pickup Date', value: data.pickup_date },
     { label: 'Pickup Time', value: data.pickup_time },
     { label: 'Pickup Location', value: data.pickup_location },
+    { label: 'Stops', value: formatStops(data.additional_stops) },
     { label: 'Drop-off', value: data.dropoff_location },
+  ];
+}
+
+/** The return leg, in the same pickup → stops → drop-off order. */
+function returnRows(data) {
+  if (!data.return_date && !data.return_pickup_location && !data.return_dropoff_location) return [];
+  return [
+    { label: 'Return Date', value: data.return_date },
+    { label: 'Return Time', value: data.return_time },
+    {
+      label: 'Return Flight',
+      value: [data.return_flight_number, data.return_airline_name].filter(Boolean).join(' · '),
+    },
+    { label: 'Return Pickup', value: data.return_pickup_location },
+    { label: 'Return Stops', value: formatStops(data.return_additional_stops) },
+    { label: 'Return Drop-off', value: data.return_dropoff_location },
   ];
 }
 
@@ -299,6 +317,7 @@ function buildCustomerConfirmationEmail(data) {
 
     <div class="pad" style="padding:0 32px 8px;">
       ${panel(`${heading('Trip Summary')}${rowsTable(tripRows(data))}`)}
+      ${returnRows(data).length ? panel(`${heading('Return Trip')}${rowsTable(returnRows(data))}`) : ''}
     </div>
 
     ${air.length ? `<div class="pad" style="padding:14px 32px 0;">${panel(`${heading('Flight Information')}${rowsTable(air)}`)}</div>` : ''}
@@ -362,6 +381,7 @@ function buildAdminAlertEmail(data, bookingId) {
 
     <div class="pad" style="padding:14px 32px 0;">
       ${panel(`${heading('Trip')}${rowsTable(tripRows(data))}`)}
+      ${returnRows(data).length ? panel(`${heading('Return Trip')}${rowsTable(returnRows(data))}`) : ''}
     </div>
 
     ${air.length ? `<div class="pad" style="padding:14px 32px 0;">${panel(`${heading('Flight Information')}${rowsTable(air)}`)}</div>` : ''}
