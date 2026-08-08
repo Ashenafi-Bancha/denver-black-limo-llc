@@ -69,6 +69,7 @@ const {
   sendBookingEmails,
   sendInquiryEmails,
   sendAdminReply,
+  sendReviewRequest,
 } = require('./emails');
 
 // Apply pending schema migrations on boot (safe & idempotent; see db.js + ./migrations).
@@ -371,6 +372,40 @@ app.delete('/api/bookings/:id', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Delete booking error:', err);
     res.status(500).json({ error: 'Failed to delete booking' });
+  }
+});
+
+/**
+ * Asks a customer for a Google review (Protected).
+ *
+ * Intended for trips that are finished — the admin presses this once the ride is
+ * complete. The send timestamp is stored so the dashboard can show it was already
+ * requested rather than mailing the same person repeatedly.
+ */
+app.post('/api/bookings/:id/review-request', authenticateToken, async (req, res) => {
+  if (!process.env.RESEND_API_KEY) {
+    return res.status(503).json({ error: 'Email service is not configured.' });
+  }
+  try {
+    const { id } = req.params;
+    const { rows } = await pool.query(
+      'SELECT name, email, service_type, pickup_date, review_request_sent_at FROM bookings WHERE id = $1',
+      [id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found.' });
+
+    const booking = rows[0];
+    if (!booking.email) return res.status(400).json({ error: 'This booking has no email address.' });
+
+    const sent = await sendReviewRequest(booking);
+    if (!sent.ok) return res.status(502).json({ error: `Could not send: ${sent.error}` });
+
+    await pool.query('UPDATE bookings SET review_request_sent_at = NOW() WHERE id = $1', [id]);
+    console.log(`Review request sent for booking ${id} to ${booking.email}`);
+    res.json({ message: `Review request sent to ${booking.email}`, sentAt: new Date().toISOString() });
+  } catch (err) {
+    console.error('Review request error:', err);
+    res.status(500).json({ error: 'Failed to send the review request.' });
   }
 });
 

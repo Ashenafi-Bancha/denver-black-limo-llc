@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
-  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown,
+  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -37,6 +37,7 @@ type Booking = {
   return_pickup_location?: string; return_date?: string; return_time?: string
   return_flight_number?: string; return_airline_name?: string
   return_dropoff_location?: string; return_additional_stops?: string
+  review_request_sent_at?: string | null
 }
 
 type Inquiry = {
@@ -101,6 +102,8 @@ export function AdminDashboard() {
   /** Row queued for deletion, held until the centred card is confirmed. */
   const [pendingDelete, setPendingDelete] = useState<{ kind: 'booking' | 'inquiry'; id: string; label: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
+  /** Booking id currently having its review request sent. */
+  const [reviewSending, setReviewSending] = useState<string | null>(null)
   /** Outcome card shown in the middle of the screen after a delete or a save. */
   const [actionResult, setActionResult] = useState<{ ok: boolean; title: string; message?: string } | null>(null)
 
@@ -272,6 +275,35 @@ export function AdminDashboard() {
     } finally {
       setDeleting(false)
       setPendingDelete(null)
+    }
+  }
+
+  /**
+   * Asks a finished customer for a Google review. Reviews are the strongest signal
+   * in local search, and this turns "remember to ask" into one button.
+   */
+  const requestReview = async (b: Booking) => {
+    setReviewSending(b.id)
+    try {
+      const res = await fetch(`${API_URL}/bookings/${b.id}/review-request`, {
+        method: 'POST',
+        headers: authHeaders(),
+      })
+      if (res.status === 401 || res.status === 403) return handleAuthFailure()
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'The server rejected the request.')
+      setBookings((list) =>
+        list.map((x) => (x.id === b.id ? { ...x, review_request_sent_at: body.sentAt || new Date().toISOString() } : x))
+      )
+      setActionResult({ ok: true, title: 'Review request sent', message: `${b.name} has been asked to review the trip.` })
+    } catch (err) {
+      setActionResult({
+        ok: false,
+        title: 'Could not send',
+        message: err instanceof Error ? err.message : 'Something went wrong. Please try again.',
+      })
+    } finally {
+      setReviewSending(null)
     }
   }
 
@@ -670,6 +702,25 @@ export function AdminDashboard() {
                           <select value={b.status} onChange={(e) => { e.stopPropagation(); updateBookingStatus(b.id, e.target.value, b.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
                             {BOOKING_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
                           </select>
+                          {b.status === 'Completed' && (
+                            <button
+                              onClick={(e) => { e.stopPropagation(); requestReview(b) }}
+                              disabled={reviewSending === b.id}
+                              title={b.review_request_sent_at
+                                ? `Review requested ${new Date(b.review_request_sent_at).toLocaleDateString()} — click to send again`
+                                : 'Ask this customer for a Google review'}
+                              className={`flex items-center gap-1.5 rounded border px-3 py-2 text-xs transition-colors disabled:opacity-60 ${
+                                b.review_request_sent_at
+                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300'
+                                  : 'border-brand-gold/40 bg-brand-gold/5 text-brand-gold hover:bg-brand-gold/15'
+                              }`}
+                            >
+                              {reviewSending === b.id
+                                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                : <Star className="h-3.5 w-3.5" />}
+                              {b.review_request_sent_at ? 'Review asked' : 'Ask for review'}
+                            </button>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); setPendingDelete({ kind: 'booking', id: b.id, label: `${b.name} (${bookingRef(b.id)})` }) }}
                             title="Delete this booking"

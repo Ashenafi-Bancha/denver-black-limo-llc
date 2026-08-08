@@ -567,6 +567,52 @@ async function sendAdminReply(to, subject, customerName, message) {
   });
 }
 
+
+/**
+ * Review request — sent by the office once a trip is complete.
+ *
+ * Kept deliberately short. The single job of this email is to get a happy
+ * customer to the Google review box in one tap, so there is one button and
+ * nothing competing with it.
+ */
+const GOOGLE_REVIEW_URL =
+  process.env.GOOGLE_REVIEW_URL || 'https://g.page/r/CTb7bGnryiUrEAE/review';
+
+function buildReviewRequestEmail(data) {
+  const first = String(data.name || '').trim().split(' ')[0] || 'there';
+  const tripLine = [data.service_type, data.pickup_date].filter(Boolean).join(' · ');
+
+  return shell({
+    title: 'How was your ride?',
+    preheader: `Thank you for riding with Denver Black Limo, ${first}. Would you leave us a review?`,
+    contentHtml: `
+      ${heading(`Thank you, ${esc(first)}`)}
+      <p style="margin:0 0 14px; font-size:15px; line-height:1.65; color:#333;">
+        It was a pleasure driving you${tripLine ? ` — ${esc(tripLine)}` : ''}. We hope the journey was
+        comfortable and on time.
+      </p>
+      <p style="margin:0 0 6px; font-size:15px; line-height:1.65; color:#333;">
+        If we looked after you well, would you take a moment to leave a review? It takes less than a
+        minute and genuinely helps other Colorado travelers find a chauffeur service they can trust.
+      </p>
+      ${button('Leave a Google review', GOOGLE_REVIEW_URL)}
+      <p style="margin:22px 0 0; font-size:13px; line-height:1.6; color:#666;">
+        And if anything fell short, please reply to this email instead — we would rather hear it from
+        you directly and put it right.
+      </p>
+    `,
+  });
+}
+
+async function sendReviewRequest(data) {
+  return deliver({
+    to: data.email,
+    subject: 'How was your ride with Denver Black Limo?',
+    html: buildReviewRequestEmail(data),
+    label: 'review request',
+  });
+}
+
 module.exports = {
   SENDER_EMAIL,
   ADMIN_NOTIFY_EMAIL,
@@ -574,7 +620,10 @@ module.exports = {
   sendBookingEmails,
   sendInquiryEmails,
   sendAdminReply,
+  sendReviewRequest,
+  GOOGLE_REVIEW_URL,
   buildCustomerConfirmationEmail,
+  buildReviewRequestEmail,
   buildAdminAlertEmail,
   buildAdminReplyEmail,
   buildInquiryAdminEmail,
