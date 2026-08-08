@@ -85,7 +85,16 @@ initDB();
 
 const JWT_SECRET = process.env.JWT_SECRET || 'denver-black-limo-secret-2026';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin';
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@denverblacklimo.com';
+/**
+ * More than one person signs in during handover — the owner and whoever is
+ * testing. ADMIN_EMAIL takes a comma-separated list; any of them may sign in,
+ * all sharing ADMIN_PASSWORD. Compared case-insensitively, since mail clients
+ * capitalise addresses inconsistently.
+ */
+const ADMIN_EMAILS = (process.env.ADMIN_EMAIL || 'admin@denverblacklimo.com')
+  .split(',')
+  .map((address) => address.trim().toLowerCase())
+  .filter(Boolean);
 
 // Loud startup warnings for insecure defaults left in place.
 if (ADMIN_PASSWORD === 'admin') {
@@ -232,7 +241,8 @@ app.post('/api/admin/login', rateLimit({
   message: 'Too many sign-in attempts. Please wait a few minutes and try again.',
 }), (req, res) => {
   const { email, password } = req.body;
-  if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
+  const candidate = String(email || '').trim().toLowerCase();
+  if (ADMIN_EMAILS.includes(candidate) && password === ADMIN_PASSWORD) {
     const accessToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '24h' });
     res.json({ token: accessToken });
   } else {

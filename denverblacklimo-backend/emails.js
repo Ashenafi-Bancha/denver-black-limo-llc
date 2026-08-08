@@ -12,8 +12,19 @@ const SITE = (process.env.SITE_URL || 'https://denverblacklimo.llc').replace(/\/
 const ADMIN_URL = (process.env.ALLOWED_ORIGIN || SITE).replace(/\/$/, '');
 
 const SENDER_EMAIL = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
-const ADMIN_NOTIFY_EMAIL =
-  process.env.ADMIN_NOTIFY_EMAIL || process.env.ADMIN_EMAIL || 'info@denverblacklimo.llc';
+/**
+ * Alerts can go to several people — the owner and whoever is testing, say.
+ * Set ADMIN_NOTIFY_EMAIL to a comma-separated list; Resend takes an array of
+ * recipients. A single address still works unchanged.
+ */
+const ADMIN_NOTIFY_EMAIL = (
+  process.env.ADMIN_NOTIFY_EMAIL ||
+  process.env.ADMIN_EMAIL ||
+  'info@denverblacklimo.llc'
+)
+  .split(',')
+  .map((address) => address.trim())
+  .filter(Boolean);
 
 const BRAND = {
   name: 'Denver Black Limo LLC',
