@@ -153,9 +153,11 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-3 text-[13px] font-medium tracking-[0.22em] text-white md:text-lg md:tracking-[0.3em]"
+            className="mt-3 text-[13px] font-medium uppercase tracking-[0.22em] text-white md:text-lg md:tracking-[0.3em]"
           >
-            LUXURY CHAUFFEURED TRANSPORTATION
+            {/* The one hero line the CMS drives. `uppercase` keeps the lockup
+                looking the same whatever case it is typed in. */}
+            {heroData.subheadline}
           </motion.p>
           <motion.div
             initial={{ opacity: 0, y: 12 }}

@@ -17,11 +17,15 @@ import {
   defaultPosts,
 } from '../content/defaults'
 
+/**
+ * The homepage hero is the brand lockup the client signed off on: logo, the
+ * DENVER / BLACK LIMO, LLC wordmark, then this tagline. Only the tagline and
+ * the rotating photos are content — the wordmark is the identity, so it is not
+ * editable. Headline and description fields used to live here and drove
+ * nothing; they were removed rather than left lying about what they did.
+ */
 export const DEFAULT_HERO = {
-  headline: "Denver's Premier",
   subheadline: 'Luxury Chauffeured Transportation',
-  description:
-    "Luxury chauffeured transportation across Colorado — from DIA and boardrooms to Vail and beyond. Immaculate vehicles, professional chauffeurs, available around the clock.",
   images: [
     '/images/hero/hero-1.jpeg',
     '/images/hero/hero-2.jpeg',
@@ -125,14 +129,13 @@ export const CONTENT_GROUPS: ContentGroup[] = [
   {
     key: 'home_hero',
     title: 'Home — Hero Section',
-    description: 'The main headline, subheadline, description and rotating background images.',
+    description:
+      'The tagline under the logo and the rotating background photos. The DENVER / BLACK LIMO, LLC wordmark is part of the brand mark and is not editable here.',
     icon: 'image',
     kind: 'singleton',
     default: DEFAULT_HERO,
     fields: [
-      { key: 'headline', label: 'Headline', type: 'text', full: true },
-      { key: 'subheadline', label: 'Sub-headline', type: 'text', full: true },
-      { key: 'description', label: 'Description', type: 'textarea', full: true },
+      { key: 'subheadline', label: 'Tagline (under the logo)', type: 'text', full: true },
       { key: 'images', label: 'Background Images', type: 'imageList', full: true },
     ],
   },

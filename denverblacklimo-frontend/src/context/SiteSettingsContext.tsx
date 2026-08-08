@@ -1,10 +1,9 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
 
-// Default hero settings if the API is down
+// Default hero settings if the API is down. Mirrors DEFAULT_HERO in the CMS
+// schema — only the tagline and the photos are content; the wordmark is fixed.
 const defaultHeroSettings = {
-  headline: "Denver's Premier",
   subheadline: "Luxury Chauffeured Transportation",
-  description: "Luxury chauffeured transportation across Colorado — from DIA and boardrooms to Vail and beyond. Immaculate vehicles, professional chauffeurs, available around the clock.",
   images: [
     "/images/hero/hero-1.jpeg",
     "/images/hero/hero-2.jpeg",
