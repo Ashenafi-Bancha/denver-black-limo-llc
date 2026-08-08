@@ -92,14 +92,14 @@ export function CTABanner({
           <div className="flex flex-col items-center gap-3 lg:items-end">
             <Link
               to={primaryTo}
-              className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full bg-gold-gradient px-8 py-3.5 text-xs font-bold tracking-[0.2em] text-brand-black shadow-lg shadow-brand-gold/20 transition hover:brightness-110 sm:w-auto lg:w-full lg:max-w-none"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full bg-gold-gradient px-8 text-[13px] font-bold tracking-[0.18em] sm:min-h-0 sm:max-w-xs sm:py-3.5 sm:text-xs sm:tracking-[0.2em] text-brand-black shadow-lg shadow-brand-gold/20 transition hover:brightness-110 sm:w-auto lg:w-full lg:max-w-none"
             >
               <Calendar className="h-4 w-4" />
               {primaryLabel}
             </Link>
             <Link
               to={secondaryTo}
-              className="inline-flex w-full max-w-xs items-center justify-center gap-2 rounded-full border border-brand-gold/60 px-8 py-3.5 text-xs font-bold tracking-[0.2em] text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 sm:w-auto lg:w-full lg:max-w-none"
+              className="inline-flex min-h-[52px] w-full items-center justify-center gap-2 rounded-full border border-brand-gold/60 px-8 text-[13px] font-bold tracking-[0.2em] text-brand-gold-light transition hover:border-brand-gold hover:bg-brand-gold/10 sm:w-auto lg:w-full lg:max-w-none sm:min-h-0 sm:max-w-xs sm:py-3.5 sm:text-xs"
             >
               <MessageSquare className="h-4 w-4" />
               {secondaryLabel}

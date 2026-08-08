@@ -177,7 +177,8 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-4 flex flex-wrap items-center gap-3 md:mt-8"
+            // Stacked full-width on phones, back to a row from `sm` up.
+            className="mt-5 flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">GET A QUOTE</OutlineButton>
