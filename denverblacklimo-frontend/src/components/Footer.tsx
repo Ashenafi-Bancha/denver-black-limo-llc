@@ -3,6 +3,7 @@ import { Logo } from './Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { DEFAULT_BUSINESS, telHref, mailHref, defaultServices, type BusinessInfo } from '../content/defaults'
 import type { Service } from '../data/services'
+import { GOOGLE_REVIEW_URL } from '../data/reviews'
 
 export function Footer() {
   const { get } = useSiteSettings()
@@ -91,6 +92,24 @@ export function Footer() {
               {biz.address}
             </li>
           </ul>
+          {/* Sits between the address and Follow Us — someone reading the contact
+              details is already looking the business up, which is the moment to ask.
+              mt-3 + py-2 keeps the same visual gap as mt-5 while giving a 36px tap
+              target rather than 20px, since this is aimed at phones. */}
+          <a
+            href={GOOGLE_REVIEW_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group mt-3 inline-flex items-center gap-2 py-2 text-sm font-semibold text-brand-gold-light transition hover:text-white"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+              <path d="M12 2l2.9 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l7.1-1.01L12 2z" />
+            </svg>
+            Leave a Google Review
+            <span aria-hidden="true" className="inline-block transition-transform group-hover:translate-x-1">
+              →
+            </span>
+          </a>
           <div className="mt-6">
             <p className="mb-3 text-xs font-semibold tracking-[0.25em] text-brand-gold-light">
               FOLLOW US
