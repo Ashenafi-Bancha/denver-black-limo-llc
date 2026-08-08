@@ -7,6 +7,7 @@ import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { defaultFleet, DEFAULT_BUSINESS, telHref, type BusinessInfo } from '../content/defaults'
 import type { FleetVehicle } from '../data/fleet'
+import { VehicleImage } from '../components/VehicleImage'
 import { IMAGES } from '../config/images'
 
 const fleetTrust = [
@@ -26,33 +27,6 @@ const whyChoose = [
   'Small groups or large group solutions',
   'Available 24/7',
 ]
-
-/** Local photo for a vehicle: /images/fleet/fleet-<n>.jpeg → .jpg → stock. */
-function vehicleImg(v: FleetVehicle) {
-  return v.number ? `/images/fleet/fleet-${v.number}.jpeg` : v.image
-}
-
-function VehicleImage({ vehicle, className }: { vehicle: FleetVehicle; className: string }) {
-  return (
-    <img
-      src={vehicleImg(vehicle)}
-      alt={vehicle.name}
-      loading="lazy"
-      className={className}
-      onError={(e) => {
-        const t = e.currentTarget
-        const step = t.dataset.step
-        if (!step && vehicle.number) {
-          t.dataset.step = 'jpg'
-          t.src = `/images/fleet/fleet-${vehicle.number}.jpg`
-        } else if (step !== 'stock') {
-          t.dataset.step = 'stock'
-          t.src = vehicle.image || IMAGES.hero2
-        }
-      }}
-    />
-  )
-}
 
 export function FleetPage() {
   const { get } = useSiteSettings()

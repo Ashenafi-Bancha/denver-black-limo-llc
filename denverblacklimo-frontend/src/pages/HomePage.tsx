@@ -11,6 +11,8 @@ import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { homeCoverageList } from '../data/serviceAreas'
 import { services } from '../data/services'
 import { defaultPricing, type PricingContent } from '../data/pricing'
+import { fleet as defaultFleetList, type FleetVehicle } from '../data/fleet'
+import { VehicleImage, findVehicleFor } from '../components/VehicleImage'
 import { posts as defaultPosts, type Post } from '../data/posts'
 import { IMAGES } from '../config/images'
 
@@ -66,6 +68,7 @@ export function HomePage() {
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
   const pricing = { ...defaultPricing, ...get<Partial<PricingContent>>('pricing', {}) }
   const posts = get<Post[]>('posts', defaultPosts)
+  const fleetVehicles = get<FleetVehicle[]>('fleet', defaultFleetList)
   // Only advertise rates that are actually set, so the homepage never shows a blank price.
   const previewRates = pricing.rates.filter((r) => r.hourlyRate?.trim()).slice(0, 3)
 
@@ -417,29 +420,51 @@ export function HomePage() {
             Clear starting prices with no surge pricing — every quote is confirmed in writing before you ride.
           </p>
           <div className="grid gap-6 md:grid-cols-3">
-            {previewRates.map((rate, index) => (
-              <motion.div
-                key={rate.vehicle}
-                className="premium-card flex flex-col p-6 text-center"
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, amount: 0.2 }}
-                transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
-              >
-                <h3 className="font-display text-xl text-brand-gold-light">{rate.vehicle}</h3>
-                <p className="mt-1 text-sm text-white/55">{rate.capacity}</p>
-                <p className="mt-4 font-display text-4xl text-white">
-                  {pricing.currency}
-                  {rate.hourlyRate}
-                  <span className="text-base text-white/50"> /hr</span>
-                </p>
-                {rate.minimumHours && (
-                  <p className="mt-1 text-xs uppercase tracking-widest text-brand-gold/80">
-                    {rate.minimumHours} minimum
-                  </p>
-                )}
-              </motion.div>
-            ))}
+            {previewRates.map((rate, index) => {
+              // Each rate belongs to a vehicle in the fleet — borrow its photo and
+              // description so the price has something to look at.
+              const vehicle = findVehicleFor(rate.vehicle, fleetVehicles)
+              return (
+                <motion.div
+                  key={rate.vehicle}
+                  initial={{ opacity: 0, y: 20 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, amount: 0.2 }}
+                  transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
+                >
+                  <Link to="/pricing" className="premium-card group flex h-full flex-col overflow-hidden">
+                    {vehicle && (
+                      <div className="aspect-[16/10] overflow-hidden">
+                        <VehicleImage
+                          vehicle={vehicle}
+                          className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                        />
+                      </div>
+                    )}
+                    <div className="flex flex-1 flex-col p-6 text-center">
+                      <h3 className="font-display text-xl text-brand-gold-light">{rate.vehicle}</h3>
+                      <p className="mt-1 text-sm text-white/55">{rate.capacity}</p>
+                      {vehicle?.description && (
+                        <p className="mt-3 text-sm leading-relaxed text-white/60">{vehicle.description}</p>
+                      )}
+                      <p className="mt-4 font-display text-4xl text-white">
+                        {pricing.currency}
+                        {rate.hourlyRate}
+                        <span className="text-base text-white/50"> /hr</span>
+                      </p>
+                      {rate.minimumHours && (
+                        <p className="mt-1 text-xs uppercase tracking-widest text-brand-gold/80">
+                          {rate.minimumHours} minimum
+                        </p>
+                      )}
+                      <span className="mt-4 inline-flex items-center justify-center gap-1 text-xs tracking-widest text-brand-gold-light">
+                        LEARN MORE <ArrowRight className="h-3 w-3" />
+                      </span>
+                    </div>
+                  </Link>
+                </motion.div>
+              )
+            })}
           </div>
           <div className="mt-10 text-center">
             <OutlineButton to="/pricing">VIEW FULL PRICING</OutlineButton>
