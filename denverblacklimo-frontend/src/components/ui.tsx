@@ -20,6 +20,14 @@ export function SectionHeading({
   )
 }
 
+/** Off-site links need a real anchor — react-router's Link only handles in-app routes. */
+function isExternal(to: string) {
+  return /^https?:\/\//i.test(to)
+}
+
+const OUTLINE_INNER =
+  'inline-flex min-h-[49px] w-full items-center justify-center gap-2 rounded-full bg-brand-black px-8 text-[13px] font-bold tracking-[0.18em] text-brand-gold-light transition hover:bg-brand-charcoal hover:text-white sm:min-h-0 sm:py-3 sm:text-xs sm:tracking-[0.2em]'
+
 export function GoldButton({
   to,
   children,
@@ -29,16 +37,19 @@ export function GoldButton({
   children: React.ReactNode
   className?: string
 }) {
-  return (
-    <Link
-      to={to}
-      // Full width and 52px tall on phones: a half-width 40px pill is an awkward
-      // thumb target and reads as secondary. Natural width returns from `sm` up.
-      className={`inline-flex w-full min-h-[52px] items-center justify-center gap-2 rounded-full bg-gold-gradient px-8 text-[13px] font-bold tracking-[0.18em] text-brand-black shadow-lg shadow-brand-gold/20 transition hover:brightness-110 hover:shadow-brand-gold/30 sm:min-h-[44px] sm:w-auto sm:py-3 sm:text-xs sm:tracking-[0.2em] ${className}`}
-    >
+  // Full width and 52px tall on phones: a half-width 40px pill is an awkward
+  // thumb target and reads as secondary. Natural width returns from `sm` up.
+  const cls = `inline-flex w-full min-h-[52px] items-center justify-center gap-2 rounded-full bg-gold-gradient px-8 text-[13px] font-bold tracking-[0.18em] text-brand-black shadow-lg shadow-brand-gold/20 transition hover:brightness-110 hover:shadow-brand-gold/30 sm:min-h-[44px] sm:w-auto sm:py-3 sm:text-xs sm:tracking-[0.2em] ${className}`
+  const inner = (
+    <>
       <Calendar className="h-4 w-4" />
       {children}
-    </Link>
+    </>
+  )
+  return isExternal(to) ? (
+    <a href={to} target="_blank" rel="noopener noreferrer" className={cls}>{inner}</a>
+  ) : (
+    <Link to={to} className={cls}>{inner}</Link>
   )
 }
 
@@ -56,13 +67,17 @@ export function OutlineButton({
     <span className={`glow-border glow-border-pill glow-border-warm inline-flex w-full sm:w-auto ${className}`}>
       {/* w-full so the button fills the wrapper — callers pass sizing classes like
           `w-full`, and those land on the wrapper, not the link. */}
-      <Link
-        to={to}
-        className="inline-flex min-h-[49px] w-full items-center justify-center gap-2 rounded-full bg-brand-black px-8 text-[13px] font-bold tracking-[0.18em] text-brand-gold-light transition hover:bg-brand-charcoal hover:text-white sm:min-h-0 sm:py-3 sm:text-xs sm:tracking-[0.2em]"
-      >
-        {children}
-        <ArrowRight className="h-4 w-4" />
-      </Link>
+      {isExternal(to) ? (
+        <a href={to} target="_blank" rel="noopener noreferrer" className={OUTLINE_INNER}>
+          {children}
+          <ArrowRight className="h-4 w-4" />
+        </a>
+      ) : (
+        <Link to={to} className={OUTLINE_INNER}>
+          {children}
+          <ArrowRight className="h-4 w-4" />
+        </Link>
+      )}
     </span>
   )
 }

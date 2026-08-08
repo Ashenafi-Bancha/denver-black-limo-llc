@@ -51,8 +51,11 @@ export type ReviewPlatform = {
   icon: string
 }
 
+/** Google Business Profile "write a review" link — used by the CTA and the platform card. */
+export const GOOGLE_REVIEW_URL = 'https://g.page/r/CTb7bGnryiUrEAE/review'
+
 export const reviewPlatforms: ReviewPlatform[] = [
-  { name: 'Google', url: '', blurb: 'Read and leave a Google review', icon: 'star' },
+  { name: 'Google', url: 'https://g.page/r/CTb7bGnryiUrEAE/review', blurb: 'Read and leave a Google review', icon: 'star' },
   {
     name: 'Facebook',
     url: 'https://www.facebook.com/profile.php?id=61592643747921',

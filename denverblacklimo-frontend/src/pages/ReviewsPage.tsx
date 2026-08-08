@@ -6,7 +6,7 @@ import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { IMAGES } from '../config/images'
 import { useSiteSettings } from '../context/SiteSettingsContext'
 import { defaultReviews } from '../content/defaults'
-import { reviewPlatforms as defaultPlatforms, type Review, type ReviewPlatform } from '../data/reviews'
+import { reviewPlatforms as defaultPlatforms, type Review, type ReviewPlatform, GOOGLE_REVIEW_URL } from '../data/reviews'
 
 function Stars({ count = 5, className = 'h-4 w-4' }: { count?: number; className?: string }) {
   return (
@@ -160,7 +160,8 @@ export function ReviewsPage() {
         </p>
         <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
           <GoldButton to="/book">BOOK YOUR NEXT RIDE</GoldButton>
-          <OutlineButton to="/contact">SHARE YOUR EXPERIENCE</OutlineButton>
+          {/* Straight to the Google review form — the fewer taps, the more reviews. */}
+          <OutlineButton to={GOOGLE_REVIEW_URL}>LEAVE A GOOGLE REVIEW</OutlineButton>
         </div>
       </section>
 
