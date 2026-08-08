@@ -2,8 +2,16 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/images/logo.png" />
-    <link rel="apple-touch-icon" href="/images/logo.png" />
+    <!-- Favicons. Google's crawler probes /favicon.ico first and only then reads
+         these tags, so a real .ico has to exist at the root — otherwise the SPA
+         catchall answers with HTML and Search falls back to the blank globe.
+         The files are genuine PNGs: /images/logo.png is JPEG data under a .png
+         name, which the crawler rejects. Sizes are multiples of 48 as Google asks. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/favicon-192.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#0A0A0A" />
 
@@ -34,7 +42,13 @@
     <meta property="og:site_name" content="Denver Black Limo LLC" />
     <meta property="og:title" content="Denver Black Limo LLC | Luxury Chauffeured Car Service in Denver, CO" />
     <meta property="og:description" content="Denver's premier luxury chauffeured transportation — airport transfers, corporate travel, weddings, mountain resorts, and 24/7 premium service." />
-    <meta property="og:image" content="https://denverblacklimo.llc/images/logo.png" />
+    <!-- logo.jpg, not logo.png: the .png file is really JPEG data, and a served
+         type that contradicts the bytes gets dropped by some scrapers. -->
+    <meta property="og:image" content="https://denverblacklimo.llc/images/logo.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1254" />
+    <meta property="og:image:height" content="1254" />
+    <meta property="og:image:alt" content="Denver Black Limo LLC logo" />
     <meta property="og:url" content="https://denverblacklimo.llc/" />
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="en_US" />
@@ -43,7 +57,8 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Denver Black Limo LLC | Luxury Chauffeured Car Service in Denver, CO" />
     <meta name="twitter:description" content="Denver's premier luxury chauffeured transportation — airport, corporate, weddings, mountain resorts, 24/7." />
-    <meta name="twitter:image" content="https://denverblacklimo.llc/images/logo.png" />
+    <meta name="twitter:image" content="https://denverblacklimo.llc/images/logo.jpg" />
+    <meta name="twitter:image:alt" content="Denver Black Limo LLC logo" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -61,8 +76,15 @@
         "@id": "https://denverblacklimo.llc/#business",
         "name": "Denver Black Limo LLC",
         "url": "https://denverblacklimo.llc",
-        "logo": "https://denverblacklimo.llc/images/logo.png",
-        "image": "https://denverblacklimo.llc/images/logo.png",
+        "logo": {
+          "@type": "ImageObject",
+          "url": "https://denverblacklimo.llc/images/logo-512.png",
+          "contentUrl": "https://denverblacklimo.llc/images/logo-512.png",
+          "width": 512,
+          "height": 512,
+          "caption": "Denver Black Limo LLC"
+        },
+        "image": "https://denverblacklimo.llc/images/logo.jpg",
         "description": "Luxury chauffeured transportation in Denver, Colorado — airport transfers, corporate travel, weddings, mountain resorts, and private aviation.",
         "telephone": "+1-720-499-6744",
         "email": "info@denverblacklimo.llc",
