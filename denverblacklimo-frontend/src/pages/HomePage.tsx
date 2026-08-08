@@ -442,7 +442,7 @@ export function HomePage() {
                       </div>
                     )}
                     <div className="flex flex-1 flex-col p-6 text-center">
-                      <h3 className="font-display text-xl text-brand-gold-light">{rate.vehicle}</h3>
+                      <h3 className="font-display text-xl font-bold text-white">{rate.vehicle}</h3>
                       <p className="mt-1 text-sm text-white/55">{rate.capacity}</p>
                       {vehicle?.description && (
                         <p className="mt-3 text-sm leading-relaxed text-white/60">{vehicle.description}</p>
