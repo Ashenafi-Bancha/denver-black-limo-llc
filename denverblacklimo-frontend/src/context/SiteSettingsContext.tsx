@@ -64,17 +64,49 @@ function normalizeIdentifiers(value: unknown): unknown {
   return value;
 }
 
-export function SiteSettingsProvider({ children }: { children: ReactNode }) {
-  const [settings, setSettings] = useState<SettingsMap>(initialSettings);
+/** Merge fetched or injected settings over the built-in defaults. */
+function mergeSettings(raw: unknown): SettingsMap {
+  const data = normalizeIdentifiers(raw) as SettingsMap;
+  return { ...data, home_hero: { ...defaultHeroSettings, ...(data.home_hero || {}) } };
+}
+
+declare global {
+  interface Window {
+    /** Live CMS content baked in at build time — see prerender.mjs. */
+    __SITE_SETTINGS__?: Record<string, unknown>;
+  }
+}
+
+/**
+ * Prerendering renders these pages with the live CMS content, so the browser
+ * has to start from the same content or hydration would find different markup
+ * than the HTML it was given. The build writes the same data to a shared
+ * script, and we seed from it here; the fetch below then refreshes it in case
+ * the content changed since the deploy.
+ */
+function seedSettings(initialData?: unknown): SettingsMap {
+  const injected = typeof window !== 'undefined' ? window.__SITE_SETTINGS__ : undefined;
+  const source = initialData ?? injected;
+  return source ? mergeSettings(source) : initialSettings;
+}
+
+export function SiteSettingsProvider({
+  children,
+  initialData,
+}: {
+  children: ReactNode;
+  /** Server-render only: prerender.mjs passes the content it fetched. */
+  initialData?: Record<string, unknown>;
+}) {
+  const [settings, setSettings] = useState<SettingsMap>(() => seedSettings(initialData));
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/settings`);
       if (res.ok) {
-        const data = normalizeIdentifiers(await res.json()) as SettingsMap;
         // Keep all fetched keys; ensure home_hero always has its defaults merged in.
-        setSettings({ ...data, home_hero: { ...defaultHeroSettings, ...(data.home_hero || {}) } });
+        setSettings(mergeSettings(await res.json()));
       }
     } catch (err) {
       console.error("Failed to fetch site settings:", err);

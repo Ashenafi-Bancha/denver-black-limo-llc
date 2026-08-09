@@ -80,9 +80,12 @@ export const defaultPricing: PricingContent = {
     'Hourly rates below are starting prices. Every hourly trip includes up to 40 miles of travel per hour; longer routes are quoted per mile before you book. Gratuity and taxes are not included. Long-distance, mountain and event travel are quoted individually.',
 
   rates: [
-    { vehicle: 'Luxury Sedan', capacity: '3 passengers · 3 bags', hourlyRate: '150', minimumHours: '2 hours' },
-    { vehicle: 'Luxury SUV', capacity: '6 passengers · 6 bags', hourlyRate: '150', minimumHours: '2 hours' },
-    { vehicle: 'Executive SUV', capacity: '6 passengers · 6 bags', hourlyRate: '125', minimumHours: '2 hours' },
+    // Kept in step with the rates set in the admin — these are what a visitor
+    // sees before the live content loads, so a stale figure here is a wrong
+    // price on screen and in whatever Google indexed.
+    { vehicle: 'Luxury Sedan', capacity: '3 passengers · 3 bags', hourlyRate: '100', minimumHours: '3 hours' },
+    { vehicle: 'Luxury SUV', capacity: '6 passengers · 6 bags', hourlyRate: '150', minimumHours: '3 hours' },
+    { vehicle: 'Executive SUV', capacity: '6 passengers · 6 bags', hourlyRate: '125', minimumHours: '3 hours' },
     { vehicle: 'Luxury Van', capacity: '14 passengers · 14 bags', hourlyRate: '250', minimumHours: '3 hours' },
     { vehicle: 'Mini Coach', capacity: '13 passengers · 14 bags', hourlyRate: '275', minimumHours: '4 hours' },
     { vehicle: 'Limo Bus', capacity: 'Up to 28 passengers', hourlyRate: '325', minimumHours: '4 hours' },

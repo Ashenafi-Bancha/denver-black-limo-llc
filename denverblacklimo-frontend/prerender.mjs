@@ -3,17 +3,69 @@
 // the app to HTML, rewrites the <head> meta for that route, injects the body into
 // the index.html template, and writes dist/<route>/index.html — so every page
 // ships as ready-to-index HTML.
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const SITE = 'https://denverblacklimo.llc'
 const DIST = path.resolve('dist')
-const template = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8')
+// The template is dist/index.html, which is also one of this script's outputs.
+// `vite build` normally rewrites it first, but strip our own injection anyway so
+// running this script twice cannot stack duplicate tags.
+let template = fs
+  .readFileSync(path.join(DIST, 'index.html'), 'utf8')
+  .replace(/\s*<script src="\/assets\/site-settings\.[^"]*"><\/script>/g, '')
 
 const { render, getRouteMeta } = await import(
   pathToFileURL(path.resolve('dist-server/entry-server.js')).href
 )
+
+// ── Live CMS content, baked in at build time ──────────────────────────────
+// Without this the static HTML carries the built-in defaults, so an edit made
+// in the admin never reaches the markup Google indexes — an out-of-date price
+// could sit in the page source indefinitely. A failure here is not fatal: the
+// build falls back to defaults, which is exactly how it behaved before.
+const SETTINGS_URL = process.env.PRERENDER_API_URL || `${SITE}/api/settings`
+
+async function fetchSettings() {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), 15000)
+  try {
+    const res = await fetch(SETTINGS_URL, { signal: controller.signal })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    const data = await res.json()
+    const keys = Object.keys(data)
+    if (!keys.length) throw new Error('empty response')
+    console.log(`✔ Fetched live CMS content (${keys.length} keys) for prerendering.`)
+    return data
+  } catch (err) {
+    console.warn(
+      `  ! Could not fetch CMS content (${err.message}) — prerendering with built-in defaults.`
+    )
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const settings = await fetchSettings()
+
+// Ship the same content to the browser. The client must start from what the
+// server rendered or hydration mismatches, and a shared hashed file is fetched
+// once and cached across all routes rather than inlined into all 38 pages.
+if (settings) {
+  const json = JSON.stringify(settings)
+  const hash = crypto.createHash('sha256').update(json).digest('hex').slice(0, 8)
+  const assetPath = `/assets/site-settings.${hash}.js`
+  fs.writeFileSync(
+    path.join(DIST, assetPath),
+    `window.__SITE_SETTINGS__=${json};\n`
+  )
+  // A classic script runs before the app's module bundle, which is deferred.
+  template = template.replace('</head>', `  <script src="${assetPath}"></script>\n  </head>`)
+  console.log(`✔ Wrote ${assetPath} (${Math.round(json.length / 1024)}KB).`)
+}
 
 const SERVICE_SLUGS = [
   'airport-transportation', 'private-aviation-fbo', 'executive-corporate', 'hourly-chauffeur',
@@ -64,7 +116,7 @@ function buildHtml(route) {
 
   let body = ''
   try {
-    body = render(route)
+    body = render(route, settings ?? undefined)
   } catch (err) {
     console.warn(`  ! SSR render failed for ${route} (will hydrate on client): ${err.message}`)
   }
