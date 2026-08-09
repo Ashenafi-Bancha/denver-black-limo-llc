@@ -2,18 +2,26 @@ import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { ArrowRight, Check } from 'lucide-react'
 import { CTABanner } from '../components/CTABanner'
+import { FallbackImage } from '../components/FallbackImage'
 import { PageHero } from '../components/ui'
-import { serviceAreas } from '../data/serviceAreas'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { DEFAULT_PAGE_BANNERS, defaultServiceAreas, type PageBanners } from '../content/defaults'
+import { serviceAreas as builtInAreas, type ServiceArea } from '../data/serviceAreas'
+import { imageCandidates, numberedPaths } from '../lib/imageSource'
 import { IMAGES } from '../config/images'
 
 export function ServiceAreasPage() {
+  const { get } = useSiteSettings()
+  const serviceAreas = get<ServiceArea[]>('service_areas', defaultServiceAreas)
+  const banners = { ...DEFAULT_PAGE_BANNERS, ...get<Partial<PageBanners>>('page_banners', {}) }
+
   return (
     <>
       <PageHero
-        eyebrow="Coverage"
-        title="Service Areas"
-        subtitle="Premium chauffeured transportation across Denver, the Front Range, mountain resorts, and key destinations throughout Colorado."
-        image="/images/service-areas/service-areas-hero.jpeg"
+        eyebrow={banners.serviceAreasEyebrow}
+        title={banners.serviceAreasTitle}
+        subtitle={banners.serviceAreasSubtitle}
+        image={banners.serviceAreasImage}
         fallback={IMAGES.hero1}
       />
       <section className="mx-auto max-w-7xl px-4 py-16 md:px-6">
@@ -30,24 +38,17 @@ export function ServiceAreasPage() {
                 className="group overflow-hidden border border-brand-gold/25 bg-brand-surface"
               >
                 <div className="aspect-[16/10] overflow-hidden">
-                  <motion.img
-                    src={`/images/service-areas/area-banner-${area.number}.jpeg`}
+                  {/* CSS hover-scale rather than motion's, so the shared
+                      FallbackImage can own the source-fallback chain. */}
+                  <FallbackImage
+                    candidates={imageCandidates(
+                      area.heroImage,
+                      builtInAreas.find((a) => a.slug === area.slug)?.heroImage,
+                      numberedPaths('/images/service-areas', 'area-banner', area.number)
+                    )}
                     alt={area.title}
                     loading="lazy"
-                    className="h-full w-full object-cover"
-                    whileHover={{ scale: 1.05 }}
-                    transition={{ duration: 0.4, ease: "easeInOut" }}
-                    onError={(e) => {
-                      const t = e.currentTarget
-                      const step = t.dataset.step
-                      if (!step) {
-                        t.dataset.step = 'jpg'
-                        t.src = `/images/service-areas/area-banner-${area.number}.jpg`
-                      } else if (step === 'jpg') {
-                        t.dataset.step = 'stock'
-                        t.src = area.heroImage
-                      }
-                    }}
+                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
                 </div>
                 <div className="p-5">

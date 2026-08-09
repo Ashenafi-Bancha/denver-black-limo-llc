@@ -4,13 +4,20 @@ import { CTABanner } from '../components/CTABanner'
 import { ServiceIcon } from '../components/ServiceIcon'
 import { defaultTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton } from '../components/ui'
-import { getServiceAreaBySlug } from '../data/serviceAreas'
+import { FallbackImage } from '../components/FallbackImage'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { defaultServiceAreas } from '../content/defaults'
+import { serviceAreas as builtInAreas, type ServiceArea } from '../data/serviceAreas'
 import { subServiceSlug } from '../data/services'
+import { imageCandidates, numberedPaths } from '../lib/imageSource'
 import { PHONE, PHONE_HREF } from '../constants'
 
 export function ServiceAreaDetailPage() {
   const { slug } = useParams()
-  const area = slug ? getServiceAreaBySlug(slug) : undefined
+  const { get } = useSiteSettings()
+  // Resolve from the CMS list so admin edits — and newly added regions — show.
+  const areas = get<ServiceArea[]>('service_areas', defaultServiceAreas)
+  const area = slug ? areas.find((a) => a.slug === slug) : undefined
 
   if (!area) {
     return (
@@ -26,21 +33,14 @@ export function ServiceAreaDetailPage() {
   return (
     <>
       <section className="relative min-h-[50vh] overflow-hidden">
-        <img
-          src={`/images/service-areas/area-banner-${area.number}.jpeg`}
+        <FallbackImage
+          candidates={imageCandidates(
+            area.heroImage,
+            builtInAreas.find((a) => a.slug === area.slug)?.heroImage,
+            numberedPaths('/images/service-areas', 'area-banner', area.number)
+          )}
           alt={area.title}
           className="absolute inset-0 h-full w-full object-cover"
-          onError={(e) => {
-            const t = e.currentTarget
-            const step = t.dataset.step
-            if (!step) {
-              t.dataset.step = 'jpg'
-              t.src = `/images/service-areas/area-banner-${area.number}.jpg`
-            } else if (step === 'jpg') {
-              t.dataset.step = 'stock'
-              t.src = area.heroImage
-            }
-          }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-brand-black/60 to-brand-black/30" />
         <div className="relative mx-auto max-w-7xl px-4 pb-10 pt-28 md:px-6">
@@ -105,22 +105,20 @@ export function ServiceAreaDetailPage() {
         <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {area.offers.map((offer) => (
             <article key={offer.title} className="overflow-hidden border border-brand-gold/20 bg-brand-charcoal">
-              <img
-                src={`/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpeg`}
+              <FallbackImage
+                candidates={imageCandidates(
+                  offer.image,
+                  builtInAreas
+                    .find((a) => a.slug === area.slug)
+                    ?.offers.find((o) => o.title === offer.title)?.image,
+                  [
+                    `/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpeg`,
+                    `/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpg`,
+                  ]
+                )}
                 alt={offer.title}
                 loading="lazy"
                 className="aspect-[4/3] w-full object-cover"
-                onError={(e) => {
-                  const t = e.currentTarget
-                  const step = t.dataset.step
-                  if (!step) {
-                    t.dataset.step = 'jpg'
-                    t.src = `/images/service-areas/${area.slug}/${subServiceSlug(offer.title)}.jpg`
-                  } else if (step === 'jpg') {
-                    t.dataset.step = 'stock'
-                    t.src = offer.image
-                  }
-                }}
               />
               <div className="p-4 text-center">
                 <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-brand-gold/50 text-brand-gold-light">

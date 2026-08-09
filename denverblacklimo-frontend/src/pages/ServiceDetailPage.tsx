@@ -1,9 +1,15 @@
 import { Link, Navigate, useParams } from 'react-router-dom'
-import { getServiceBySlug } from '../data/services'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { defaultServices } from '../content/defaults'
+import type { Service } from '../data/services'
 
 export function ServiceDetailPage() {
   const { slug } = useParams()
-  const service = slug ? getServiceBySlug(slug) : undefined
+  const { get } = useSiteSettings()
+  // Resolve against the CMS list, not the built-in one, so a service added or
+  // re-slugged in the admin still opens instead of reporting "not found".
+  const services = get<Service[]>('services', defaultServices)
+  const service = slug ? services.find((s) => s.slug === slug) : undefined
 
   if (!service) {
     return (

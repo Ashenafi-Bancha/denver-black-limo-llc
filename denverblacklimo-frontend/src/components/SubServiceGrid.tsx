@@ -1,5 +1,14 @@
 import { ServiceIcon } from './ServiceIcon'
-import { subServiceSlug, type SubService } from '../data/services'
+import { FallbackImage } from './FallbackImage'
+import { imageCandidates } from '../lib/imageSource'
+import { services as builtInServices, subServiceSlug, type SubService } from '../data/services'
+
+/** What this sub-service's photo was before anyone edited it in the admin. */
+function builtInSubServiceImage(serviceSlug: string, title: string) {
+  return builtInServices
+    .find((s) => s.slug === serviceSlug)
+    ?.subServices.find((sub) => sub.title === title)?.image
+}
 
 /**
  * Widest (xl) column count chosen to keep rows balanced for each sub-service
@@ -39,22 +48,18 @@ export function SubServiceGrid({ items, serviceSlug }: { items: SubService[]; se
             className="group overflow-hidden border border-brand-gold/20 bg-brand-surface transition hover:border-brand-gold/50"
           >
             <div className="relative aspect-[4/3] overflow-hidden">
-              <img
-                src={`/images/services/${serviceSlug}/${subServiceSlug(item.title)}.jpeg`}
+              <FallbackImage
+                candidates={imageCandidates(
+                  item.image,
+                  builtInSubServiceImage(serviceSlug, item.title),
+                  [
+                    `/images/services/${serviceSlug}/${subServiceSlug(item.title)}.jpeg`,
+                    `/images/services/${serviceSlug}/${subServiceSlug(item.title)}.jpg`,
+                  ]
+                )}
                 alt={item.title}
                 loading="lazy"
                 className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-                onError={(e) => {
-                  const t = e.currentTarget
-                  const step = t.dataset.step
-                  if (!step) {
-                    t.dataset.step = 'jpg'
-                    t.src = `/images/services/${serviceSlug}/${subServiceSlug(item.title)}.jpg`
-                  } else if (step === 'jpg') {
-                    t.dataset.step = 'stock'
-                    t.src = item.image
-                  }
-                }}
               />
               <div className="absolute inset-0 bg-gradient-to-t from-brand-black via-transparent to-transparent" />
               <div className="absolute bottom-3 left-1/2 flex h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-brand-gold/60 bg-brand-black/70 text-brand-gold-light">

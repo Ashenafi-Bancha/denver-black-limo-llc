@@ -5,7 +5,14 @@ import { Briefcase, Check, Clock, Crown, Info, Luggage, Phone, Shield, User, Use
 import { CTABanner } from '../components/CTABanner'
 import { GoldButton, OutlineButton, SectionHeading } from '../components/ui'
 import { useSiteSettings } from '../context/SiteSettingsContext'
-import { defaultFleet, DEFAULT_BUSINESS, telHref, type BusinessInfo } from '../content/defaults'
+import {
+  defaultFleet,
+  DEFAULT_BUSINESS,
+  DEFAULT_PAGE_BANNERS,
+  telHref,
+  type BusinessInfo,
+  type PageBanners,
+} from '../content/defaults'
 import type { FleetVehicle } from '../data/fleet'
 import { VehicleImage } from '../components/VehicleImage'
 import { IMAGES } from '../config/images'
@@ -32,6 +39,9 @@ export function FleetPage() {
   const { get } = useSiteSettings()
   const fleet = get<FleetVehicle[]>('fleet', defaultFleet)
   const biz = { ...DEFAULT_BUSINESS, ...get<Partial<BusinessInfo>>('business', {}) }
+  const banners = { ...DEFAULT_PAGE_BANNERS, ...get<Partial<PageBanners>>('page_banners', {}) }
+  // Blank lines separate paragraphs in the CMS field.
+  const fleetIntroParagraphs = banners.fleetIntro.split(/\n\s*\n/).filter((p) => p.trim())
   const [selected, setSelected] = useState<FleetVehicle | null>(null)
 
   return (
@@ -42,7 +52,7 @@ export function FleetPage() {
         {/* Mobile: image banner fading into the content */}
         <div className="relative h-[38vh] min-h-[260px] md:hidden">
           <motion.img
-            src="/images/fleet/fleet-hero.jpeg"
+            src={banners.fleetImage}
             alt="Denver Black Limo luxury fleet line-up"
             className="absolute inset-0 h-full w-full object-cover"
             initial={{ opacity: 0, scale: 1.05 }}
@@ -61,7 +71,7 @@ export function FleetPage() {
         {/* Desktop: full background image with a smooth left-to-right blend */}
         <div className="absolute inset-0 hidden md:block">
           <motion.img
-            src="/images/fleet/fleet-hero.jpeg"
+            src={banners.fleetImage}
             alt=""
             className="h-full w-full object-cover"
             initial={{ opacity: 0, scale: 1.05 }}
@@ -84,10 +94,14 @@ export function FleetPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, ease: 'easeOut', delay: 0.15 }}
         >
-          <p className="text-xs font-bold tracking-[0.35em] text-brand-gold-light">OUR FLEET</p>
+          <p className="text-xs font-bold tracking-[0.35em] text-brand-gold-light">
+            {banners.fleetEyebrow}
+          </p>
           <h1 className="mt-3 font-display text-4xl font-bold leading-tight text-white md:text-5xl">
-            LUXURY VEHICLES
-            <span className="mt-1 block font-semibold text-gold-gradient">for Every Occasion</span>
+            {banners.fleetTitle}
+            <span className="mt-1 block font-semibold text-gold-gradient">
+              {banners.fleetTitleAccent}
+            </span>
           </h1>
           <div className="mt-4 flex w-40 items-center gap-2">
             <span className="h-px flex-1 bg-brand-gold/60" />
@@ -95,24 +109,9 @@ export function FleetPage() {
             <span className="h-px flex-1 bg-brand-gold/60" />
           </div>
           <div className="mt-6 max-w-2xl space-y-4 text-sm leading-relaxed text-white/75 md:text-[15px]">
-            <p>
-              At Denver Black Limo LLC, our diverse fleet of luxury vehicles is designed to meet
-              the needs of every traveler and every occasion. From executive sedans and spacious
-              SUVs to Sprinter vans, limousines, and motor coaches, each vehicle is meticulously
-              maintained, fully insured, and prepared to deliver a first-class experience with
-              comfort, safety, and reliability.
-            </p>
-            <p>
-              Whether you&rsquo;re traveling for business, celebrating a special event, heading to
-              the airport, or exploring Colorado&rsquo;s mountains, we have the perfect vehicle to
-              make your journey exceptional.
-            </p>
-            <p>
-              Our professional chauffeurs are committed to punctuality, discretion, and unmatched
-              service, ensuring you arrive in style and on time — every time. From short trips to
-              long-distance destinations, you can trust Denver Black Limo LLC for a seamless and
-              luxurious travel experience.
-            </p>
+            {fleetIntroParagraphs.map((paragraph) => (
+              <p key={paragraph.slice(0, 40)}>{paragraph}</p>
+            ))}
           </div>
         </motion.div>
       </section>

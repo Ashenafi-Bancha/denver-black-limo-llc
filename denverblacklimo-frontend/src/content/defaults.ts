@@ -132,6 +132,49 @@ export const DEFAULT_HOME: HomeContent = {
   coverageList: homeCoverageList,
 }
 
+// ── Page banners (the image + heading at the top of a section page) ──
+// These were hard-coded in each page, so an admin had no way to change the
+// picture at the top of Services, Fleet or Service Areas. Values here are the
+// exact strings those pages used, so adding the group changed nothing on screen.
+export interface PageBanners {
+  servicesImage: string
+  servicesEyebrow: string
+  servicesTitle: string
+  servicesSubtitle: string
+  fleetImage: string
+  fleetEyebrow: string
+  fleetTitle: string
+  fleetTitleAccent: string
+  fleetIntro: string
+  serviceAreasImage: string
+  serviceAreasEyebrow: string
+  serviceAreasTitle: string
+  serviceAreasSubtitle: string
+}
+
+export const DEFAULT_PAGE_BANNERS: PageBanners = {
+  servicesImage: '/images/services/services-hero.jpeg',
+  servicesEyebrow: 'Services',
+  servicesTitle: 'Luxury Chauffeured Transportation Services',
+  servicesSubtitle:
+    'Denver Black Limo LLC provides premium chauffeured transportation throughout Denver, Colorado, and beyond — airport transfers, private aviation, corporate travel, mountain resorts, weddings, events, and hourly service.',
+  fleetImage: '/images/fleet/fleet-hero.jpeg',
+  fleetEyebrow: 'OUR FLEET',
+  fleetTitle: 'LUXURY VEHICLES',
+  fleetTitleAccent: 'for Every Occasion',
+  // Blank lines separate paragraphs — the page splits on them when rendering.
+  fleetIntro: [
+    'At Denver Black Limo LLC, our diverse fleet of luxury vehicles is designed to meet the needs of every traveler and every occasion. From executive sedans and spacious SUVs to Sprinter vans, limousines, and motor coaches, each vehicle is meticulously maintained, fully insured, and prepared to deliver a first-class experience with comfort, safety, and reliability.',
+    'Whether you’re traveling for business, celebrating a special event, heading to the airport, or exploring Colorado’s mountains, we have the perfect vehicle to make your journey exceptional.',
+    'Our professional chauffeurs are committed to punctuality, discretion, and unmatched service, ensuring you arrive in style and on time — every time. From short trips to long-distance destinations, you can trust Denver Black Limo LLC for a seamless and luxurious travel experience.',
+  ].join('\n\n'),
+  serviceAreasImage: '/images/service-areas/service-areas-hero.jpeg',
+  serviceAreasEyebrow: 'Coverage',
+  serviceAreasTitle: 'Service Areas',
+  serviceAreasSubtitle:
+    'Premium chauffeured transportation across Denver, the Front Range, mountain resorts, and key destinations throughout Colorado.',
+}
+
 // ── FAQs (Contact page accordion) ──
 export interface Faq {
   question: string
@@ -182,6 +225,7 @@ export const CMS_KEYS = {
   home_hero: 'home_hero',
   home: 'home',
   about: 'about',
+  pageBanners: 'page_banners',
   services: 'services',
   fleet: 'fleet',
   serviceAreas: 'service_areas',

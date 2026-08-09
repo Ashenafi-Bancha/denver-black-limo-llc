@@ -1,34 +1,41 @@
+import { FallbackImage } from './FallbackImage'
+import { imageCandidates, numberedPaths } from '../lib/imageSource'
 import { IMAGES } from '../config/images'
-import type { FleetVehicle } from '../data/fleet'
+import { fleet as builtInFleet, type FleetVehicle } from '../data/fleet'
 
-/** Primary source: the client's own photo, named by position in the fleet list. */
-export function vehicleImg(v: FleetVehicle) {
-  return v.number ? `/images/fleet/fleet-${v.number}.jpeg` : v.image
+/** What this vehicle's photo was before anyone edited it in the admin. */
+function builtInImageFor(v: FleetVehicle) {
+  return builtInFleet.find((b) => b.id === v.id)?.image
 }
 
 /**
- * A fleet photo with the project's usual fallback chain: `.jpeg` → `.jpg` → the
- * stock image on the vehicle record. Shared so the Fleet page and the homepage
- * pricing cards can never drift apart on which photo a vehicle shows.
+ * Sources to try for a vehicle photo, best first. A photo set in the admin
+ * wins; otherwise the client's own `/images/fleet/fleet-<n>.jpeg` upload; then
+ * the stock image on the record.
+ */
+export function vehicleImageCandidates(v: FleetVehicle) {
+  return imageCandidates(v.image, builtInImageFor(v), [
+    ...numberedPaths('/images/fleet', 'fleet', v.number),
+  ]).concat(IMAGES.hero2)
+}
+
+/** First choice only — for callers that need a plain URL rather than an <img>. */
+export function vehicleImg(v: FleetVehicle) {
+  return vehicleImageCandidates(v)[0]
+}
+
+/**
+ * A fleet photo with the project's usual fallback chain. Shared so the Fleet
+ * page and the homepage pricing cards can never drift apart on which photo a
+ * vehicle shows.
  */
 export function VehicleImage({ vehicle, className }: { vehicle: FleetVehicle; className: string }) {
   return (
-    <img
-      src={vehicleImg(vehicle)}
+    <FallbackImage
+      candidates={vehicleImageCandidates(vehicle)}
       alt={vehicle.name}
       loading="lazy"
       className={className}
-      onError={(e) => {
-        const t = e.currentTarget
-        const step = t.dataset.step
-        if (!step && vehicle.number) {
-          t.dataset.step = 'jpg'
-          t.src = `/images/fleet/fleet-${vehicle.number}.jpg`
-        } else if (step !== 'stock') {
-          t.dataset.step = 'stock'
-          t.src = vehicle.image || IMAGES.hero2
-        }
-      }}
     />
   )
 }

@@ -5,11 +5,16 @@ import { CTABanner } from '../components/CTABanner'
 import { ServiceSection } from '../components/ServiceSection'
 import { aboutTrust, TrustRow } from '../components/TrustRow'
 import { GoldButton, OutlineButton, PageHero, SectionHeading } from '../components/ui'
-import { services } from '../data/services'
+import { useSiteSettings } from '../context/SiteSettingsContext'
+import { DEFAULT_PAGE_BANNERS, defaultServices, type PageBanners } from '../content/defaults'
+import type { Service } from '../data/services'
 import { IMAGES } from '../config/images'
 
 export function ServicesPage() {
   const { hash } = useLocation()
+  const { get } = useSiteSettings()
+  const services = get<Service[]>('services', defaultServices)
+  const banners = { ...DEFAULT_PAGE_BANNERS, ...get<Partial<PageBanners>>('page_banners', {}) }
 
   useEffect(() => {
     if (!hash) return
@@ -27,10 +32,10 @@ export function ServicesPage() {
   return (
     <>
       <PageHero
-        eyebrow="Services"
-        title="Luxury Chauffeured Transportation Services"
-        subtitle="Denver Black Limo LLC provides premium chauffeured transportation throughout Denver, Colorado, and beyond — airport transfers, private aviation, corporate travel, mountain resorts, weddings, events, and hourly service."
-        image="/images/services/services-hero.jpeg"
+        eyebrow={banners.servicesEyebrow}
+        title={banners.servicesTitle}
+        subtitle={banners.servicesSubtitle}
+        image={banners.servicesImage}
         fallback={IMAGES.hero1}
       >
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">

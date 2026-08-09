@@ -2,13 +2,20 @@ import { motion } from 'framer-motion'
 import { SubServiceGrid } from './SubServiceGrid'
 import { ServiceIcon } from './ServiceIcon'
 import { GoldButton } from './ui'
-import type { Service } from '../data/services'
+import { FallbackImage } from './FallbackImage'
+import { imageCandidates, numberedPaths } from '../lib/imageSource'
+import { services as builtInServices, type Service } from '../data/services'
 
 export function ServiceSection({ service }: { service: Service }) {
   const num = String(service.number).padStart(2, '0')
-  // Try the client banner at /images/services/service-banner-<number>.jpeg
-  // (then .jpg); fall back to the built-in stock image if not added yet.
-  const localHero = `/images/services/service-banner-${service.number}.jpeg`
+  // A hero image set in the admin wins; otherwise the client banner at
+  // /images/services/service-banner-<number>.jpeg (then .jpg); then the stock
+  // image the service shipped with.
+  const heroSources = imageCandidates(
+    service.heroImage,
+    builtInServices.find((s) => s.slug === service.slug)?.heroImage,
+    numberedPaths('/images/services', 'service-banner', service.number)
+  )
 
   return (
     <section id={service.slug} className="scroll-mt-24 overflow-x-clip border-t border-brand-gold/15 bg-brand-black">
@@ -22,22 +29,11 @@ export function ServiceSection({ service }: { service: Service }) {
             viewport={{ once: true, margin: '-80px' }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
           >
-            <img
-              src={localHero}
+            <FallbackImage
+              candidates={heroSources}
               alt={service.title}
               loading="lazy"
               className="absolute inset-0 h-full w-full object-cover"
-              onError={(e) => {
-                const t = e.currentTarget
-                const step = t.dataset.step
-                if (!step) {
-                  t.dataset.step = 'jpg'
-                  t.src = `/images/services/service-banner-${service.number}.jpg`
-                } else if (step === 'jpg') {
-                  t.dataset.step = 'stock'
-                  t.src = service.heroImage
-                }
-              }}
             />
             {/* Smooth blend: bottom-fade on mobile, left-fade on desktop */}
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-brand-black to-transparent to-[42%] lg:bg-gradient-to-r lg:to-[52%]" />
