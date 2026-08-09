@@ -61,6 +61,65 @@ const SORT_LABELS: Record<BookingSort, string> = {
   newest: 'Sort by newest request',
 }
 
+/**
+ * One colour per service in the Popular Services chart. All are light and
+ * saturated enough to read against the near-black panel, and distinct from one
+ * another rather than shades of the same hue. Brand gold leads.
+ */
+const SERVICE_COLORS = [
+  '#e8c547', // brand gold
+  '#4ecdc4', // teal
+  '#5b9bd5', // blue
+  '#f0954a', // orange
+  '#a855f7', // violet
+  '#4ade80', // green
+  '#f43f5e', // rose
+  '#38bdf8', // sky
+]
+
+/**
+ * Service names are long — "Airport Transportation", "Hourly Chauffeur
+ * Service" — and the rotated single-line labels were running off the edge of
+ * the panel. This wraps each name onto up to two centred lines instead, so
+ * every label reads straight and stays inside the chart.
+ */
+function ServiceTick({ x, y, payload }: { x?: number; y?: number; payload?: { value?: string } }) {
+  const words = String(payload?.value ?? '').split(' ')
+  const lines: string[] = []
+  let line = ''
+  for (const word of words) {
+    const candidate = line ? `${line} ${word}` : word
+    if (candidate.length > 14 && line) {
+      lines.push(line)
+      line = word
+    } else {
+      line = candidate
+    }
+  }
+  if (line) lines.push(line)
+
+  // Two lines is all the axis has room for; anything longer is elided.
+  const shown = lines.slice(0, 2)
+  if (lines.length > 2) shown[1] = `${shown[1].slice(0, 12)}…`
+
+  return (
+    <g transform={`translate(${x ?? 0},${y ?? 0})`}>
+      {shown.map((text, i) => (
+        <text
+          key={i}
+          x={0}
+          y={14 + i * 14}
+          textAnchor="middle"
+          fill="#ffffffb3"
+          fontSize={11}
+        >
+          {text}
+        </text>
+      ))}
+    </g>
+  )
+}
+
 export function AdminDashboard() {
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
@@ -394,7 +453,9 @@ export function AdminDashboard() {
     [inquiries, inquiryQuery, inquiryStatusFilter]
   )
 
-  const serviceData = Object.entries(bookings.reduce((acc, b) => { acc[b.service_type] = (acc[b.service_type] || 0) + 1; return acc }, {} as Record<string, number>)).map(([name, count]) => ({ name, count }))
+  // `fill` per row rather than <Cell> children: Recharts 3 renders the bar
+  // rectangles empty when Cells are supplied, but honours a fill on the datum.
+  const serviceData = Object.entries(bookings.reduce((acc, b) => { acc[b.service_type] = (acc[b.service_type] || 0) + 1; return acc }, {} as Record<string, number>)).map(([name, count], index) => ({ name, count, fill: SERVICE_COLORS[index % SERVICE_COLORS.length] }))
   const statusData = Object.entries(bookings.reduce((acc, b) => { acc[b.status] = (acc[b.status] || 0) + 1; return acc }, {} as Record<string, number>)).map(([name, value]) => ({ name, value }))
   const PIE_COLORS = ['#e8c547', '#4ade80', '#3b82f6', '#f43f5e', '#a855f7']
 
@@ -893,7 +954,31 @@ export function AdminDashboard() {
                   <div className="grid gap-6 lg:grid-cols-2">
                     <div className="border border-white/10 bg-brand-surface rounded-xl p-6 shadow-2xl shadow-black/20">
                       <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><BarChart3 className="h-5 w-5 text-brand-gold" /> Popular Services</h2>
-                      <div className="h-80"><ResponsiveContainer width="100%" height="100%"><BarChart data={serviceData} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}><CartesianGrid strokeDasharray="3 3" stroke="#ffffff1a" vertical={false} /><XAxis dataKey="name" stroke="#ffffff66" tick={{ fill: '#ffffff66', fontSize: 12 }} tickMargin={10} angle={-15} textAnchor="end" /><YAxis stroke="#ffffff66" tick={{ fill: '#ffffff66', fontSize: 12 }} allowDecimals={false} /><RechartsTooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} itemStyle={{ color: '#e8c547' }} /><Bar dataKey="count" fill="#e8c547" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={serviceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#ffffff1a" vertical={false} />
+                            {/* interval=0 forces every service to be labelled — Recharts
+                                otherwise drops labels it thinks will not fit. */}
+                            <XAxis
+                              dataKey="name"
+                              stroke="#ffffff66"
+                              tick={<ServiceTick />}
+                              interval={0}
+                              tickLine={false}
+                              height={52}
+                            />
+                            <YAxis stroke="#ffffff66" tick={{ fill: '#ffffff66', fontSize: 12 }} allowDecimals={false} />
+                            <RechartsTooltip
+                              cursor={{ fill: '#ffffff0d' }}
+                              contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                              itemStyle={{ color: '#fff' }}
+                            />
+                            {/* Colour comes from each row's `fill` — see serviceData. */}
+                            <Bar dataKey="count" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                     <div className="border border-white/10 bg-brand-surface rounded-xl p-6 shadow-2xl shadow-black/20">
                       <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-brand-gold" /> Booking Status</h2>
