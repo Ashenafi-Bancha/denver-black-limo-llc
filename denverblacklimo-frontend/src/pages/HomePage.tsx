@@ -423,9 +423,11 @@ export function HomePage() {
           <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-white/65">
             Clear starting prices with no surge pricing — every quote is confirmed in writing before you ride.
           </p>
-          {/* Flex rather than a grid: seven cards leave an orphan on the last
-              row, and wrapping flex rows centre it instead of stranding it. */}
-          <div className="flex flex-wrap justify-center gap-6">
+          {/* A grid so the seventh card starts the last row at the left, in line
+              with the columns above it. The View-full-pricing button then fills
+              the space that card leaves, which balances the row rather than
+              letting it trail off. */}
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {ratesWithPrices.map((rate, index) => {
               // Each rate belongs to a vehicle in the fleet — borrow its photo and
               // description so the price has something to look at.
@@ -433,7 +435,6 @@ export function HomePage() {
               return (
                 <motion.div
                   key={rate.vehicle}
-                  className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
@@ -474,9 +475,17 @@ export function HomePage() {
                 </motion.div>
               )
             })}
-          </div>
-          <div className="mt-10 text-center">
-            <OutlineButton to="/pricing">VIEW FULL PRICING</OutlineButton>
+            {/* Sits in the columns the last row leaves empty, so the button
+                balances that row instead of the row trailing off. When the
+                cards happen to fill a row exactly it wraps to its own line and
+                centres, which is why the span is capped at the column count. */}
+            <div
+              className={`flex items-center justify-center ${
+                ratesWithPrices.length % 3 === 1 ? 'lg:col-span-2' : ''
+              } ${ratesWithPrices.length % 2 === 1 ? '' : 'sm:col-span-2'}`}
+            >
+              <OutlineButton to="/pricing">VIEW FULL PRICING</OutlineButton>
+            </div>
           </div>
         </section>
       )}
