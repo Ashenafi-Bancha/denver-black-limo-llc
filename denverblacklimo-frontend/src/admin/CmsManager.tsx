@@ -47,12 +47,33 @@ async function uploadImage(file: File, token: string): Promise<{ url?: string } 
   }
 }
 
+/**
+ * Strips leading and trailing whitespace from every string before it is
+ * stored. Nobody means to type a trailing space, and in a slug it is invisible
+ * in the form yet breaks every URL built from it — a saved `"denver-metro "`
+ * once stopped that page resolving at all. The public site also trims
+ * identifiers when it reads settings, so existing records stay safe; this
+ * stops new ones being written dirty in the first place.
+ *
+ * Only the ends are touched, so multi-paragraph fields keep their blank lines.
+ */
+function trimStrings(value: unknown): unknown {
+  if (typeof value === 'string') return value.trim()
+  if (Array.isArray(value)) return value.map(trimStrings)
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, trimStrings(v)])
+    )
+  }
+  return value
+}
+
 async function saveKey(key: string, value: unknown, token: string): Promise<Outcome> {
   try {
     const res = await fetch(`${API_URL}/settings`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ key, value }),
+      body: JSON.stringify({ key, value: trimStrings(value) }),
     })
     if (res.status === 401 || res.status === 403) return { ok: false, expired: true, error: 'Your session expired. Please sign in again.' }
     if (!res.ok) {
