@@ -69,8 +69,10 @@ export function HomePage() {
   const pricing = { ...defaultPricing, ...get<Partial<PricingContent>>('pricing', {}) }
   const posts = get<Post[]>('posts', defaultPosts)
   const fleetVehicles = get<FleetVehicle[]>('fleet', defaultFleetList)
-  // Only advertise rates that are actually set, so the homepage never shows a blank price.
-  const previewRates = pricing.rates.filter((r) => r.hourlyRate?.trim()).slice(0, 3)
+  // Every vehicle we have a price for — the client wants the full fleet on the
+  // homepage, not a sample. Still filtered, so a vehicle awaiting a rate is left
+  // out rather than advertised with a blank price.
+  const ratesWithPrices = pricing.rates.filter((r) => r.hourlyRate?.trim())
 
   useEffect(() => {
     if (heroImages.length < 2) return
@@ -415,24 +417,29 @@ export function HomePage() {
       </section>
 
       {/* Pricing glimpse — same preview-plus-View-More pattern as the sections above */}
-      {previewRates.length > 0 && (
+      {ratesWithPrices.length > 0 && (
         <section className="mx-auto max-w-7xl px-4 py-16 md:px-6 md:py-20">
           <SectionHeading className="mb-3">Transparent Hourly Rates</SectionHeading>
           <p className="mx-auto mb-10 max-w-2xl text-center text-sm text-white/65">
             Clear starting prices with no surge pricing — every quote is confirmed in writing before you ride.
           </p>
-          <div className="grid gap-6 md:grid-cols-3">
-            {previewRates.map((rate, index) => {
+          {/* Flex rather than a grid: seven cards leave an orphan on the last
+              row, and wrapping flex rows centre it instead of stranding it. */}
+          <div className="flex flex-wrap justify-center gap-6">
+            {ratesWithPrices.map((rate, index) => {
               // Each rate belongs to a vehicle in the fleet — borrow its photo and
               // description so the price has something to look at.
               const vehicle = findVehicleFor(rate.vehicle, fleetVehicles)
               return (
                 <motion.div
                   key={rate.vehicle}
+                  className="w-full sm:w-[calc(50%-0.75rem)] lg:w-[calc(33.333%-1rem)]"
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
-                  transition={{ duration: 0.5, delay: index * 0.08, ease: 'easeOut' }}
+                  // Stagger within a row, not across all seven, so cards far down
+                  // the list do not sit waiting half a second after scrolling in.
+                  transition={{ duration: 0.5, delay: (index % 3) * 0.08, ease: 'easeOut' }}
                 >
                   <Link to="/pricing" className="premium-card group flex h-full flex-col overflow-hidden">
                     {vehicle && (
