@@ -40,6 +40,30 @@ const SiteSettingsContext = createContext<SiteSettingsContextType>({
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
 
+/**
+ * Fields that address a record rather than describe it. A stray space typed
+ * into one of these in the admin is invisible on screen but breaks every URL
+ * built from it — a saved `"denver-metro "` stops /service-areas/denver-metro
+ * resolving at all. Admin input is normalised once here, at the boundary,
+ * rather than defensively at each of the dozen places that compare a slug.
+ */
+const IDENTIFIER_FIELDS = ['slug', 'id'];
+
+function normalizeIdentifiers(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeIdentifiers);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = { ...(value as Record<string, unknown>) };
+    for (const field of IDENTIFIER_FIELDS) {
+      if (typeof out[field] === 'string') out[field] = (out[field] as string).trim();
+    }
+    for (const [k, v] of Object.entries(out)) {
+      if (v && typeof v === 'object') out[k] = normalizeIdentifiers(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 export function SiteSettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<SettingsMap>(initialSettings);
   const [isLoading, setIsLoading] = useState(true);
@@ -48,7 +72,7 @@ export function SiteSettingsProvider({ children }: { children: ReactNode }) {
     try {
       const res = await fetch(`${API_URL}/settings`);
       if (res.ok) {
-        const data = await res.json();
+        const data = normalizeIdentifiers(await res.json()) as SettingsMap;
         // Keep all fetched keys; ensure home_hero always has its defaults merged in.
         setSettings({ ...data, home_hero: { ...defaultHeroSettings, ...(data.home_hero || {}) } });
       }
