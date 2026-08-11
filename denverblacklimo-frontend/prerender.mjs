@@ -102,7 +102,13 @@ function buildHtml(route) {
   const canonical = SITE + (route === '/' ? '/' : route)
   let html = template
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escHtml(meta.title)}</title>`)
-    .replace(/(<meta name="description" content=)"[^"]*"/, `$1"${escAttr(meta.description)}"`)
+    // \s+ rather than a literal space: the tag is written across three lines in
+    // index.html, so a single-space pattern silently matched nothing and every
+    // page shipped the homepage's description.
+    .replace(
+      /(<meta\s+name="description"\s+content=)"[^"]*"/,
+      `$1"${escAttr(meta.description)}"`
+    )
     .replace(/(<link rel="canonical" href=)"[^"]*"/, `$1"${canonical}"`)
     .replace(/(<meta property="og:title" content=)"[^"]*"/, `$1"${escAttr(meta.title)}"`)
     .replace(/(<meta property="og:description" content=)"[^"]*"/, `$1"${escAttr(meta.description)}"`)
