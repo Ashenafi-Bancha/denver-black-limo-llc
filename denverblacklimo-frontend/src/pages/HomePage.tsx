@@ -462,9 +462,20 @@ export function HomePage() {
                         {rate.hourlyRate}
                         <span className="text-base text-white/50"> /hr</span>
                       </p>
-                      {rate.minimumHours && (
+                      {/* The caveat travels with the number so the rate is never read
+                          as the final price. Minimum stays gold and prominent; the fees
+                          note sits quieter beside it. */}
+                      {(rate.minimumHours || pricing.ratesFeesNote) && (
                         <p className="mt-1 text-xs uppercase tracking-widest text-brand-gold/80">
-                          {rate.minimumHours} minimum
+                          {rate.minimumHours && <>{rate.minimumHours} minimum</>}
+                          {rate.minimumHours && pricing.ratesFeesNote && (
+                            <span className="mx-1.5 text-white/30">·</span>
+                          )}
+                          {pricing.ratesFeesNote && (
+                            <span className="normal-case tracking-normal text-white/45">
+                              {pricing.ratesFeesNote}
+                            </span>
+                          )}
                         </p>
                       )}
                       <span className="mt-4 inline-flex items-center justify-center gap-1 text-xs tracking-widest text-brand-gold-light">

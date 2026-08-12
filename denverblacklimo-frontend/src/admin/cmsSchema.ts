@@ -255,6 +255,7 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { key: 'currency', label: 'Currency Symbol', type: 'text' },
       { key: 'ratesTitle', label: 'Rates Section Title', type: 'text' },
       { key: 'ratesNote', label: 'Rates Note', type: 'textarea', full: true },
+      { key: 'ratesFeesNote', label: 'Small Note Under Each Homepage Price', type: 'text', placeholder: 'e.g. plus fees & gratuity', full: true },
       { key: 'rates', label: 'Vehicle Rates', type: 'objectList', itemFields: RATE_FIELDS, itemTitleKey: 'vehicle', full: true },
       { key: 'includedTitle', label: 'Included Section Title', type: 'text' },
       { key: 'included', label: 'Always Included', type: 'objectList', itemFields: PRICING_ITEM_FIELDS, itemTitleKey: 'title', full: true },

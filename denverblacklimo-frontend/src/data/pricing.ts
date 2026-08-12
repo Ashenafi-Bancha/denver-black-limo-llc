@@ -32,6 +32,12 @@ export interface PricingContent {
   included: PricingItem[]
   ratesTitle: string
   ratesNote: string
+  /**
+   * Shown beside the minimum on each homepage rate card. Those cards are the
+   * first price a visitor sees and have none of the Pricing page's surrounding
+   * detail, so the caveat has to travel with the number itself.
+   */
+  ratesFeesNote: string
   rates: RateRow[]
   policiesTitle: string
   policies: PricingItem[]
@@ -78,6 +84,8 @@ export const defaultPricing: PricingContent = {
   ratesTitle: 'Vehicle Rates',
   ratesNote:
     'Hourly rates below are starting prices. Every hourly trip includes up to 40 miles of travel per hour; longer routes are quoted per mile before you book. Gratuity and taxes are not included. Long-distance, mountain and event travel are quoted individually.',
+
+  ratesFeesNote: 'plus fees & gratuity',
 
   rates: [
     // Kept in step with the rates set in the admin — these are what a visitor
