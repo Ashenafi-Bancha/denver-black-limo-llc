@@ -128,6 +128,33 @@ export function AdminDashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { settings, refreshSettings } = useSiteSettings()
 
+  /**
+   * Rate values are withheld from the public settings endpoint, because they
+   * include what each job costs to run. They are fetched separately with the
+   * admin token and merged in, so the CMS can edit them like any other content.
+   */
+  const [rates, setRates] = useState<Record<string, unknown>>({})
+  const loadRates = useCallback(async () => {
+    if (!token) return
+    try {
+      const res = await fetch(`${API_URL}/settings/rates`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (res.ok) setRates(await res.json())
+    } catch {
+      // Leave rates empty: the CMS falls back to its defaults rather than
+      // showing blank boxes that would overwrite real values on save.
+    }
+  }, [token])
+
+  useEffect(() => { loadRates() }, [loadRates])
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshSettings(), loadRates()])
+  }, [refreshSettings, loadRates])
+
+  const cmsSettings = { ...settings, ...rates }
+
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -932,7 +959,7 @@ export function AdminDashboard() {
           )}
 
           {/* CONTENT (CMS) */}
-          {activeTab === 'content' && <CmsManager token={token} settings={settings} refresh={refreshSettings} onResult={setActionResult} />}
+          {activeTab === 'content' && <CmsManager token={token} settings={cmsSettings} refresh={refreshAll} onResult={setActionResult} />}
 
           {/* ANALYTICS */}
           {activeTab === 'analytics' && (

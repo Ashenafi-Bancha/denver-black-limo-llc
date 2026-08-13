@@ -61,10 +61,16 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
 
-// Price estimator: rate card, calculation engine and route measurement.
-const { CONFIG: PRICING, missingValues } = require('./pricing/config');
+// Price estimator: calculation engine, route measurement, and the mapping from
+// the rates an admin edits into the shape the engine prices with.
 const { estimate } = require('./pricing/engine');
 const routing = require('./pricing/routing');
+const {
+  buildConfig,
+  readiness,
+  publicSettingsOnly,
+  isPrivateKey,
+} = require('./pricing/fromSettings');
 
 // Email templates + delivery live in ./emails.js
 const {
@@ -181,17 +187,41 @@ const authenticateToken = (req, res, next) => {
 // --- Endpoints ---
 
 // Get site settings (Public)
+/** Every row from site_settings, keyed. Used by both endpoints below. */
+async function loadAllSettings() {
+  const result = await pool.query('SELECT key, value FROM site_settings');
+  const settings = {};
+  result.rows.forEach(row => { settings[row.key] = row.value; });
+  return settings;
+}
+
+/**
+ * Public site content. Rate data is deliberately withheld: it includes the
+ * cost floor for every vehicle, which is what a job costs to run. Serving that
+ * on an open endpoint would publish the business's margins to anyone who
+ * asked, competitors included.
+ */
 app.get('/api/settings', async (req, res) => {
   try {
-    const result = await pool.query('SELECT key, value FROM site_settings');
-    const settings = {};
-    result.rows.forEach(row => {
-      settings[row.key] = row.value;
-    });
-    res.json(settings);
+    res.json(publicSettingsOnly(await loadAllSettings()));
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to fetch settings' });
+  }
+});
+
+/** The rate card, for the admin only. */
+app.get('/api/settings/rates', authenticateToken, async (req, res) => {
+  try {
+    const all = await loadAllSettings();
+    const rates = {};
+    for (const [key, value] of Object.entries(all)) {
+      if (isPrivateKey(key)) rates[key] = value;
+    }
+    res.json({ ...rates, _readiness: readiness(buildConfig(all)) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch rates' });
   }
 });
 
@@ -272,11 +302,13 @@ app.post('/api/estimate', rateLimit({
   message: 'Too many price checks from this device. Please call us at (720) 499-6744.',
 }), async (req, res) => {
   try {
-    // Refuse outright while the rate card still holds placeholder values.
-    // Better a missing feature than a wrong price.
-    const missing = missingValues(PRICING);
-    if (missing.length) {
-      console.warn(`Estimate refused: ${missing.length} rate values not set`);
+    // Rates come from the admin, read fresh so a change takes effect at once.
+    // Refuse outright while any of them are missing: better a missing feature
+    // than a wrong price the business is then expected to honour.
+    const PRICING = buildConfig(await loadAllSettings());
+    const state = readiness(PRICING);
+    if (!state.ready) {
+      console.warn(`Estimate refused, rate card incomplete: ${state.missing[0]}`);
       return res.json({
         quotable: false,
         reason: 'not_configured',

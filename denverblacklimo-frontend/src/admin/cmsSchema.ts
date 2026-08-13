@@ -39,6 +39,72 @@ export const DEFAULT_HERO = {
   ],
 }
 
+/**
+ * Price estimator rates.
+ *
+ * Stored under keys beginning `pricing_`, which the public settings endpoint
+ * refuses to serve. These values include what each job costs to run, and
+ * publishing that would hand a competitor the business's margins.
+ */
+export const DEFAULT_PRICING_RATES = {
+  marketAdjustment: 1,
+  milesIncluded: 15,
+  bandAEndsAt: 40,
+  bandBEndsAt: 100,
+  roundTo: 5,
+  garageAddress: '',
+  garageLat: '',
+  garageLng: '',
+  extraStop: '',
+  childSeat: '',
+  extraLuggage: '',
+  pet: '',
+  meetAndGreet: '',
+  airportAccessFee: '',
+  lateNightFrom: '00:00',
+  lateNightTo: '05:00',
+  lateNightAmount: '',
+  taxPercent: '',
+  maxAutoQuoteMiles: 250,
+  maxServiceMiles: 500,
+  minimumNoticeHours: '',
+}
+
+const BLANK_VEHICLE_RATES = {
+  hourlyWeekend: '', startingFare: '', perMileBandA: '', perMileBandB: '',
+  perMileBandC: '', minimumFare: '', costFloor: '', deadheadPerMile: '',
+  deadheadFreeMiles: '',
+}
+
+export const DEFAULT_PRICING_VEHICLES = [
+  { id: 'luxury-sedan', name: 'Luxury Sedan', hourlyWeekday: 100, minimumHours: 3, ...BLANK_VEHICLE_RATES },
+  { id: 'luxury-suv', name: 'Luxury SUV', hourlyWeekday: 150, minimumHours: 3, ...BLANK_VEHICLE_RATES },
+  { id: 'executive-suv', name: 'Executive SUV', hourlyWeekday: 125, minimumHours: 3, ...BLANK_VEHICLE_RATES },
+  { id: 'luxury-van', name: 'Luxury Van', hourlyWeekday: 250, minimumHours: 3, ...BLANK_VEHICLE_RATES },
+  { id: 'mini-coach', name: 'Mini Coach', hourlyWeekday: 275, minimumHours: 4, ...BLANK_VEHICLE_RATES },
+  { id: 'limo-bus', name: 'Limo Bus', hourlyWeekday: 325, minimumHours: 4, ...BLANK_VEHICLE_RATES },
+  { id: 'motor-coach', name: 'Motor Coach', hourlyWeekday: 425, minimumHours: 4, ...BLANK_VEHICLE_RATES },
+]
+
+/** Common routes pre-listed, so the client only has to type prices. */
+const zone = (group: string, from: string, to: string) => ({
+  group, label: `${from} to ${to}`, fromZone: from, toZone: to,
+  priceLuxurySedan: '', priceLuxurySUV: '', priceExecutiveSUV: '', priceLuxuryVan: '',
+  oneWayOnly: '',
+})
+
+export const DEFAULT_PRICING_ZONES = [
+  zone('airport', 'DIA', 'Downtown Denver'),
+  zone('airport', 'DIA', 'Denver Tech Center'),
+  zone('airport', 'DIA', 'Boulder'),
+  zone('airport', 'DIA', 'Aurora'),
+  zone('airport', 'DIA', 'Littleton'),
+  zone('mountain', 'Denver', 'Vail'),
+  zone('mountain', 'Denver', 'Breckenridge'),
+  zone('mountain', 'Denver', 'Keystone'),
+  zone('mountain', 'Denver', 'Aspen'),
+]
+
 export type FieldType =
   | 'text'
   | 'textarea'
@@ -332,6 +398,84 @@ export const CONTENT_GROUPS: ContentGroup[] = [
       { key: 'coverageAreas', label: 'Coverage Areas', type: 'stringList', full: true },
       { key: 'mapImage', label: 'Map Image', type: 'image', full: true },
       { key: 'offers', label: 'Offers', type: 'objectList', itemFields: OFFER_FIELDS, itemTitleKey: 'title', full: true },
+    ],
+  },
+  {
+    key: 'pricing_rates',
+    title: 'Estimator — Global Settings',
+    description:
+      'The levers that apply to every quote: how far the mileage bands reach, your garage, extras, fees and the limits past which the site stops quoting. Only you can see these.',
+    icon: 'file-text',
+    kind: 'singleton',
+    default: DEFAULT_PRICING_RATES,
+    fields: [
+      { key: 'marketAdjustment', label: 'Price Adjustment (1 = normal, 0.9 = 10% cheaper)', type: 'number', full: true },
+      { key: 'garageAddress', label: 'Garage Address (empty miles are measured from here)', type: 'text', full: true },
+      { key: 'garageLat', label: 'Garage Latitude', type: 'text', placeholder: 'e.g. 39.7392' },
+      { key: 'garageLng', label: 'Garage Longitude', type: 'text', placeholder: 'e.g. -104.9903' },
+      { key: 'milesIncluded', label: 'Miles Included In Starting Fare', type: 'number' },
+      { key: 'bandAEndsAt', label: 'Band A Ends At Mile', type: 'number' },
+      { key: 'bandBEndsAt', label: 'Band B Ends At Mile', type: 'number' },
+      { key: 'roundTo', label: 'Round Prices To Nearest', type: 'number' },
+      { key: 'extraStop', label: 'Each Extra Stop', type: 'text' },
+      { key: 'childSeat', label: 'Child Seat', type: 'text' },
+      { key: 'extraLuggage', label: 'Extra Luggage', type: 'text' },
+      { key: 'pet', label: 'Pet', type: 'text' },
+      { key: 'meetAndGreet', label: 'Meet And Greet', type: 'text' },
+      { key: 'airportAccessFee', label: 'Airport Access Fee', type: 'text' },
+      { key: 'lateNightFrom', label: 'Late Night From', type: 'text', placeholder: '00:00' },
+      { key: 'lateNightTo', label: 'Late Night To', type: 'text', placeholder: '05:00' },
+      { key: 'lateNightAmount', label: 'Late Night Charge', type: 'text' },
+      { key: 'taxPercent', label: 'Tax Percent (blank = none)', type: 'text' },
+      { key: 'maxAutoQuoteMiles', label: 'Stop Quoting Beyond (miles)', type: 'number' },
+      { key: 'maxServiceMiles', label: 'Will Not Travel Beyond (miles)', type: 'number' },
+      { key: 'minimumNoticeHours', label: 'Least Notice For An Instant Price (hours)', type: 'text' },
+    ],
+  },
+  {
+    key: 'pricing_vehicles',
+    title: 'Estimator — Vehicle Rates',
+    description:
+      'What each vehicle costs. The cost floor is what the job costs you to run: no discount is ever allowed below it. Only you can see these.',
+    icon: 'car',
+    kind: 'collection',
+    itemTitleKey: 'name',
+    default: DEFAULT_PRICING_VEHICLES,
+    fields: [
+      { key: 'id', label: 'Vehicle ID (must match the Fleet entry)', type: 'text' },
+      { key: 'name', label: 'Name', type: 'text' },
+      { key: 'hourlyWeekday', label: 'Hourly Rate, Weekday', type: 'text' },
+      { key: 'hourlyWeekend', label: 'Hourly Rate, Weekend', type: 'text' },
+      { key: 'minimumHours', label: 'Minimum Hours', type: 'text' },
+      { key: 'startingFare', label: 'Starting Fare', type: 'text' },
+      { key: 'perMileBandA', label: 'Per Mile, Band A', type: 'text' },
+      { key: 'perMileBandB', label: 'Per Mile, Band B', type: 'text' },
+      { key: 'perMileBandC', label: 'Per Mile, Band C', type: 'text' },
+      { key: 'minimumFare', label: 'Minimum Fare', type: 'text' },
+      { key: 'costFloor', label: 'Cost Floor (never quote below this)', type: 'text' },
+      { key: 'deadheadPerMile', label: 'Empty Miles, Per Mile', type: 'text' },
+      { key: 'deadheadFreeMiles', label: 'Empty Miles Included Free', type: 'text' },
+    ],
+  },
+  {
+    key: 'pricing_zones',
+    title: 'Estimator — Fixed Route Prices',
+    description:
+      'Set prices for the routes you quote most, such as the airport and the resorts. These beat the per-mile calculation. Type QUOTE in any box you would rather price by phone. Only you can see these.',
+    icon: 'map',
+    kind: 'collection',
+    itemTitleKey: 'label',
+    default: DEFAULT_PRICING_ZONES,
+    fields: [
+      { key: 'label', label: 'Shown To The Customer', type: 'text', full: true },
+      { key: 'group', label: 'Type (airport or mountain)', type: 'text' },
+      { key: 'fromZone', label: 'From', type: 'text' },
+      { key: 'toZone', label: 'To', type: 'text' },
+      { key: 'priceLuxurySedan', label: 'Luxury Sedan', type: 'text' },
+      { key: 'priceLuxurySUV', label: 'Luxury SUV', type: 'text' },
+      { key: 'priceExecutiveSUV', label: 'Executive SUV', type: 'text' },
+      { key: 'priceLuxuryVan', label: 'Luxury Van', type: 'text' },
+      { key: 'oneWayOnly', label: 'One Way Only? (yes = do not use in reverse)', type: 'text', full: true },
     ],
   },
   {
