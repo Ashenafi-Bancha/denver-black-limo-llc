@@ -61,6 +61,11 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
 
+// Price estimator: rate card, calculation engine and route measurement.
+const { CONFIG: PRICING, missingValues } = require('./pricing/config');
+const { estimate } = require('./pricing/engine');
+const routing = require('./pricing/routing');
+
 // Email templates + delivery live in ./emails.js
 const {
   SENDER_EMAIL,
@@ -247,6 +252,84 @@ app.post('/api/admin/login', rateLimit({
     res.json({ token: accessToken });
   } else {
     res.status(401).json({ error: 'Incorrect email or password' });
+  }
+});
+
+/**
+ * Price estimate for a trip.
+ *
+ * Deliberately strict about refusing. A quote the business cannot honour is
+ * worse than no quote, so anything uncertain returns `quotable: false` and the
+ * site invites the customer to request one instead.
+ *
+ * Rate limited harder than the booking form: this endpoint costs money per
+ * call through the routing provider, and nobody legitimately needs sixty
+ * quotes in a quarter of an hour.
+ */
+app.post('/api/estimate', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  message: 'Too many price checks from this device. Please call us at (720) 499-6744.',
+}), async (req, res) => {
+  try {
+    // Refuse outright while the rate card still holds placeholder values.
+    // Better a missing feature than a wrong price.
+    const missing = missingValues(PRICING);
+    if (missing.length) {
+      console.warn(`Estimate refused: ${missing.length} rate values not set`);
+      return res.json({
+        quotable: false,
+        reason: 'not_configured',
+        message: 'Online pricing is not available yet. Please request a quote.',
+      });
+    }
+    if (!routing.isConfigured()) {
+      return res.json({
+        quotable: false,
+        reason: 'routing_unavailable',
+        message: 'We could not measure that route. Please request a quote.',
+      });
+    }
+
+    const { serviceType, vehicleId, pickup, dropoff, when, pickupTime, hours, extras } = req.body || {};
+    if (!vehicleId || !serviceType) {
+      return res.status(400).json({ error: 'Vehicle and service type are required.' });
+    }
+
+    const hourly = serviceType === 'hourly';
+    let route = null;
+    if (!hourly) {
+      route = await routing.measureTrip({ pickup, dropoff, garage: PRICING.garage });
+      if (!route) {
+        return res.json({
+          quotable: false,
+          reason: 'route_unavailable',
+          message: 'We could not measure that route. Please request a quote.',
+        });
+      }
+    }
+
+    const quote = estimate({
+      trip: { serviceType, vehicleId, pickup, dropoff, when, pickupTime, hours, extras },
+      route,
+      config: PRICING,
+    });
+
+    // Every quote shown is recorded, so when a customer rings quoting a price
+    // there is a record of exactly what the site told them.
+    console.log(
+      `Estimate ${quote.quotable ? `${quote.currency}${quote.total}` : `refused (${quote.reason})`} ` +
+      `| ${vehicleId} | ${serviceType} | ${route ? `${route.tripMiles}mi` : `${hours}h`}`
+    );
+
+    res.json(quote);
+  } catch (err) {
+    console.error('Estimate failed:', err.message);
+    res.status(500).json({
+      quotable: false,
+      reason: 'error',
+      message: 'Something went wrong working out that price. Please request a quote.',
+    });
   }
 });
 
