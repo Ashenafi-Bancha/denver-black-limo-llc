@@ -1,10 +1,13 @@
 /**
  * Free address lookup (no API key, no billing account).
  *
- * Uses Photon — Komoot's OpenStreetMap geocoder, which is built for
+ * Uses Photon, Komoot's OpenStreetMap geocoder, which is built for
  * search-as-you-type. Results are biased toward Denver and limited to the US.
- * When a Google Maps key is configured, PlaceInput uses Google instead and this
- * module is never called.
+ *
+ * Photon returns coordinates alongside each result. The booking form only ever
+ * needed the text, but the price estimator has to measure a route, so
+ * `searchPlaces` keeps the coordinates and `searchAddresses` stays as the
+ * labels-only view for callers that do not care.
  */
 
 const ENDPOINT = 'https://photon.komoot.io/api/'
@@ -39,8 +42,15 @@ function formatAddress(p: PhotonProps): string {
   return parts.join(', ')
 }
 
-/** Returns up to 6 US address suggestions for the query. Never throws. */
-export async function searchAddresses(query: string, signal?: AbortSignal): Promise<string[]> {
+/** An address the user picked, with the coordinates needed to measure a route. */
+export interface Place {
+  label: string
+  lat: number
+  lng: number
+}
+
+/** Up to 6 US suggestions, with coordinates. Never throws. */
+export async function searchPlaces(query: string, signal?: AbortSignal): Promise<Place[]> {
   const q = query.trim()
   if (q.length < 3) return []
 
@@ -48,22 +58,35 @@ export async function searchAddresses(query: string, signal?: AbortSignal): Prom
   try {
     const res = await fetch(url, { signal })
     if (!res.ok) return []
-    const data = (await res.json()) as { features?: { properties: PhotonProps }[] }
+    const data = (await res.json()) as {
+      features?: { properties: PhotonProps; geometry?: { coordinates?: [number, number] } }[]
+    }
 
     const seen = new Set<string>()
-    const out: string[] = []
+    const out: Place[] = []
     for (const feature of data.features ?? []) {
       const p = feature.properties
       if (p.countrycode && p.countrycode !== 'US') continue
       const label = formatAddress(p)
       if (!label || seen.has(label)) continue
+
+      // GeoJSON orders coordinates [longitude, latitude], the reverse of how
+      // they are written everywhere else in this codebase.
+      const coords = feature.geometry?.coordinates
+      if (!coords || !Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) continue
+
       seen.add(label)
-      out.push(label)
+      out.push({ label, lng: coords[0], lat: coords[1] })
       if (out.length === 6) break
     }
     return out
   } catch {
-    // Aborted or offline — fall back to plain typing.
+    // Aborted or offline: fall back to plain typing.
     return []
   }
+}
+
+/** Labels only, for callers that do not need coordinates. */
+export async function searchAddresses(query: string, signal?: AbortSignal): Promise<string[]> {
+  return (await searchPlaces(query, signal)).map((p) => p.label)
 }

@@ -66,6 +66,11 @@ const ROUTES: Record<string, Meta> = {
     description:
       'Request a tailored quote for luxury transportation in Denver and across Colorado — airport, corporate, weddings, mountain resorts, and special events.',
   },
+  '/estimate': {
+    title: `Instant Price Estimate | ${BRAND}`,
+    description:
+      'Get an instant price for luxury chauffeured transportation in Denver. Enter your pick-up and destination, choose a vehicle, and see your estimate straight away.',
+  },
 }
 
 export function metaFor(pathname: string): Meta {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { searchAddresses } from '../lib/geocode'
+import { searchPlaces, type Place } from '../lib/geocode'
 
 /**
  * Address input with suggestions, backed by the OpenStreetMap lookup in
@@ -12,15 +12,22 @@ import { searchAddresses } from '../lib/geocode'
 export function PlaceInput({
   value,
   onChange,
+  onSelectPlace,
   placeholder,
   className,
 }: {
   value: string
   onChange: (v: string) => void
+  /**
+   * Fires with coordinates when a suggestion is picked, and with null as soon
+   * as the text is edited afterwards. The estimator needs coordinates, and a
+   * stale pin from a previously picked address would measure the wrong route.
+   */
+  onSelectPlace?: (place: Place | null) => void
   placeholder?: string
   className?: string
 }) {
-  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [suggestions, setSuggestions] = useState<Place[]>([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const [loading, setLoading] = useState(false)
@@ -45,7 +52,7 @@ export function PlaceInput({
     const controller = new AbortController()
     setLoading(true)
     const timer = window.setTimeout(async () => {
-      const list = await searchAddresses(q, controller.signal)
+      const list = await searchPlaces(q, controller.signal)
       if (controller.signal.aborted) return
       setSuggestions(list)
       setActive(-1)
@@ -70,12 +77,23 @@ export function PlaceInput({
     return () => document.removeEventListener('mousedown', onDocClick)
   }, [open])
 
-  const pick = (address: string) => {
+  const pick = (place: Place) => {
     justPicked.current = true
-    onChange(address)
+    onChange(place.label)
+    onSelectPlace?.(place)
     setOpen(false)
     setSuggestions([])
     setActive(-1)
+  }
+
+  /**
+   * Typing after picking invalidates the coordinates: the text no longer
+   * describes the pin we captured. Clearing them makes the estimator ask for a
+   * fresh selection rather than quietly measuring the previous address.
+   */
+  const typed = (text: string) => {
+    onChange(text)
+    onSelectPlace?.(null)
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -98,7 +116,7 @@ export function PlaceInput({
     <div ref={boxRef} className="relative w-full">
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => typed(e.target.value)}
         onKeyDown={onKeyDown}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
@@ -116,7 +134,7 @@ export function PlaceInput({
       {open && suggestions.length > 0 && (
         <ul className="absolute left-0 right-0 top-full z-40 mt-1 max-h-64 overflow-auto rounded-lg border border-gray-200 bg-white py-1 shadow-xl">
           {suggestions.map((s, i) => (
-            <li key={`${s}-${i}`}>
+            <li key={`${s.label}-${i}`}>
               <button
                 type="button"
                 // Keep focus in the input so blur doesn't close the list first.
@@ -127,7 +145,7 @@ export function PlaceInput({
                   i === active ? 'bg-[#fdf6e3] text-gray-900' : 'text-gray-700 hover:bg-gray-50'
                 }`}
               >
-                {s}
+                {s.label}
               </button>
             </li>
           ))}

@@ -5,6 +5,7 @@ import { BookNowPage } from './pages/BookNowPage'
 import { ContactPage } from './pages/ContactPage'
 import { FleetPage } from './pages/FleetPage'
 import { HomePage } from './pages/HomePage'
+import { EstimatePage } from './pages/EstimatePage'
 import { RequestQuotePage } from './pages/RequestQuotePage'
 import { ServiceAreaDetailPage } from './pages/ServiceAreaDetailPage'
 import { ServiceAreasPage } from './pages/ServiceAreasPage'
@@ -35,6 +36,7 @@ export function AppRoutes() {
         <Route path="contact" element={<ContactPage />} />
         <Route path="book" element={<BookNowPage />} />
         <Route path="quote" element={<RequestQuotePage />} />
+        <Route path="estimate" element={<EstimatePage />} />
       </Route>
       <Route path="admin" element={<AdminDashboard />} />
     </Routes>
