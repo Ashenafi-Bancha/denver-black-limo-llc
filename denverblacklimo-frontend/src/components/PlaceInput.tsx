@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import { hasGoogleKey, useAddressAutocomplete } from '../lib/googlePlaces'
 import { searchAddresses } from '../lib/geocode'
 
 /**
- * Address input with suggestions.
+ * Address input with suggestions, backed by the OpenStreetMap lookup in
+ * ./lib/geocode. Free, needs no API key, and keeps the site on the same map
+ * data the price estimator routes against.
  *
- * - With `VITE_GOOGLE_MAPS_API_KEY` set → Google Places (its own dropdown).
- * - Without a key → free OpenStreetMap lookup with the dropdown below.
- * Typing always works either way, so the form is never blocked.
+ * Typing always works even if the lookup is unavailable, so the form is never
+ * blocked by a third party being down.
  */
 export function PlaceInput({
   value,
@@ -20,9 +20,6 @@ export function PlaceInput({
   placeholder?: string
   className?: string
 }) {
-  const usingGoogle = hasGoogleKey()
-  const googleRef = useAddressAutocomplete(onChange)
-
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
@@ -32,9 +29,8 @@ export function PlaceInput({
   // Set right after a pick so the resulting value change doesn't re-open the list.
   const justPicked = useRef(false)
 
-  // ── Free lookup (only when Google isn't configured) ──
+  // ── Address lookup, debounced so typing doesn't fire a request per keystroke ──
   useEffect(() => {
-    if (usingGoogle) return
     if (justPicked.current) {
       justPicked.current = false
       return
@@ -62,7 +58,7 @@ export function PlaceInput({
       controller.abort()
       setLoading(false)
     }
-  }, [value, usingGoogle])
+  }, [value])
 
   // Close the list when clicking elsewhere.
   useEffect(() => {
@@ -101,7 +97,6 @@ export function PlaceInput({
   return (
     <div ref={boxRef} className="relative w-full">
       <input
-        ref={googleRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
