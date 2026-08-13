@@ -150,6 +150,19 @@ export function PricingPage() {
         </div>
       </section>
 
+      {/* Straight after the rate table, where the natural next question is
+          "so what would MY trip cost?" */}
+      <section className="mx-auto max-w-4xl px-4 py-12 text-center md:px-6">
+        <SectionHeading className="mb-4">Price Your Own Trip</SectionHeading>
+        <p className="mx-auto mb-8 max-w-2xl text-sm leading-relaxed text-white/65 md:text-base">
+          The rates above are starting prices. Enter your pick-up and destination and see the
+          price for your actual journey, in seconds.
+        </p>
+        <div className="flex justify-center">
+          <GoldButton to="/estimate">GET AN INSTANT PRICE</GoldButton>
+        </div>
+      </section>
+
       {/* Always included */}
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-6">
         <SectionHeading className="mb-10">{p.includedTitle}</SectionHeading>

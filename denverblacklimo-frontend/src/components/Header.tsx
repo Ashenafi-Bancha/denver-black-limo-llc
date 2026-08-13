@@ -33,6 +33,7 @@ const MOBILE_LINKS: [string, string][] = [
   ['Services', '/services'],
   ['Fleet', '/fleet'],
   ['Pricing', '/pricing'],
+  ['Instant Estimate', '/estimate'],
   ['Service Areas', '/service-areas'],
   ['Reviews', '/reviews'],
   ['Blog', '/blog'],
@@ -42,6 +43,7 @@ const MOBILE_LINKS: [string, string][] = [
 
 /** Secondary desktop pages, grouped under the click-to-open MORE menu. */
 const MORE_LINKS: [string, string][] = [
+  ['Instant Price Estimate', '/estimate'],
   ['Reviews', '/reviews'],
   ['Blog', '/blog'],
 ]
