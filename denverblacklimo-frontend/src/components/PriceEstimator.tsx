@@ -56,6 +56,11 @@ export function PriceEstimator() {
   const [hours, setHours] = useState(3)
   const [extraStops, setExtraStops] = useState(0)
   const [childSeats, setChildSeats] = useState(0)
+  // Weekend hourly rates and the late-night surcharge depend on WHEN the trip
+  // is, so pricing "now" would misquote anyone planning ahead — which is
+  // nearly everyone booking a limo.
+  const [pickupDate, setPickupDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [pickupTime, setPickupTime] = useState('12:00')
 
   const [quote, setQuote] = useState<Quote | null>(null)
   const [busy, setBusy] = useState(false)
@@ -71,7 +76,7 @@ export function PriceEstimator() {
   useEffect(() => {
     setQuote(null)
     setFailed(false)
-  }, [service, vehicleId, pickup, dropoff, hours, extraStops, childSeats])
+  }, [service, vehicleId, pickup, dropoff, hours, extraStops, childSeats, pickupDate, pickupTime])
 
   const ready = hourly
     ? Boolean(vehicleId && hours > 0)
@@ -94,7 +99,8 @@ export function PriceEstimator() {
           vehicleId,
           pickup: pickup ? { lat: pickup.lat, lng: pickup.lng, label: pickup.label } : null,
           dropoff: dropoff ? { lat: dropoff.lat, lng: dropoff.lng, label: dropoff.label } : null,
-          when: new Date().toISOString(),
+          pickupDate,
+          pickupTime,
           hours: hourly ? hours : undefined,
           extras: { extraStops, childSeats },
         }),
@@ -129,6 +135,28 @@ export function PriceEstimator() {
                 <option key={s.id} value={s.id} className={OPTION_CLASS}>{s.label}</option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label className={LABEL} htmlFor="est-date">Pick-up date</label>
+            <input
+              id="est-date"
+              type="date"
+              value={pickupDate}
+              min={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setPickupDate(e.target.value)}
+              className={FIELD}
+            />
+          </div>
+          <div>
+            <label className={LABEL} htmlFor="est-time">Pick-up time</label>
+            <input
+              id="est-time"
+              type="time"
+              value={pickupTime}
+              onChange={(e) => setPickupTime(e.target.value)}
+              className={FIELD}
+            />
           </div>
 
           {!hourly && (

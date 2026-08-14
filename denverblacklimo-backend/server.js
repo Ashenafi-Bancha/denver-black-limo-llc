@@ -71,6 +71,7 @@ const {
   publicSettingsOnly,
   isPrivateKey,
 } = require('./pricing/fromSettings');
+const { inferZone, zoneChain } = require('./pricing/zones');
 
 // Email templates + delivery live in ./emails.js
 const {
@@ -315,43 +316,53 @@ app.post('/api/estimate', rateLimit({
         message: 'Online pricing is not available yet. Please request a quote.',
       });
     }
-    if (!routing.isConfigured()) {
-      return res.json({
-        quotable: false,
-        reason: 'routing_unavailable',
-        message: 'We could not measure that route. Please request a quote.',
-      });
-    }
-
-    const { serviceType, vehicleId, pickup, dropoff, when, pickupTime, hours, extras } = req.body || {};
+    const { serviceType, vehicleId, pickup, dropoff, pickupDate, pickupTime, hours, extras } = req.body || {};
     if (!vehicleId || !serviceType) {
       return res.status(400).json({ error: 'Vehicle and service type are required.' });
     }
 
+    // The customer states a Denver calendar date and clock time; weekend and
+    // late-night pricing hang off them. The instant is pinned with a fixed
+    // Denver-region offset rather than the visitor's browser zone, so someone
+    // planning from New York prices the same trip as someone in Denver.
+    // (-07:00 is exact in winter and one hour early in summer, which can never
+    // move the calendar date backwards — the weekday stays right either way.)
+    const when =
+      typeof pickupDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(pickupDate)
+        ? `${pickupDate}T${/^\d{2}:\d{2}$/.test(pickupTime || '') ? pickupTime : '12:00'}:00-07:00`
+        : (req.body || {}).when;
+
+    // The customer picks addresses; the rate card prices routes by zone name.
+    // Zones are inferred here, server side — nobody booking a car should have
+    // to know our zone map, and the browser is not trusted to assert one.
+    const trip = {
+      serviceType,
+      vehicleId,
+      when,
+      pickupTime,
+      hours,
+      extras,
+      pickup: pickup ? { ...pickup, zones: zoneChain(pickup), zone: inferZone(pickup) } : null,
+      dropoff: dropoff ? { ...dropoff, zones: zoneChain(dropoff), zone: inferZone(dropoff) } : null,
+    };
+
+    // Route measurement feeds the per-mile path, deadhead and the distance
+    // guardrails. A zone-priced trip needs none of those, so a measurement
+    // failure — provider down, key missing, odd address — only refuses trips
+    // that would have needed the distance. The engine decides which is which.
     const hourly = serviceType === 'hourly';
     let route = null;
-    if (!hourly) {
+    if (!hourly && routing.isConfigured()) {
       route = await routing.measureTrip({ pickup, dropoff, garage: PRICING.garage });
-      if (!route) {
-        return res.json({
-          quotable: false,
-          reason: 'route_unavailable',
-          message: 'We could not measure that route. Please request a quote.',
-        });
-      }
     }
 
-    const quote = estimate({
-      trip: { serviceType, vehicleId, pickup, dropoff, when, pickupTime, hours, extras },
-      route,
-      config: PRICING,
-    });
+    const quote = estimate({ trip, route, config: PRICING });
 
     // Every quote shown is recorded, so when a customer rings quoting a price
     // there is a record of exactly what the site told them.
     console.log(
       `Estimate ${quote.quotable ? `${quote.currency}${quote.total}` : `refused (${quote.reason})`} ` +
-      `| ${vehicleId} | ${serviceType} | ${route ? `${route.tripMiles}mi` : `${hours}h`}`
+      `| ${vehicleId} | ${serviceType} | ${route ? `${route.tripMiles}mi` : hourly ? `${hours}h` : 'zone'}`
     );
 
     res.json(quote);

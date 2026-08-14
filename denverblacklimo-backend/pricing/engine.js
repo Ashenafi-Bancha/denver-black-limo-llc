@@ -31,10 +31,22 @@ function notQuotable(reason, detail) {
   return { quotable: false, reason, detail: detail || null, lines: [], total: null };
 }
 
-/** Weekend is Saturday or Sunday in the pickup's own local date. */
+/**
+ * Weekend is Saturday or Sunday in Denver, where the trip actually happens.
+ * Naive Date#getDay uses the server's own zone, and this server runs in UTC:
+ * a Friday 6pm pickup in Denver is already Saturday in UTC, which would have
+ * billed Friday-evening customers the weekend rate.
+ */
+const DENVER_WEEKDAY = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'America/Denver',
+  weekday: 'short',
+});
+
 function isWeekend(when) {
-  const day = new Date(when).getDay();
-  return day === 0 || day === 6;
+  const date = new Date(when);
+  if (Number.isNaN(date.getTime())) return false;
+  const day = DENVER_WEEKDAY.format(date);
+  return day === 'Sat' || day === 'Sun';
 }
 
 /** "HH:MM" comparison that copes with a window crossing midnight. */
@@ -49,24 +61,52 @@ function withinWindow(timeHHMM, from, to) {
   return a <= b ? t >= a && t < b : t >= a || t < b;
 }
 
-/** A fixed price for this exact journey, if one is configured. */
+/**
+ * A fixed price for this journey, if one is configured.
+ *
+ * Each end of the trip carries a zone chain, most specific first — a downtown
+ * hotel is ['Downtown Denver', 'Denver']. A row matches if its two names each
+ * appear anywhere in the right chain, so "Denver to Vail" covers a pickup at
+ * any metro address. When several rows fit, the most specific pair wins:
+ * chain positions sum lower for exact zones than for inherited ones, which is
+ * how DIA-to-Downtown beats a broader Denver-level row for an airport run.
+ */
 function findZonePrice(trip, config) {
   const groups = [...(config.zones.airport || []), ...(config.zones.mountain || [])];
   const norm = (s) => String(s || '').trim().toLowerCase();
-  const from = norm(trip.pickup && trip.pickup.zone);
-  const to = norm(trip.dropoff && trip.dropoff.zone);
-  if (!from || !to) return null;
 
+  const chainOf = (end) => {
+    if (!end) return [];
+    if (Array.isArray(end.zones) && end.zones.length) return end.zones.map(norm);
+    return end.zone ? [norm(end.zone)] : [];
+  };
+  const fromChain = chainOf(trip.pickup);
+  const toChain = chainOf(trip.dropoff);
+  if (!fromChain.length || !toChain.length) return null;
+
+  let best = null;
   for (const z of groups) {
     const [a, b] = z.match.map(norm);
-    const forward = from === a && to === b;
-    const reverse = !z.oneWayOnly && from === b && to === a;
-    if (!forward && !reverse) continue;
     const price = z.prices && z.prices[trip.vehicleId];
-    if (typeof price !== 'number') continue;   // no price for this vehicle: fall through to per mile
-    return { zone: z, price };
+    // An explicit QUOTE/NO in the rate card is a decision, not an absence:
+    // this vehicle on this route must go through a human, not the formula.
+    const refused = Array.isArray(z.refuse) && z.refuse.includes(trip.vehicleId);
+    if (typeof price !== 'number' && !refused) continue;   // truly unpriced: per mile may try
+
+    const tryPair = (fromName, toName) => {
+      const fi = fromChain.indexOf(fromName);
+      const ti = toChain.indexOf(toName);
+      if (fi === -1 || ti === -1) return;
+      const score = fi + ti;                    // lower = more specific
+      if (!best || score < best.score) best = { zone: z, price, refused, score };
+    };
+    tryPair(a, b);
+    if (!z.oneWayOnly) tryPair(b, a);
   }
-  return null;
+  if (!best) return null;
+  return best.refused
+    ? { zone: best.zone, refused: true }
+    : { zone: best.zone, price: best.price };
 }
 
 /**
@@ -81,8 +121,19 @@ function estimate({ trip, route, config }) {
   const hourly = trip.serviceType === 'hourly';
   const miles = Number(route && route.tripMiles) || 0;
 
+  // A fixed price for this exact pair of zones is a deliberate decision that
+  // does not depend on a measured distance, so it is resolved before the
+  // route guardrails: a routing outage should not stop us quoting DIA to
+  // Downtown when that price is sitting in the rate card.
+  const zoneMatch = hourly ? null : findZonePrice(trip, config);
+
+  // The rate card says this vehicle on this route goes through a human.
+  if (zoneMatch && zoneMatch.refused) {
+    return notQuotable('route_requires_quote', zoneMatch.zone.label);
+  }
+
   // ---- Guardrails, up front -------------------------------------------
-  if (!hourly) {
+  if (!hourly && !zoneMatch) {
     if (!route || !Number.isFinite(route.tripMiles)) {
       return notQuotable('route_unavailable');
     }
@@ -104,8 +155,6 @@ function estimate({ trip, route, config }) {
   // ---- Step 3 and 4: pricing method, then the base fare ----------------
   let method;
   let base = 0;
-
-  const zoneMatch = hourly ? null : findZonePrice(trip, config);
 
   if (hourly) {
     method = 'hourly';

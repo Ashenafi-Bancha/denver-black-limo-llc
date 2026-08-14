@@ -11,6 +11,7 @@
  * publishing them would hand a competitor the business's margins.
  */
 const { CONFIG } = require('./config');
+const { unknownZoneNames } = require('./zones');
 
 /** Keys the public settings endpoint must never return. */
 const PRIVATE_PREFIX = 'pricing_';
@@ -87,13 +88,22 @@ function buildConfig(settings = {}) {
     if (!from || !to) continue;
 
     const prices = {};
+    const refuse = [];
     for (const [vehicleId, field] of VEHICLE_PRICE_FIELDS) {
-      const p = priceOrNull(row[field]);
+      const raw = row[field];
+      // QUOTE and NO are explicit decisions: never price this vehicle on this
+      // route automatically, not even by formula. The Excel promises exactly
+      // that. A blank stays permissive — the per-mile path may try, bounded
+      // by the vehicle's minimum fare.
+      if (typeof raw === 'string' && /^(quote|no|n\/a)$/i.test(raw.trim())) {
+        refuse.push(vehicleId);
+        continue;
+      }
+      const p = priceOrNull(raw);
       if (p !== null) prices[vehicleId] = p;
     }
-    // A row with no prices at all is one the admin marked QUOTE throughout.
-    // Skipping it lets the trip fall through to per mile, or to a refusal.
-    if (!Object.keys(prices).length) continue;
+    // A row carrying no prices and no explicit refusals says nothing: skip it.
+    if (!Object.keys(prices).length && !refuse.length) continue;
 
     const entry = {
       id: `${from}-${to}`.toLowerCase().replace(/\s+/g, '-'),
@@ -101,6 +111,7 @@ function buildConfig(settings = {}) {
       match: [from, to],
       oneWayOnly: /^(yes|true|1)$/i.test(String(row.oneWayOnly || '')),
       prices,
+      refuse,
     };
     (String(row.group || '').toLowerCase() === 'mountain' ? zones.mountain : zones.airport).push(entry);
   }

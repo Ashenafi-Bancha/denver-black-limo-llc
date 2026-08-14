@@ -59,11 +59,21 @@ check('blank tax becomes null, not zero-percent tax', cfg.taxes.ratePercent, nul
 check('market adjustment carries over', cfg.marketAdjustment, 0.9);
 
 console.log('\nZONES');
-check('airport and mountain are separated', [cfg.zones.airport.length, cfg.zones.mountain.length], [1, 1]);
-check('QUOTE and blank prices are omitted',
+// The all-QUOTE Aspen row now survives as a refusal row: QUOTE is a decision
+// ("a human prices this"), not an absence. Only rows saying nothing at all
+// are dropped.
+check('airport and mountain are separated', [cfg.zones.airport.length, cfg.zones.mountain.length], [2, 1]);
+check('QUOTE and blank prices are omitted from prices',
   Object.keys(cfg.zones.airport[0].prices).sort(), ['luxury-sedan', 'luxury-van']);
-check('a row with no prices at all is dropped',
-  cfg.zones.airport.some(z => /aspen/i.test(z.label)), false);
+check('QUOTE cells become explicit refusals',
+  cfg.zones.airport[0].refuse, ['luxury-suv']);
+check('the all-QUOTE row is kept as refusals, not dropped',
+  (cfg.zones.airport.find(z => /aspen/i.test(z.label)) || {}).refuse,
+  ['luxury-sedan', 'luxury-suv', 'executive-suv']);
+check('a row with nothing at all is still dropped',
+  buildConfig({ pricing_zones: [{ group: 'airport', fromZone: 'DIA', toZone: 'Boulder',
+    priceLuxurySedan: '', priceLuxurySUV: '', priceExecutiveSUV: '', priceLuxuryVan: '' }] })
+    .zones.airport.length, 0);
 check('match pair is built from the two zone names', cfg.zones.airport[0].match, ['DIA', 'Downtown Denver']);
 
 console.log('\nREADINESS');
