@@ -152,6 +152,26 @@ export function BookNowPage() {
     const slug = searchParams.get('service')
     return (slug && SERVICE_CONFIGS.find((c) => c.slug === slug)) || null
   })
+  /**
+   * The price estimator links here with the trip it just quoted:
+   * /book?service=<slug>&pickup=…&dropoff=…&date=…&time=…&hours=…
+   * Resolved once and folded into the initial state, same as requestedService.
+   */
+  const [prefill] = useState(() => ({
+    pickup: searchParams.get('pickup') ?? '',
+    dropoff: searchParams.get('dropoff') ?? '',
+    date: searchParams.get('date') ?? '',
+    time: searchParams.get('time') ?? '',
+    hours: searchParams.get('hours') ?? '',
+  }))
+  const prefillHasTrip = Boolean(prefill.pickup || prefill.dropoff || prefill.date)
+  // "Vail, Colorado 81657" from the estimator's geocoder should land on the
+  // "Vail" entry of the resort select, not in a free-text field it never shows.
+  const prefillResort =
+    MOUNTAIN_RESORTS.find((r) =>
+      r.split(' / ').some((part) => prefill.dropoff.toLowerCase().includes(part.toLowerCase()))
+    ) ?? ''
+  const airportInLabel = (label: string) => /airport/i.test(label)
 
   const [form, setForm] = useState({
     // Customer
@@ -167,23 +187,28 @@ export function BookNowPage() {
     serviceType: (requestedService?.name ?? SERVICE_TYPES[0]) as string,
     tripType: defaultTripFor(requestedService?.layout),
     // Common route
-    pickupDate: '',
-    pickupTime: '',
-    pickupLocation: '',
-    dropoffLocation: '',
-    // Airport
-    airportDirection: 'Arrival' as 'Arrival' | 'Departure',
+    pickupDate: prefill.date,
+    pickupTime: prefill.time,
+    pickupLocation: prefill.pickup,
+    dropoffLocation: prefill.dropoff,
+    // Airport — an airport-bound trip from the estimator is a Departure.
+    airportDirection: (prefill.dropoff && airportInLabel(prefill.dropoff) && !airportInLabel(prefill.pickup)
+      ? 'Departure'
+      : 'Arrival') as 'Arrival' | 'Departure',
     flightNumber: '',
     // FBO
     fboName: FBO_TERMINALS[0].name,
     aircraftType: '',
     tailNumber: '',
     // Hourly / executive
-    durationHours: '',
+    durationHours: HOURLY_DURATIONS.find((d) => d.startsWith(`${prefill.hours} `)) ?? '',
     serviceArea: SERVICE_AREAS[0] as string,
     // Mountain
-    pickupType: 'Airport' as 'Airport' | 'Hotel' | 'Residence',
-    resort: '',
+    pickupType: (prefill.pickup && !airportInLabel(prefill.pickup) ? 'Hotel' : 'Airport') as
+      | 'Airport'
+      | 'Hotel'
+      | 'Residence',
+    resort: prefillResort,
     estimatedTravelTime: '',
     // Event
     eventVenue: '',
@@ -236,6 +261,8 @@ export function BookNowPage() {
   useEffect(() => {
     const draft = readSavedDraft()
     if (!draft) return
+    // A trip handed over from the estimator is fresher than any saved draft.
+    if (prefillHasTrip) return
     // An explicit ?service= means the visitor just asked for a different service —
     // an older draft for something else must not override it.
     const draftService = (draft.form as { serviceType?: string } | undefined)?.serviceType

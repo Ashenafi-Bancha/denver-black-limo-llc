@@ -35,9 +35,14 @@ export function PlaceInput({
   const boxRef = useRef<HTMLDivElement>(null)
   // Set right after a pick so the resulting value change doesn't re-open the list.
   const justPicked = useRef(false)
+  // A value the field mounted with came from elsewhere (estimator handoff,
+  // restored draft). Only text typed here should pop the suggestion list —
+  // without this the booking form opens with a dropdown nobody asked for.
+  const userEdited = useRef(false)
 
   // ── Address lookup, debounced so typing doesn't fire a request per keystroke ──
   useEffect(() => {
+    if (!userEdited.current) return
     if (justPicked.current) {
       justPicked.current = false
       return
@@ -92,6 +97,7 @@ export function PlaceInput({
    * fresh selection rather than quietly measuring the previous address.
    */
   const typed = (text: string) => {
+    userEdited.current = true
     onChange(text)
     onSelectPlace?.(null)
   }

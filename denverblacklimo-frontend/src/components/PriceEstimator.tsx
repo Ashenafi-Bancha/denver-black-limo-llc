@@ -114,10 +114,22 @@ export function PriceEstimator() {
     }
   }
 
+  // The booking form thinks in service slugs, not estimator ids. Everything the
+  // visitor already typed rides along so they never enter the trip twice.
+  const BOOKING_SLUG: Record<ServiceId, string> = {
+    airport: 'airport-transportation',
+    'point-to-point': 'executive-corporate',
+    mountain: 'mountain-resort',
+    hourly: 'hourly-chauffeur',
+  }
+
   const bookHref =
-    `/book?service=${encodeURIComponent(service)}` +
+    `/book?service=${BOOKING_SLUG[service]}` +
     (pickup ? `&pickup=${encodeURIComponent(pickup.label)}` : '') +
-    (dropoff ? `&dropoff=${encodeURIComponent(dropoff.label)}` : '')
+    (dropoff ? `&dropoff=${encodeURIComponent(dropoff.label)}` : '') +
+    (pickupDate ? `&date=${encodeURIComponent(pickupDate)}` : '') +
+    (pickupTime ? `&time=${encodeURIComponent(pickupTime)}` : '') +
+    (hourly ? `&hours=${hours}` : '')
 
   return (
     <div className="mx-auto w-full max-w-3xl">
