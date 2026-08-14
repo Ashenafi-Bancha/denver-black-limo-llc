@@ -16,6 +16,9 @@
  * key, and neither is available on a development machine. Without it, the only
  * way to see a quote end to end was to deploy first.
  */
+// Pick up ORS_API_KEY and friends from backend/.env, same as server.js does.
+require('dotenv').config({ path: require('path').join(__dirname, '..', '.env') });
+
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -55,7 +58,7 @@ const json = (res, code, body) => {
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': '*',
-    'Access-Control-Allow-Methods': 'GET,POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
   });
   res.end(JSON.stringify(body));
 };
@@ -67,11 +70,50 @@ http
 
     if (url === '/api/health') return json(res, 200, { status: 'ok', harness: true });
 
-    if (url === '/api/settings') {
+    if (url === '/api/settings' && req.method === 'GET') {
       // Mirror production: rate keys never leave the public endpoint.
       const { publicSettingsOnly } = require('./fromSettings');
       return json(res, 200, publicSettingsOnly(loadSettings()));
     }
+
+    // ── Admin endpoints, so the dashboard runs against this harness too ──
+    // No real auth here: this server binds locally, never deploys, and holds
+    // fixture data. Production auth lives in server.js and is untouched.
+
+    if (url === '/api/settings/rates' && req.method === 'GET') {
+      const { isPrivateKey } = require('./fromSettings');
+      const all = loadSettings();
+      const rates = {};
+      for (const [key, value] of Object.entries(all)) {
+        if (isPrivateKey(key)) rates[key] = value;
+      }
+      return json(res, 200, { ...rates, _readiness: readiness(buildConfig(all)) });
+    }
+
+    if (url === '/api/settings' && req.method === 'PUT') {
+      // Write the edit back into dev-rates.json, exactly as production writes
+      // to Postgres. The estimator reads the file fresh per request, so an
+      // admin edit changes the very next quote — the loop this harness exists
+      // to prove.
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        try {
+          const { key, value } = JSON.parse(body || '{}');
+          if (!key) return json(res, 400, { error: 'Key required' });
+          const all = loadSettings();
+          all[key] = value;
+          fs.writeFileSync(RATES_FILE, JSON.stringify(all, null, 2));
+          console.log(`  saved ${key}`);
+          json(res, 200, { message: 'Settings updated' });
+        } catch (err) {
+          json(res, 500, { error: err.message });
+        }
+      });
+      return;
+    }
+
+    if (url === '/api/bookings' || url === '/api/inquiries') return json(res, 200, []);
 
     if (url === '/api/estimate' && req.method === 'POST') {
       let body = '';
