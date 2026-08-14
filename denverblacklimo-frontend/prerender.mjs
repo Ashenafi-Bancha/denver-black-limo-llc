@@ -17,7 +17,7 @@ let template = fs
   .readFileSync(path.join(DIST, 'index.html'), 'utf8')
   .replace(/\s*<script src="\/assets\/site-settings\.[^"]*"><\/script>/g, '')
 
-const { render, getRouteMeta } = await import(
+const { render, getRouteMeta, getRouteSchema } = await import(
   pathToFileURL(path.resolve('dist-server/entry-server.js')).href
 )
 
@@ -115,6 +115,19 @@ function buildHtml(route) {
     .replace(/(<meta property="og:url" content=)"[^"]*"/, `$1"${canonical}"`)
     .replace(/(<meta name="twitter:title" content=)"[^"]*"/, `$1"${escAttr(meta.title)}"`)
     .replace(/(<meta name="twitter:description" content=)"[^"]*"/, `$1"${escAttr(meta.description)}"`)
+
+  // Per-page structured data. The block already in index.html describes the
+  // business and is the same everywhere; these describe the page.
+  const schema = getRouteSchema(route)
+  if (schema.length) {
+    const blocks = schema
+      // Escaping `<` stops a stray closing script tag inside any content
+      // string from ending the block early and breaking the page.
+      .map((obj) => `<script type="application/ld+json">${JSON.stringify(obj).replace(/</g, '\u003c')}</script>`)
+      .join('\n    ')
+    html = html.replace('</head>', `  ${blocks}
+  </head>`)
+  }
 
   if (route === '/admin') {
     html = html.replace(/(<meta name="robots" content=)"[^"]*"/, `$1"noindex, nofollow"`)
