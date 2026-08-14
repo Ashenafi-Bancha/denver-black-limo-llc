@@ -60,7 +60,14 @@ async function measureRoute(from, to) {
       },
       // OpenRouteService takes [longitude, latitude], which is the reverse of
       // how the rest of this codebase and most humans write coordinates.
-      body: JSON.stringify({ coordinates: [[from.lng, from.lat], [to.lng, to.lat]] }),
+      // The radiuses widen how far each point may snap to a drivable road:
+      // the default 350m returns 404 for airport terminals and resort
+      // villages, whose pins sit deep inside car-free areas. DIA's terminal
+      // is the first address every customer will try.
+      body: JSON.stringify({
+        coordinates: [[from.lng, from.lat], [to.lng, to.lat]],
+        radiuses: [3000, 3000],
+      }),
     });
 
     if (!res.ok) {
