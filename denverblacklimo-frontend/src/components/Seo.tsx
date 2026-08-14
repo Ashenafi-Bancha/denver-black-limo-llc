@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom'
 import { getServiceBySlug } from '../data/services'
 import { getServiceAreaBySlug } from '../data/serviceAreas'
 import { getPostBySlug } from '../data/posts'
+import { DEFAULT_FAQS } from '../content/defaults'
 
 /** Production site origin — used for canonical + Open Graph URLs. */
 export const SITE_URL = 'https://denverblacklimo.llc'
@@ -85,6 +86,107 @@ export function metaFor(pathname: string): Meta {
     if (post) return { title: `${post.title} | ${BRAND}`, description: post.excerpt }
   }
   return ROUTES['/']
+}
+
+/**
+ * Extra structured data for a route, on top of the LimousineService block that
+ * sits in index.html on every page.
+ *
+ * That one block describes the business and is identical everywhere, so it
+ * tells a search engine nothing about which page it is looking at. These
+ * describe the page itself, and all point back at the business with @id so the
+ * two form one graph rather than two unrelated claims.
+ */
+const BUSINESS_ID = `${SITE_URL}/#business`
+
+type Json = Record<string, unknown>
+
+function breadcrumbs(trail: { name: string; path: string }[]): Json {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: trail.map((step, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: step.name,
+      item: SITE_URL + step.path,
+    })),
+  }
+}
+
+export function schemaFor(pathname: string): Json[] {
+  const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+  const out: Json[] = []
+  const home = { name: 'Home', path: '/' }
+
+  if (path.startsWith('/services/')) {
+    const svc = getServiceBySlug(path.split('/')[2])
+    if (svc) {
+      out.push({
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: svc.title,
+        serviceType: svc.title,
+        description: svc.shortDescription,
+        url: SITE_URL + path,
+        provider: { '@id': BUSINESS_ID },
+        areaServed: { '@type': 'State', name: 'Colorado' },
+      })
+      out.push(breadcrumbs([home, { name: 'Services', path: '/services' }, { name: svc.title, path }]))
+    }
+  } else if (path.startsWith('/service-areas/')) {
+    const area = getServiceAreaBySlug(path.split('/')[2])
+    if (area) {
+      out.push({
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: `Luxury Car Service in ${area.title}`,
+        description: area.subtitle,
+        url: SITE_URL + path,
+        provider: { '@id': BUSINESS_ID },
+        // The whole point of these pages: which places we actually cover.
+        areaServed: [
+          { '@type': 'Place', name: area.title },
+          ...area.coverageAreas.slice(0, 12).map((c) => ({ '@type': 'Place', name: c })),
+        ],
+      })
+      out.push(breadcrumbs([home, { name: 'Service Areas', path: '/service-areas' }, { name: area.title, path }]))
+    }
+  } else if (path.startsWith('/blog/')) {
+    const post = getPostBySlug(path.split('/')[2])
+    if (post) {
+      out.push({
+        '@context': 'https://schema.org',
+        '@type': 'BlogPosting',
+        headline: post.title,
+        description: post.excerpt,
+        datePublished: post.date,
+        url: SITE_URL + path,
+        author: { '@id': BUSINESS_ID },
+        publisher: { '@id': BUSINESS_ID },
+      })
+      out.push(breadcrumbs([home, { name: 'Travel Blog', path: '/blog' }, { name: post.title, path }]))
+    }
+  } else if (path === '/contact') {
+    // Google restricted FAQ rich results to a narrow set of sites, so this is
+    // unlikely to add dropdowns under the listing. It is still the clearest way
+    // to state a question and its answer, which is what answer engines read.
+    out.push({
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: DEFAULT_FAQS.map((f) => ({
+        '@type': 'Question',
+        name: f.question,
+        acceptedAnswer: { '@type': 'Answer', text: f.answer },
+      })),
+    })
+    out.push(breadcrumbs([home, { name: 'Contact', path: '/contact' }]))
+  } else if (path !== '/' && ROUTES[path]) {
+    const name = ROUTES[path].title.split('|')[0].split('—')[0].trim()
+    out.push(breadcrumbs([home, { name, path }]))
+  }
+
+  return out
 }
 
 function upsertMeta(attr: 'name' | 'property', key: string, content: string) {
