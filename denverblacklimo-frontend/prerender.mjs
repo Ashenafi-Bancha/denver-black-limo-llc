@@ -153,6 +153,10 @@ for (const route of ROUTES) {
 console.log(`✔ Prerendered ${ok} routes to static HTML.`)
 
 // ── sitemap.xml — generated from the live route list so it never goes stale ──
+// Google ignores changefreq/priority but reads lastmod to decide what to
+// recrawl. The build date is honest here: a deploy is the only way any of
+// these prerendered pages can change.
+const LASTMOD = new Date().toISOString().slice(0, 10)
 function sitemapEntry(route) {
   const loc = SITE + (route === '/' ? '/' : route)
   const priority =
@@ -161,7 +165,7 @@ function sitemapEntry(route) {
     : route.startsWith('/services/') || route.startsWith('/service-areas') || route === '/fleet' ? '0.8'
     : '0.7'
   const changefreq = route === '/' ? 'weekly' : 'monthly'
-  return `  <url><loc>${loc}</loc><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`
+  return `  <url><loc>${loc}</loc><lastmod>${LASTMOD}</lastmod><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`
 }
 const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',

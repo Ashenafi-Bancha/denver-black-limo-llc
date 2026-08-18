@@ -2,6 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <!-- App Platform serves the www alias as a full second copy of the site and
+         cannot 301 it, so Google sees two duplicate hosts. Hop to the canonical
+         host before anything renders; Googlebot executes this and records it as
+         a redirect, consolidating both hosts into one. -->
+    <script>
+      if (location.hostname === 'www.denverblacklimo.llc')
+        location.replace('https://denverblacklimo.llc' + location.pathname + location.search + location.hash)
+    </script>
     <!-- Favicons. Google's crawler probes /favicon.ico first and only then reads
          these tags, so a real .ico has to exist at the root — otherwise the SPA
          catchall answers with HTML and Search falls back to the blank globe.
