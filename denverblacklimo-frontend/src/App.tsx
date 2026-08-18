@@ -15,6 +15,7 @@ import { ReviewsPage } from './pages/ReviewsPage'
 import { BlogPage } from './pages/BlogPage'
 import { BlogPostPage } from './pages/BlogPostPage'
 import { AdminDashboard } from './pages/AdminDashboard'
+import { NotFoundPage } from './pages/NotFoundPage'
 
 /** Route tree, router-agnostic so it can be wrapped by BrowserRouter (client) or StaticRouter (SSG). */
 export function AppRoutes() {
@@ -35,6 +36,7 @@ export function AppRoutes() {
         <Route path="contact" element={<ContactPage />} />
         <Route path="book" element={<BookNowPage />} />
         <Route path="quote" element={<RequestQuotePage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="admin" element={<AdminDashboard />} />
     </Routes>

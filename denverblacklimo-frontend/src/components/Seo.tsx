@@ -9,7 +9,19 @@ import { DEFAULT_FAQS } from '../content/defaults'
 export const SITE_URL = 'https://denverblacklimo.llc'
 const BRAND = 'Denver Black Limo LLC'
 
-type Meta = { title: string; description: string }
+type Meta = { title: string; description: string; notFound?: boolean }
+
+/**
+ * Static hosting answers every unknown URL with this app and a 200, which
+ * search engines read as endless copies of the homepage (soft 404s). Marking
+ * the rendered page noindex is the strongest correction the page itself can
+ * make; the DO error_document setting turns the status code into a real 404.
+ */
+const NOT_FOUND: Meta = {
+  title: `Page Not Found | ${BRAND}`,
+  description: 'The page you are looking for does not exist. Explore our luxury chauffeured transportation services in Denver, Colorado.',
+  notFound: true,
+}
 
 const ROUTES: Record<string, Meta> = {
   '/': {
@@ -85,7 +97,7 @@ export function metaFor(pathname: string): Meta {
     const post = getPostBySlug(path.split('/')[2])
     if (post) return { title: `${post.title} | ${BRAND}`, description: post.excerpt }
   }
-  return ROUTES['/']
+  return NOT_FOUND
 }
 
 /**
@@ -216,7 +228,7 @@ function upsertLink(rel: string, href: string) {
 export function RouteSeo() {
   const { pathname } = useLocation()
   useEffect(() => {
-    const { title, description } = metaFor(pathname)
+    const { title, description, notFound } = metaFor(pathname)
     const url = SITE_URL + (pathname === '/' ? '' : pathname)
     document.title = title
     upsertMeta('name', 'description', description)
@@ -225,7 +237,15 @@ export function RouteSeo() {
     upsertMeta('property', 'og:url', url)
     upsertMeta('name', 'twitter:title', title)
     upsertMeta('name', 'twitter:description', description)
-    upsertLink('canonical', url)
+    // A missing page must not present itself as an indexable copy of the
+    // homepage: noindex it and drop the canonical, which would otherwise
+    // vouch for a URL that does not exist.
+    upsertMeta('name', 'robots', notFound ? 'noindex, follow' : 'index, follow, max-image-preview:large')
+    if (notFound) {
+      document.head.querySelector('link[rel="canonical"]')?.remove()
+    } else {
+      upsertLink('canonical', url)
+    }
   }, [pathname])
   return null
 }

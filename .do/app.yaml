@@ -74,7 +74,15 @@ static_sites:
     source_dir: denverblacklimo-frontend
     build_command: npm run build
     output_dir: dist
-    catchall_document: index.html   # SPA: serve index.html for client-side routes
+    # Every public route is prerendered to its own HTML file, so no catchall is
+    # needed to serve them. error_document still boots the app (client-side
+    # routes like /admin keep working) but unknown URLs now answer with a real
+    # HTTP 404 instead of a 200 copy of the homepage — Google was logging those
+    # as soft 404s, which erodes crawl trust on a new domain.
+    # NOTE: App Platform does not re-read this file on push — apply it once with
+    #   doctl apps update <app-id> --spec .do/app.yaml
+    # or change Settings → frontend → Custom Pages in the DO dashboard.
+    error_document: index.html
     routes:
       - path: /
     envs:
