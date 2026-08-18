@@ -114,23 +114,8 @@ export function HomePage() {
             {/* Tall fade: the photo's lower third dissolves into the black
                 canvas so the text block that rides up over it sits on a
                 smooth image-to-black backdrop, never on a hard edge. */}
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-brand-black via-brand-black/70 to-transparent" />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-brand-black via-brand-black/70 to-transparent" />
           </div>
-          {heroImages.length > 1 && (
-            <div className="absolute inset-x-0 bottom-2 z-30 flex items-center justify-center gap-1.5">
-              {heroImages.map((src, i) => (
-                <button
-                  key={src}
-                  type="button"
-                  aria-label={`Show photo ${i + 1}`}
-                  onClick={() => setCurrentImageIndex(i)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === currentImageIndex ? 'w-5 bg-brand-gold-light' : 'w-1.5 bg-white/30'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
         {/* Sliding photos as the full hero background — desktop only. On a
@@ -163,13 +148,13 @@ export function HomePage() {
         {/* Brand lockup — per client design: logo landing above the hero text */}
         {/* Phones: the column rides up over the slider's fade zone, so the
             photos double as the backdrop behind the top of the text. */}
-        <div className="relative z-20 mx-auto -mt-24 flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-4 text-left md:mt-0 md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
+        <div className="relative z-20 mx-auto -mt-32 flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-4 text-left md:mt-0 md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
           {/* Brand lockup — left-aligned on all screens */}
           <div className="flex flex-col items-start text-left md:w-fit">
           <motion.img
             src={IMAGES.logo}
             alt="Denver Black Limo LLC logo"
-            className="h-24 w-24 rounded-full object-cover shadow-lg shadow-brand-gold/20 ring-2 ring-brand-gold/40 md:h-36 md:w-36"
+            className="h-20 w-20 rounded-full object-cover shadow-lg shadow-brand-gold/20 ring-2 ring-brand-gold/40 md:h-36 md:w-36"
             initial={{ opacity: 0, y: -16, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.7, ease: 'easeOut' }}
@@ -183,7 +168,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="mt-4 font-display font-bold leading-none"
+            className="mt-3 font-display font-bold leading-none md:mt-4"
           >
             <span className="block bg-gradient-to-b from-white via-gray-100 to-gray-400 bg-clip-text text-[2.5rem] tracking-[0.05em] text-transparent md:text-8xl">
               DENVER
@@ -197,7 +182,7 @@ export function HomePage() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.15 }}
-            className="mt-4 flex w-64 items-center gap-2 md:w-[28rem]"
+            className="mt-3 flex w-64 items-center gap-2 md:mt-4 md:w-[28rem]"
           >
             <span className="h-px flex-1 bg-brand-gold/60" />
             <span className="h-2 w-2 rotate-45 bg-brand-gold-light" />
@@ -217,7 +202,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-4 w-full text-[clamp(10px,3vw,13px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
+            className="mt-3 w-full text-[clamp(10px,3vw,13px)] font-semibold tracking-[0.04em] text-white/90 md:mt-4 md:text-sm md:tracking-[0.08em]"
           >
             {/* Tags flow into centered rows so the block always stays balanced */}
             <p className="flex max-w-[96%] flex-wrap items-center justify-start gap-x-1.5 gap-y-1.5 md:max-w-none md:gap-x-2.5">
@@ -237,7 +222,7 @@ export function HomePage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
             // Stacked full-width on phones, back to a row from `sm` up.
-            className="mt-5 flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center md:mt-8"
+            className="mt-4 flex w-full flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center md:mt-8"
           >
             <GoldButton to="/book">BOOK NOW</GoldButton>
             <OutlineButton to="/quote">GET A QUOTE</OutlineButton>
