@@ -85,9 +85,12 @@ export function HomePage() {
 
   return (
     <>
-      <section className="relative overflow-hidden md:min-h-[74vh]">
-        {/* Sliding photos as the full hero background (all screens) */}
-        <div className="absolute inset-0 overflow-hidden bg-brand-black">
+      <section className="relative overflow-hidden bg-brand-black md:min-h-[74vh]">
+        {/* Sliding photos as the full hero background — desktop only. On a
+            phone this column is far taller than a landscape photo, so
+            object-cover showed a cropped sliver under the text. Mobile gets
+            its own framed slider below instead. */}
+        <div className="absolute inset-0 hidden overflow-hidden bg-brand-black md:block">
           <AnimatePresence initial={false}>
             <motion.img
               key={currentImageIndex}
@@ -180,6 +183,54 @@ export function HomePage() {
             </p>
           </motion.div>
           </div>
+
+          {/* Mobile: the slideshow in its own gold-framed card, object-contain
+              so every photo is visible edge to edge — letterboxed on brand
+              black when the ratio differs, never cropped. */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.28 }}
+            className="mt-5 w-full md:hidden"
+          >
+            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-brand-black shadow-lg shadow-brand-gold/10 ring-1 ring-brand-gold/40">
+              <AnimatePresence initial={false}>
+                <motion.img
+                  key={currentImageIndex}
+                  src={heroImages[currentImageIndex]}
+                  alt="Denver Black Limo luxury vehicle"
+                  className="absolute inset-0 h-full w-full object-contain"
+                  initial={{ x: '100%' }}
+                  animate={{ x: 0 }}
+                  exit={{ x: '-100%' }}
+                  transition={{ duration: 1.1, ease: 'easeInOut' }}
+                  onError={(e) => {
+                    const t = e.currentTarget
+                    if (!t.dataset.fb) {
+                      t.dataset.fb = '1'
+                      t.src = IMAGES.hero1
+                    }
+                  }}
+                />
+              </AnimatePresence>
+            </div>
+            {heroImages.length > 1 && (
+              <div className="mt-2.5 flex items-center justify-center gap-1.5">
+                {heroImages.map((src, i) => (
+                  <button
+                    key={src}
+                    type="button"
+                    aria-label={`Show photo ${i + 1}`}
+                    onClick={() => setCurrentImageIndex(i)}
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      i === currentImageIndex ? 'w-5 bg-brand-gold-light' : 'w-1.5 bg-white/30'
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.div>
+
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
