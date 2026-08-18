@@ -111,10 +111,13 @@ export function HomePage() {
                 }}
               />
             </AnimatePresence>
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-brand-black via-brand-black/60 to-transparent" />
+            {/* Tall fade: the photo's lower third dissolves into the black
+                canvas so the text block that rides up over it sits on a
+                smooth image-to-black backdrop, never on a hard edge. */}
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-brand-black via-brand-black/70 to-transparent" />
           </div>
           {heroImages.length > 1 && (
-            <div className="absolute inset-x-0 bottom-2 z-10 flex items-center justify-center gap-1.5">
+            <div className="absolute inset-x-0 bottom-2 z-30 flex items-center justify-center gap-1.5">
               {heroImages.map((src, i) => (
                 <button
                   key={src}
@@ -158,7 +161,9 @@ export function HomePage() {
         </div>
 
         {/* Brand lockup — per client design: logo landing above the hero text */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-4 text-left md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
+        {/* Phones: the column rides up over the slider's fade zone, so the
+            photos double as the backdrop behind the top of the text. */}
+        <div className="relative z-20 mx-auto -mt-24 flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-4 text-left md:mt-0 md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
           {/* Brand lockup — left-aligned on all screens */}
           <div className="flex flex-col items-start text-left md:w-fit">
           <motion.img
