@@ -86,10 +86,54 @@ export function HomePage() {
   return (
     <>
       <section className="relative overflow-hidden bg-brand-black md:min-h-[74vh]">
+        {/* Mobile: the slideshow leads the hero, edge to edge above the
+            heading. object-contain keeps every photo entirely visible, and
+            the bottom gradient melts the band into the black hero so image
+            and heading read as one piece. */}
+        <div className="relative w-full md:hidden">
+          <div className="relative aspect-[16/10] w-full overflow-hidden bg-brand-black">
+            <AnimatePresence initial={false}>
+              <motion.img
+                key={currentImageIndex}
+                src={heroImages[currentImageIndex]}
+                alt="Denver Black Limo luxury vehicle"
+                className="absolute inset-0 h-full w-full object-contain"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '-100%' }}
+                transition={{ duration: 1.1, ease: 'easeInOut' }}
+                onError={(e) => {
+                  const t = e.currentTarget
+                  if (!t.dataset.fb) {
+                    t.dataset.fb = '1'
+                    t.src = IMAGES.hero1
+                  }
+                }}
+              />
+            </AnimatePresence>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-brand-black via-brand-black/60 to-transparent" />
+          </div>
+          {heroImages.length > 1 && (
+            <div className="absolute inset-x-0 bottom-2 z-10 flex items-center justify-center gap-1.5">
+              {heroImages.map((src, i) => (
+                <button
+                  key={src}
+                  type="button"
+                  aria-label={`Show photo ${i + 1}`}
+                  onClick={() => setCurrentImageIndex(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === currentImageIndex ? 'w-5 bg-brand-gold-light' : 'w-1.5 bg-white/30'
+                  }`}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Sliding photos as the full hero background — desktop only. On a
             phone this column is far taller than a landscape photo, so
             object-cover showed a cropped sliver under the text. Mobile gets
-            its own framed slider below instead. */}
+            the leading slider band above instead. */}
         <div className="absolute inset-0 hidden overflow-hidden bg-brand-black md:block">
           <AnimatePresence initial={false}>
             <motion.img
@@ -114,7 +158,7 @@ export function HomePage() {
         </div>
 
         {/* Brand lockup — per client design: logo landing above the hero text */}
-        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-8 text-left md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
+        <div className="relative z-20 mx-auto flex w-full max-w-7xl flex-col items-start px-4 pb-6 pt-4 text-left md:min-h-[74vh] md:justify-center md:px-6 md:py-16">
           {/* Brand lockup — left-aligned on all screens */}
           <div className="flex flex-col items-start text-left md:w-fit">
           <motion.img
@@ -136,10 +180,10 @@ export function HomePage() {
             transition={{ delay: 0.1 }}
             className="mt-4 font-display font-bold leading-none"
           >
-            <span className="block bg-gradient-to-b from-white via-gray-100 to-gray-400 bg-clip-text text-[3.4rem] tracking-[0.05em] text-transparent md:text-8xl">
+            <span className="block bg-gradient-to-b from-white via-gray-100 to-gray-400 bg-clip-text text-[2.5rem] tracking-[0.05em] text-transparent md:text-8xl">
               DENVER
             </span>
-            <span className="mt-1 block text-gold-gradient text-[1.9rem] tracking-[0.04em] md:text-6xl">
+            <span className="mt-1 block text-gold-gradient text-[1.45rem] tracking-[0.04em] md:text-6xl">
               BLACK LIMO, LLC
             </span>
           </motion.h1>
@@ -158,7 +202,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="mt-3 text-[13px] font-medium uppercase tracking-[0.22em] text-white md:text-lg md:tracking-[0.3em]"
+            className="mt-3 text-[11px] font-medium uppercase tracking-[0.22em] text-white md:text-lg md:tracking-[0.3em]"
           >
             {/* The one hero line the CMS drives. `uppercase` keeps the lockup
                 looking the same whatever case it is typed in. */}
@@ -168,7 +212,7 @@ export function HomePage() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.25 }}
-            className="mt-4 w-full text-[clamp(12px,3.4vw,15px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
+            className="mt-4 w-full text-[clamp(10px,3vw,13px)] font-semibold tracking-[0.04em] text-white/90 md:text-sm md:tracking-[0.08em]"
           >
             {/* Tags flow into centered rows so the block always stays balanced */}
             <p className="flex max-w-[96%] flex-wrap items-center justify-start gap-x-1.5 gap-y-1.5 md:max-w-none md:gap-x-2.5">
@@ -183,54 +227,6 @@ export function HomePage() {
             </p>
           </motion.div>
           </div>
-
-          {/* Mobile: the slideshow in its own gold-framed card, object-contain
-              so every photo is visible edge to edge — letterboxed on brand
-              black when the ratio differs, never cropped. */}
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.28 }}
-            className="mt-5 w-full md:hidden"
-          >
-            <div className="relative aspect-[16/10] w-full overflow-hidden rounded-2xl bg-brand-black shadow-lg shadow-brand-gold/10 ring-1 ring-brand-gold/40">
-              <AnimatePresence initial={false}>
-                <motion.img
-                  key={currentImageIndex}
-                  src={heroImages[currentImageIndex]}
-                  alt="Denver Black Limo luxury vehicle"
-                  className="absolute inset-0 h-full w-full object-contain"
-                  initial={{ x: '100%' }}
-                  animate={{ x: 0 }}
-                  exit={{ x: '-100%' }}
-                  transition={{ duration: 1.1, ease: 'easeInOut' }}
-                  onError={(e) => {
-                    const t = e.currentTarget
-                    if (!t.dataset.fb) {
-                      t.dataset.fb = '1'
-                      t.src = IMAGES.hero1
-                    }
-                  }}
-                />
-              </AnimatePresence>
-            </div>
-            {heroImages.length > 1 && (
-              <div className="mt-2.5 flex items-center justify-center gap-1.5">
-                {heroImages.map((src, i) => (
-                  <button
-                    key={src}
-                    type="button"
-                    aria-label={`Show photo ${i + 1}`}
-                    onClick={() => setCurrentImageIndex(i)}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      i === currentImageIndex ? 'w-5 bg-brand-gold-light' : 'w-1.5 bg-white/30'
-                    }`}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
