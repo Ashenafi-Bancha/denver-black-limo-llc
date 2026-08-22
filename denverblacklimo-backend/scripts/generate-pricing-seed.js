@@ -1,5 +1,5 @@
 /**
- * Regenerates migrations/008_seed_pricing.sql from pricing/dev-rates.json.
+ * Regenerates migrations/009_seed_pricing.sql from pricing/dev-rates.json.
  *
  *   node scripts/generate-pricing-seed.js
  *
@@ -37,6 +37,6 @@ const sql = `-- Price estimator rate card, seeded once.
 ${rows}
 `;
 
-const out = path.join(__dirname, '..', 'migrations', '008_seed_pricing.sql');
+const out = path.join(__dirname, '..', 'migrations', '009_seed_pricing.sql');
 fs.writeFileSync(out, sql);
 console.log(`wrote ${out} (${sql.length} bytes)`);

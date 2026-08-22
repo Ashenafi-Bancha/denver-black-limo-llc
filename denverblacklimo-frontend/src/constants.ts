@@ -96,11 +96,11 @@ export interface Airline {
 export const MEET_GREET: Record<Terminal, { terminal: string; instructions: string }> = {
   West: {
     terminal: 'West Terminal',
-    instructions: 'We will meet you at West Terminal – Level 5, Island 2, Door 508.',
+    instructions: 'We will meet you curbside at West Terminal, Door 506, Island 2 (outside Baggage Claim 16), holding a sign with your name.',
   },
   East: {
     terminal: 'East Terminal',
-    instructions: 'We will meet you at East Terminal – Level 5, Island 2, Door 509.',
+    instructions: 'We will meet you curbside at East Terminal, Door 511, Island 2 (outside Baggage Claim 6), holding a sign with your name.',
   },
 }
 

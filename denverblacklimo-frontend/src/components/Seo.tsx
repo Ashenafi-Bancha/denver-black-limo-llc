@@ -74,6 +74,11 @@ const ROUTES: Record<string, Meta> = {
     description:
       'Book luxury chauffeured transportation in Denver in under a minute. Airport transfers, weddings, corporate travel, mountain resorts, and special events. Request your personalized quote.',
   },
+  '/terms': {
+    title: `Reservation Terms & Conditions | ${BRAND}`,
+    description:
+      'Denver Black Limo LLC reservation agreement: payment and deposit schedule, cancellation policy, airport pick-up procedures at DEN, wait time, damage and conduct policies.',
+  },
   '/quote': {
     title: `Request a Quote | ${BRAND}`,
     description:

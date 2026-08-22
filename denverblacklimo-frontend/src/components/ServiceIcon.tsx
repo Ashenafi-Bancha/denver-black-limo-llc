@@ -1,4 +1,5 @@
 import {
+  CreditCard,
   Armchair,
   Beer,
   Briefcase,
@@ -65,6 +66,7 @@ const iconMap: Record<string, LucideIcon> = {
   route: Route,
   users: Users,
   'file-text': FileText,
+  'credit-card': CreditCard,
   calendar: Calendar,
   moon: Moon,
   'shopping-bag': ShoppingBag,

@@ -33,6 +33,7 @@ export function Footer() {
               ['Reviews', '/reviews'],
               ['Travel Blog', '/blog'],
               ['Contact', '/contact'],
+              ['Terms & Conditions', '/terms'],
               ['Book Now', '/book'],
             ].map(([label, path]) => (
               <li key={path}>
