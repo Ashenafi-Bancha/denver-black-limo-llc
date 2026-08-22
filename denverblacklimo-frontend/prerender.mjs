@@ -87,7 +87,7 @@ const POST_SLUGS = [
 
 const ROUTES = [
   '/', '/services', '/fleet', '/pricing', '/service-areas', '/reviews', '/blog',
-  '/about', '/contact', '/book', '/quote',
+  '/about', '/contact', '/book', '/quote', '/terms',
   ...SERVICE_SLUGS.map((s) => `/services/${s}`),
   ...AREA_SLUGS.map((s) => `/service-areas/${s}`),
   ...POST_SLUGS.map((s) => `/blog/${s}`),

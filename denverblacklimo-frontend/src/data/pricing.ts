@@ -109,8 +109,13 @@ export const defaultPricing: PricingContent = {
     },
     {
       title: 'Cancellations & Refunds',
-      text: 'Cancel more than 48 hours before pickup for a full refund. Between 24 and 48 hours, half the fare is refunded. Inside 24 hours the booking is non-refundable, because the vehicle and chauffeur are already committed to you.',
+      text: 'Airport transfers need 24 hours notice. Sedans and SUVs on other trips need 72 hours, executive vans and limos 7 days, coaches and charters 14 days. Deposits are non-refundable, and late cancellations or no-shows are charged in full.',
       icon: 'calendar',
+    },
+    {
+      title: 'Payment & Deposits',
+      text: 'Airport and FBO pick-ups are paid in full when you book. Other reservations take a 50% deposit, with the balance due by vehicle class. The card on file covers the quoted rate plus any extra time, stops, tolls, parking or damages.',
+      icon: 'credit-card',
     },
     {
       title: 'Changes to Your Booking',

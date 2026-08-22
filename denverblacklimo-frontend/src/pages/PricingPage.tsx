@@ -197,6 +197,14 @@ export function PricingPage() {
               </motion.div>
             ))}
           </div>
+          <p className="mt-8 text-sm text-white/60">
+            These are the highlights. The complete reservation agreement, including the payment schedule, card-on-file
+            authorization, cancellation windows and airport pick-up procedures, is published at{' '}
+            <Link to="/terms" className="font-semibold text-brand-gold-light underline-offset-4 hover:underline">
+              Terms &amp; Conditions
+            </Link>
+            .
+          </p>
 
           <div className="mt-8 flex items-start gap-3 rounded-xl border border-white/10 bg-brand-surface/40 p-4 text-xs leading-relaxed text-white/55">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-gold/70" />

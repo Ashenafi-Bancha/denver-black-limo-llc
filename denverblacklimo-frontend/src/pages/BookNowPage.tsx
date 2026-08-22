@@ -705,12 +705,12 @@ export function BookNowPage() {
                   <div className="flex items-start gap-2 rounded-lg bg-[#fdf6e3] px-4 py-3 text-sm text-gray-600">
                     <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: GOLD }} />
                     <span>
-                      Your information is secure and will only be used for your booking. Free
-                      cancellation up to 48 hours before pickup —{' '}
-                      <Link to="/pricing#policies" className="font-semibold underline" style={{ color: GOLD }}>
-                        see our booking policies
+                      Your information is secure and will only be used for your booking. By submitting this
+                      request you agree to our{' '}
+                      <Link to="/terms" className="font-semibold underline" style={{ color: GOLD }}>
+                        Reservation Terms &amp; Conditions
                       </Link>
-                      .
+                      , including the payment, card-on-file and cancellation policies.
                     </span>
                   </div>
                   <button
