@@ -230,6 +230,8 @@ const DETAIL_LABELS = {
   eventTime: 'Event Time',
   returnPickupTime: 'Return Pickup Time',
   itinerary: 'Itinerary',
+  flightVerified: 'Flight Schedule',
+  returnFlightVerified: 'Return Flight Schedule',
 };
 
 function buildDetailRows(data) {

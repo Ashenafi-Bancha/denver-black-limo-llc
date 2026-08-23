@@ -60,6 +60,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
+const flights = require('./flights');
 
 // Email templates + delivery live in ./emails.js
 const {
@@ -251,6 +252,31 @@ app.post('/api/admin/login', rateLimit({
 });
 
 // Submit a new booking
+/**
+ * Flight schedule lookup for the booking form: fills in the arrival time and
+ * shows where the customer is flying from. Public, so it is rate limited per
+ * IP to protect the provider's monthly quota; flights.js caches on top.
+ */
+app.get('/api/flights/lookup', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  message: 'Too many flight lookups. Please try again in a few minutes.',
+}), async (req, res) => {
+  if (!flights.isConfigured()) return res.json({ found: false, reason: 'unavailable' });
+  const { flight, date, direction } = req.query;
+  try {
+    const result = await flights.lookupFlight({
+      flight: String(flight || ''),
+      date: String(date || ''),
+      direction: String(direction || '').toLowerCase(),
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('Flight lookup error:', err.message);
+    res.json({ found: false, reason: 'unavailable' });
+  }
+});
+
 app.post('/api/bookings', rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,
