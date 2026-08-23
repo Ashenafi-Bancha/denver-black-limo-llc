@@ -64,6 +64,10 @@ services:
       - key: SENDER_EMAIL
         scope: RUN_TIME
         value: noreply@denverblacklimo.llc   # requires domain verified in Resend
+      - key: AERODATABOX_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: REPLACE_WITH_RAPIDAPI_KEY    # flight schedule lookup on the booking form (AeroDataBox via RapidAPI)
 
 static_sites:
   - name: frontend

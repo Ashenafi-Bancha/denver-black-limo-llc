@@ -1,4 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
+import { FlightCheck, type FlightInfo } from '../components/FlightCheck'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   SERVICE_TYPES,
@@ -196,6 +197,9 @@ export function BookNowPage() {
       ? 'Departure'
       : 'Arrival') as 'Arrival' | 'Departure',
     flightNumber: '',
+    /** One-line schedule summary once the flight is verified; travels with the booking. */
+    flightVerified: '',
+    returnFlightVerified: '',
     // FBO
     fboName: FBO_TERMINALS[0].name,
     aircraftType: '',
@@ -239,6 +243,35 @@ export function BookNowPage() {
   const set = (key: string, value: unknown) => {
     setForm((prev) => ({ ...prev, [key]: value }))
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }))
+  }
+
+  /**
+   * A verified arrival fills the time field from the airline schedule. The
+   * customer's own typing wins: we only write the time when the field is empty
+   * or still holds the value we filled in earlier.
+   */
+  const autoTime = useRef<{ pickup: string; ret: string }>({ pickup: '', ret: '' })
+  const applyFlight = (leg: 'pickup' | 'ret') => (info: FlightInfo | null) => {
+    const summaryKey = leg === 'pickup' ? 'flightVerified' : 'returnFlightVerified'
+    const timeKey = leg === 'pickup' ? 'pickupTime' : 'returnTime'
+    // Decide outside the state updater: React runs updaters twice in
+    // development, and a ref mutated inside one flips the second pass.
+    const current = (form as Record<string, unknown>)[timeKey] as string
+    const ours = Boolean(current) && current === autoTime.current[leg]
+    const patch: Record<string, string> = { [summaryKey]: info ? info.summary : '' }
+    if (info && info.kind === 'arrival' && info.servesDenver && info.denverTime) {
+      if (!current || ours) {
+        patch[timeKey] = info.denverTime
+        autoTime.current[leg] = info.denverTime
+      }
+    } else if (ours) {
+      // The flight changed and no longer verifies: a time we filled in for
+      // the old flight would now be quietly wrong, so take it back out.
+      patch[timeKey] = ''
+      autoTime.current[leg] = ''
+    }
+    setForm((prev) => ({ ...prev, ...patch }))
+    if (info) setErrors((prev) => ({ ...prev, [timeKey]: undefined }))
   }
 
   // When the service changes, reset trip type, vehicle default and structured stops.
@@ -484,6 +517,8 @@ export function BookNowPage() {
       eventDate: form.eventDate || undefined,
       eventTime: form.eventTime || undefined,
       returnPickupTime: form.returnPickupTime || undefined,
+      flightVerified: (layout === 'airport' && form.flightVerified) || undefined,
+      returnFlightVerified: (showReturn && layout === 'airport' && form.returnFlightVerified) || undefined,
       itinerary: itineraryText || undefined,
       company: form.company || undefined,
     }
@@ -958,7 +993,7 @@ export function BookNowPage() {
             value={form.flightNumber}
             onChange={(v) => set('flightNumber', v)}
             error={errors.flightNumber}
-            placeholder="e.g. UA1234"
+            placeholder={airline ? `e.g. ${airline.code}1234, or just 1234` : 'e.g. UA1234'}
           />
         </div>
         <DateTimeRow
@@ -967,6 +1002,13 @@ export function BookNowPage() {
           form={form}
           set={set}
           errors={errors}
+        />
+        <FlightCheck
+          airlineCode={airline?.code}
+          flightNumber={form.flightNumber}
+          date={form.pickupDate}
+          direction={form.airportDirection}
+          onResult={applyFlight('pickup')}
         />
         {arriving && airline && <MeetGreetBox terminal={airline.terminal} />}
         <div className="grid gap-6 md:grid-cols-2">
@@ -1285,8 +1327,17 @@ export function BookNowPage() {
               optional
               value={form.returnFlightNumber}
               onChange={(v) => set('returnFlightNumber', v)}
-              placeholder="e.g. UA5678"
+              placeholder={returnAirline ? `e.g. ${returnAirline.code}5678, or just 5678` : 'e.g. UA5678'}
             />
+            <div className="md:col-span-2">
+              <FlightCheck
+                airlineCode={returnAirline?.code}
+                flightNumber={form.returnFlightNumber}
+                date={form.returnDate}
+                direction={form.airportDirection === 'Arrival' ? 'Departure' : 'Arrival'}
+                onResult={applyFlight('ret')}
+              />
+            </div>
           </div>
         )}
       </div>
@@ -1321,7 +1372,7 @@ export function BookNowPage() {
     const dash = (s: string) => s || '—'
 
     if (layout === 'airport') {
-      rows.push({ label: form.airportDirection, value: dash(`${form.flightNumber}${airline ? ` · ${airline.name}` : ''}`) })
+      rows.push({ label: form.airportDirection, value: dash(`${form.flightNumber}${airline ? ` · ${airline.name}` : ''}${form.flightVerified ? ' ✓ verified' : ''}`) })
       if (airline && form.airportDirection === 'Arrival') rows.push({ label: 'Meet & Greet', value: MEET_GREET[airline.terminal].terminal })
     }
     if (layout === 'fbo') {
