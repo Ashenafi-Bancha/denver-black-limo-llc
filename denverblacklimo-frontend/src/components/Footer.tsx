@@ -171,7 +171,13 @@ export function Footer() {
           <p className="text-xs tracking-widest text-white/40">
             © {new Date().getFullYear()} Denver Black Limo LLC. All rights reserved.
           </p>
-          <p className="text-xs tracking-[0.2em] text-brand-gold-light/80">
+          <Link
+            to="/terms"
+            className="text-[11px] font-semibold uppercase tracking-[0.22em] text-brand-gold-light/80 underline-offset-4 transition hover:text-brand-gold-light hover:underline"
+          >
+            Terms &amp; Conditions
+          </Link>
+          <p className="font-display text-[15px] italic tracking-[0.06em] text-gold-gradient">
             Safety, Comfort, and Reliability. Your Journey Is Our Priority.
           </p>
         </div>
