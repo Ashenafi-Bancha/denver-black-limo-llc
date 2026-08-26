@@ -77,15 +77,13 @@ function shell({ title, preheader = '', contentHtml }) {
   table { border-collapse:collapse !important; }
   a { color:${BRAND.gold}; }
   @media only screen and (max-width:600px) {
-    .wrap { padding:16px 12px !important; }
-    .pad { padding-left:22px !important; padding-right:22px !important; }
+    .wrap { padding:10px 6px !important; }
+    .pad { padding-left:12px !important; padding-right:12px !important; }
     .h1 { font-size:21px !important; }
     .brand1 { font-size:24px !important; }
     .brand2 { font-size:17px !important; }
     .stackLabel { display:block !important; width:100% !important; padding-bottom:2px !important; }
     .stackValue { display:block !important; width:100% !important; padding-bottom:10px !important; }
-    .col { display:block !important; width:100% !important; padding-right:0 !important; box-sizing:border-box; }
-    .col + .col { margin-top:10px !important; }
   }
 </style>
 </head>
@@ -93,7 +91,7 @@ function shell({ title, preheader = '', contentHtml }) {
   <div style="display:none; max-height:0; overflow:hidden; opacity:0;">${esc(preheader)}</div>
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f2f2f3;">
     <tr>
-      <td align="center" class="wrap" style="padding:28px 16px;">
+      <td align="center" class="wrap" style="padding:22px 12px;">
         <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%; max-width:600px; background:#ffffff; border-radius:10px; overflow:hidden; border:1px solid ${BRAND.line};">
 
           <!-- Header: full logo artwork beside the brand lockup, gold rule underneath -->
@@ -382,25 +380,64 @@ function tripNotes(d) {
   return 'Reservation request received. We will confirm availability and send your quote.';
 }
 
-/** Label: value line inside a bordered box. */
+/** Label: value on one line, inside a box. */
 function line(label, value, opts = {}) {
   if (!value) return '';
   const v = opts.raw ? value : esc(value);
-  return `<p style="margin:0 0 5px; font-size:13px; line-height:1.5; color:${INK};"><b>${esc(label)}:</b> ${v}</p>`;
+  return `<p style="margin:0 0 4px; font-size:12px; line-height:1.5; color:${INK};"><b>${esc(label)}:</b> ${v}</p>`;
+}
+
+/**
+ * Label and value in two aligned columns, the way the client's reference
+ * receipt sets out the pick-up block: labels flush left, values lined up in
+ * their own column rather than running on after the label.
+ */
+function pairRows(rows, opts = {}) {
+  const size = opts.size || 12;
+  const body = rows
+    .filter((r) => r && r.value)
+    .map(
+      (r) => `<tr>
+        <td style="padding:0 8px 5px 0; font-size:${size}px; line-height:1.45; font-weight:700; color:${INK}; vertical-align:top; white-space:nowrap;">${esc(r.label)}:</td>
+        <td style="padding:0 0 5px; font-size:${size}px; line-height:1.45; color:${INK}; vertical-align:top;">${r.raw ? r.value : esc(r.value)}</td>
+      </tr>`
+    )
+    .join('');
+  return body ? `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${body}</table>` : '';
 }
 
 /** Thin black-bordered box, the receipt's building block. */
 function box(innerHtml, extraStyle = '') {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:1px solid ${RULE}; ${extraStyle}">
-    <tr><td style="padding:10px 12px;">${innerHtml}</td></tr>
+    <tr><td style="padding:8px 10px;">${innerHtml}</td></tr>
   </table>`;
 }
 
-/** Small centred label + value cell, for the Pax / Vehicle / Provider strip. */
-function cell(label, value) {
-  return `<td class="col" style="border:1px solid ${RULE}; padding:8px 10px; text-align:center; vertical-align:top;">
-    <div style="font-size:12px; font-weight:700; color:${INK}; padding-bottom:6px; border-bottom:1px solid ${RULE}; margin-bottom:6px;">${esc(label)}</div>
-    <div style="font-size:13px; color:${INK}; line-height:1.4;">${esc(value || '—')}</div>
+/**
+ * Bordered box with a title strip and a rule beneath it — the shape every
+ * panel on the client's reference receipt uses.
+ */
+function headedBox(title, innerHtml, opts = {}) {
+  const align = opts.align || 'left';
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:1px solid ${RULE};">
+    <tr><td style="padding:6px 9px; border-bottom:1px solid ${RULE}; text-align:${align}; font-size:12px; font-weight:700; color:${INK}; line-height:1.35;">${esc(title)}</td></tr>
+    <tr><td style="padding:8px 9px; text-align:${align};">${innerHtml}</td></tr>
+  </table>`;
+}
+
+/** Spacer cell: the gap between bordered boxes standing side by side. */
+const gapCell = (px = 8) => `<td style="width:${px}px; font-size:0; line-height:0;">&nbsp;</td>`;
+
+/**
+ * One bordered box rendered as a table cell rather than its own table. Cells
+ * in a row share the row's height, so a value that wraps onto two lines does
+ * not leave the boxes beside it short — which a nested table would.
+ */
+function headedCell(title, value, opts = {}) {
+  const align = opts.align || 'center';
+  return `<td class="col" style="width:${opts.width || 'auto'}; border:1px solid ${RULE}; padding:0; vertical-align:top;">
+    <div style="padding:6px 9px; border-bottom:1px solid ${RULE}; text-align:${align}; font-size:12px; font-weight:700; color:${INK}; line-height:1.35;">${esc(title)}</div>
+    <div style="padding:8px 9px; text-align:${align}; font-size:12px; color:${INK}; line-height:1.45;">${esc(value || '—')}</div>
   </td>`;
 }
 
@@ -411,20 +448,20 @@ function routingHtml(d) {
   const flight = flightLabel(d);
   const pickupTime = d.pickup_time ? clock(d.pickup_time).split(' / ')[1] : '';
 
-  let pu = `<p style="margin:0 0 3px; font-size:13px; line-height:1.5; color:${INK};"><b>PU:</b> ${pickupTime ? `${esc(pickupTime)} : ` : ''}${esc(d.pickup_location)}</p>`;
+  let pu = `<p style="margin:0 0 3px; font-size:12px; line-height:1.5; color:${INK};"><b>PU:</b> ${pickupTime ? `${esc(pickupTime)} : ` : ''}${esc(d.pickup_location)}</p>`;
   if (isArrival(d) && flight) {
-    pu += `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${INK};">${esc(flight)}${d.pickup_time ? ` – scheduled arrival ${esc(clock(d.pickup_time).split(' / ')[0])}` : ''}</p>`;
-    pu += `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${BRAND.muted};">Airport arrival pickup – chauffeur tracks flight</p>`;
+    pu += `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${INK};">${esc(flight)}${d.pickup_time ? ` – scheduled arrival ${esc(clock(d.pickup_time).split(' / ')[0])}` : ''}</p>`;
+    pu += `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${BRAND.muted};">Airport arrival pickup – chauffeur tracks flight</p>`;
     const meet = meetPoint(d.terminal);
-    if (meet) pu += `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${INK};"><b>Meet &amp; Greet:</b> ${esc(meet)}</p>`;
+    if (meet) pu += `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${INK};"><b>Meet &amp; Greet:</b> ${esc(meet)}</p>`;
   }
 
-  let dropoff = `<p style="margin:8px 0 3px; font-size:13px; line-height:1.5; color:${INK};"><b>DO:</b> ${esc(d.dropoff_location)}</p>`;
+  let dropoff = `<p style="margin:7px 0 3px; font-size:12px; line-height:1.5; color:${INK};"><b>DO:</b> ${esc(d.dropoff_location)}</p>`;
   if (isDeparture(d) && flight) {
-    dropoff += `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${INK};">${esc(flight)}</p>`;
+    dropoff += `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${INK};">${esc(flight)}</p>`;
   }
 
-  const stopsHtml = stops ? `<p style="margin:8px 0 3px; font-size:13px; line-height:1.5; color:${INK};"><b>Stops:</b> ${esc(stops)}</p>` : '';
+  const stopsHtml = stops ? `<p style="margin:7px 0 3px; font-size:12px; line-height:1.5; color:${INK};"><b>Stops:</b> ${esc(stops)}</p>` : '';
 
   let ret = '';
   if (d.return_date || d.return_pickup_location || d.return_dropoff_location) {
@@ -432,110 +469,164 @@ function routingHtml(d) {
     const when = [longDate(d.return_date), d.return_time ? clock(d.return_time) : ''].filter(Boolean).join(' · ');
     const rFlight = [d.return_airline_name, d.return_flight_number].filter(Boolean).join(' ');
     const rStops = formatStops(d.return_additional_stops);
-    ret = `<div style="margin-top:10px; padding-top:8px; border-top:1px solid ${RULE};">
-      <p style="margin:0 0 3px; font-size:13px; line-height:1.5; color:${INK};"><b>Return:</b> ${esc(legs)}${when ? ` · ${esc(when)}` : ''}</p>
-      ${rFlight ? `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${INK};">${esc(rFlight)}</p>` : ''}
-      ${rStops ? `<p style="margin:0 0 3px 28px; font-size:12px; line-height:1.5; color:${INK};"><b>Stops:</b> ${esc(rStops)}</p>` : ''}
+    ret = `<div style="margin-top:8px; padding-top:7px; border-top:1px solid ${RULE};">
+      <p style="margin:0 0 3px; font-size:12px; line-height:1.5; color:${INK};"><b>Return:</b> ${esc(legs)}${when ? ` · ${esc(when)}` : ''}</p>
+      ${rFlight ? `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${INK};">${esc(rFlight)}</p>` : ''}
+      ${rStops ? `<p style="margin:0 0 3px 22px; font-size:11px; line-height:1.5; color:${INK};"><b>Stops:</b> ${esc(rStops)}</p>` : ''}
     </div>`;
   }
 
   const extraHtml = extra.length
-    ? `<div style="margin-top:10px; padding-top:8px; border-top:1px solid ${RULE};">${extra.map((r) => line(r.label, r.value)).join('')}</div>`
+    ? `<div style="margin-top:8px; padding-top:7px; border-top:1px solid ${RULE};">${extra.map((r) => line(r.label, r.value)).join('')}</div>`
     : '';
 
   return `${pu}${stopsHtml}${dropoff}${ret}${extraHtml}`;
 }
 
 /**
- * The receipt itself. `forAdmin` adds the company name to the client block so
- * corporate bookings are obvious at a glance; everything else is identical.
+ * The receipt, laid out to the client's reference document: service type and
+ * the booked-on box across the top, the logo beside the pick-up details,
+ * bill-to and passenger side by side, then the boxed strips. Columns stay
+ * columns on a phone — the reference is itself a phone screenshot, and the
+ * office reads these on a phone too.
+ *
+ * `forAdmin` adds the company name under the billing contact so corporate
+ * bookings are obvious at a glance; everything else is identical.
  */
 function reservationReceipt(d, { forAdmin = false } = {}) {
   const pax = d.passengers ? String(d.passengers) : '';
   const paxWord = pax ? `${pax} passenger${pax === '1' ? '' : 's'}` : '';
   const vehicle = d.vehicle_preference || d.vehicle_category || '';
-  const arrBy = isArrival(d) ? flightLabel(d) || 'Not specified' : isDeparture(d) ? `Departing ${flightLabel(d) || 'flight not specified'}` : 'Not specified';
+  const arrBy = isArrival(d)
+    ? flightLabel(d) || 'Not specified'
+    : isDeparture(d)
+      ? `Departing ${flightLabel(d) || 'flight not specified'}`
+      : 'Not specified';
   const timeLabel = isArrival(d) && d.pickup_time ? `Flight Arrival – ${clock(d.pickup_time)}` : clock(d.pickup_time);
 
-  const contact = `${esc(d.name)}<br>
-    ${d.email ? `<a href="mailto:${esc(d.email)}" style="color:${BRAND.gold}; text-decoration:none;">${esc(d.email)}</a><br>` : ''}
-    ${d.phone ? `<a href="tel:${esc(String(d.phone).replace(/[^\d+]/g, ''))}" style="color:${BRAND.gold}; text-decoration:none;">${esc(d.phone)}</a>` : ''}
-    ${forAdmin && d.company ? `<br><span style="color:${BRAND.muted};">${esc(d.company)}</span>` : ''}`;
+  const tel = d.phone
+    ? `<a href="tel:${esc(String(d.phone).replace(/[^\d+]/g, ''))}" style="color:${BRAND.gold}; text-decoration:none;">${esc(d.phone)}</a>`
+    : '';
+  const mail = d.email
+    ? `<a href="mailto:${esc(d.email)}" style="color:${BRAND.gold}; text-decoration:none;">${esc(d.email)}</a>`
+    : '';
+
+  const person = (heading, extra) => `
+    <p style="margin:0 0 5px; font-size:12px; font-weight:700; color:${INK};">${heading}</p>
+    <p style="margin:0; font-size:12px; line-height:1.65; color:${INK};">
+      ${esc(d.name)}${tel ? `<br>${tel}` : ''}${mail ? `<br>${mail}` : ''}${extra || ''}
+    </p>`;
 
   return `
-    <!-- Headline band -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border-top:2px solid ${INK}; border-bottom:2px solid ${INK}; margin:0 0 14px;">
-      <tr><td style="padding:8px 0;">
-        <span style="font-size:11px; letter-spacing:1.5px; color:${BRAND.muted}; text-transform:uppercase;">Personal message</span>
-        <span style="display:inline-block; margin-left:10px; font-size:14px; font-weight:700; letter-spacing:1px; color:${INK};">${esc(tripHeadline(d))}</span>
-      </td></tr>
-    </table>
-
-    <!-- Pick-up block + booked-on box -->
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
+    <!-- Service type + booked-on box -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border-top:1px solid ${RULE};">
       <tr>
-        <td class="col" style="vertical-align:top; padding-right:12px; width:58%;">
-          ${line('Pick-up Date', longDate(d.pickup_date))}
-          ${line('Pick-up Time', timeLabel)}
-          ${line('Reservation#', d.reference)}
-          ${line('Client', contact, { raw: true })}
-          ${line('Primary Passenger', `${esc(d.name)}${paxWord ? `<br><span style="color:${BRAND.muted};">${esc(paxWord)}</span>` : ''}`, { raw: true })}
+        <td class="col" style="vertical-align:top; width:56%; padding:14px 12px 0 0;">
+          <p style="margin:0 0 4px; font-size:12px; font-weight:700; color:${INK};">Service Type:</p>
+          <p style="margin:0; font-size:14px; font-weight:700; color:${INK};">${esc(d.service_type || 'Reservation Request')}</p>
         </td>
-        <td class="col" style="vertical-align:top; width:42%;">
-          ${box(`
-            ${line('Booked On', bookedOn())}
-            ${line('Arr. By', arrBy)}
-            ${line('Client Ref', 'Website Booking')}
-          `)}
+        <td class="col" style="vertical-align:top; width:44%; padding-top:14px;">
+          ${box(
+            pairRows([
+              { label: 'Booked On', value: bookedOn() },
+              { label: 'Arr. By', value: arrBy },
+              { label: 'Client Ref', value: 'Website Booking' },
+            ])
+          )}
         </td>
       </tr>
     </table>
 
-    <!-- Pax / Vehicle / Provider strip -->
+    <!-- Logo beside the pick-up details -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:14px 0 0;">
       <tr>
-        ${cell('# of Pax', pax)}
-        ${cell('Vehicle Type', vehicle)}
-        ${cell('Service Provider', 'DENVER BLACK LIMO, LLC')}
+        <td style="width:104px; padding-right:16px; vertical-align:middle;">
+          <img src="${SITE}/images/logo-512.png" width="104" height="104" alt=""
+               style="display:block; width:104px; height:104px; border-radius:50%;">
+        </td>
+        <td style="vertical-align:middle;">
+          ${pairRows(
+            [
+              { label: 'Pick-up Date', value: longDate(d.pickup_date) },
+              { label: 'Pick-up Time', value: timeLabel },
+              { label: 'Reservation#', value: d.reference },
+            ],
+            { size: 13 }
+          )}
+        </td>
       </tr>
     </table>
 
-    <!-- Routing + payment status -->
+    <!-- Bill to + primary passenger -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:14px 0 0; border-top:1px solid ${RULE};">
+      <tr>
+        <td class="col" style="vertical-align:top; width:50%; padding:12px 12px 0 0;">
+          ${person('Bill To:', forAdmin && d.company ? `<br><span style="color:${BRAND.muted};">${esc(d.company)}</span>` : '')}
+        </td>
+        <td class="col" style="vertical-align:top; width:50%; padding-top:12px;">
+          ${person('Primary Passenger:', paxWord ? `<br><span style="color:${BRAND.muted};">${esc(paxWord)}</span>` : '')}
+        </td>
+      </tr>
+    </table>
+
+    <!-- Pax / vehicle / provider strip -->
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:14px 0 0;">
       <tr>
-        <td class="col" style="vertical-align:top; width:60%; padding-right:12px;">
-          ${box(`
-            <p style="margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid ${RULE}; font-size:13px; font-weight:700; color:${INK};">Passenger &amp; Routing Information</p>
-            ${line('Passenger', d.name)}
-            ${line('Phone', d.phone)}
-            ${line('Email', d.email)}
-            <div style="margin-top:8px; padding-top:8px; border-top:1px solid ${RULE};">${routingHtml(d)}</div>
-          `)}
+        ${headedCell('# of Pax', pax, { width: '17%' })}
+        ${gapCell()}
+        ${headedCell('Vehicle Type', vehicle, { width: '32%' })}
+        ${gapCell()}
+        ${headedCell('Service Provider', 'DENVER BLACK LIMO, LLC', { width: '47%' })}
+      </tr>
+    </table>
+
+    <!-- Routing + payment status + charges -->
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:12px 0 0;">
+      <tr>
+        <td class="col" style="vertical-align:top; width:56%; padding-right:10px;">
+          ${headedBox(
+            'Passenger & Routing Information',
+            `${pairRows([
+              { label: 'Passenger', value: d.name },
+              { label: 'Phone', value: d.phone },
+              { label: 'Email', value: mail, raw: Boolean(mail) },
+            ])}
+             <div style="margin-top:8px; padding-top:7px; border-top:1px solid ${RULE};">${routingHtml(d)}</div>`
+          )}
         </td>
-        <td class="col" style="vertical-align:top; width:40%;">
+        <td class="col" style="vertical-align:top; width:44%;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
             <tr>
-              ${cell('Pmt Type', 'Pending')}
-              ${cell('Status', 'Request Received')}
+              ${headedCell('Pmt Type', 'Pending', { width: '48%' })}
+              ${gapCell()}
+              ${headedCell('Status', 'Request Received', { width: '52%' })}
             </tr>
           </table>
-          <div style="height:12px; line-height:12px;">&nbsp;</div>
-          ${box(`
-            <p style="margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid ${RULE}; font-size:13px; font-weight:700; color:${INK}; text-align:center;">Charges &amp; Fees</p>
-            ${line('Rate', 'Sent separately')}
-            ${line('Estimated Total', 'Sent separately')}
-          `)}
+          <div style="height:10px; line-height:10px;">&nbsp;</div>
+          ${headedBox(
+            'Charges & Fees',
+            `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
+              <tr>
+                <td style="padding:0 0 5px; font-size:12px; font-weight:700; color:${INK};">Rate</td>
+                <td style="padding:0 0 5px; font-size:12px; color:${INK}; text-align:right;">Sent separately</td>
+              </tr>
+              <tr>
+                <td style="padding:0; font-size:12px; font-weight:700; color:${INK};">Estimated Total:</td>
+                <td style="padding:0; font-size:12px; color:${INK}; text-align:right;">Sent separately</td>
+              </tr>
+            </table>`,
+            { align: 'center' }
+          )}
         </td>
       </tr>
     </table>
 
     <!-- Notes -->
-    <div style="margin:14px 0 0;">
-      ${box(`
-        <p style="margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid ${RULE}; font-size:13px; font-weight:700; color:${INK};">Notes / Comments</p>
-        ${line('Trip Notes', tripNotes(d))}
-        ${line('Special Requests', d.special_requests || 'None listed.')}
-      `)}
+    <div style="margin:12px 0 0;">
+      ${headedBox(
+        'Notes / Comments',
+        `${line('Trip Notes', tripNotes(d))}${line('Special Requests', d.special_requests || 'None listed.')}`
+      )}
     </div>
 
     <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:${INK};">
@@ -650,7 +741,7 @@ function buildCustomerConfirmationEmail(data) {
   const firstName = data.name ? String(data.name).split(' ')[0] : 'there';
 
   const content = `
-    <div class="pad" style="padding:30px 32px 0;">
+    <div class="pad" style="padding:26px 24px 0;">
       <h1 class="h1" style="margin:0 0 8px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
         Thank you, ${esc(firstName)} – we have your request
       </h1>
@@ -664,12 +755,12 @@ function buildCustomerConfirmationEmail(data) {
       ${reservationReceipt(data)}
     </div>
 
-    <div class="pad" style="padding:22px 32px 0;">
+    <div class="pad" style="padding:20px 24px 0;">
       ${paymentNoticeHtml(data)}
       ${airportNoticeHtml(data)}
     </div>
 
-    <div class="pad" style="padding:22px 32px 0;">
+    <div class="pad" style="padding:20px 24px 0;">
       <p style="margin:0 0 4px; font-size:14px; color:${INK}; font-weight:600;">Need to make a change?</p>
       <p style="margin:0; font-size:14px; line-height:1.6; color:${BRAND.muted};">
         Call or text us any time at
@@ -678,7 +769,7 @@ function buildCustomerConfirmationEmail(data) {
       </p>
     </div>
 
-    <div class="pad" style="padding:24px 32px 34px;">
+    <div class="pad" style="padding:22px 24px 30px;">
       <div style="border-top:2px solid ${INK}; padding-top:16px;">${termsHtml()}</div>
     </div>`;
 
@@ -691,7 +782,7 @@ function buildCustomerConfirmationEmail(data) {
 
 function buildAdminAlertEmail(data, bookingId) {
   const content = `
-    <div class="pad" style="padding:30px 32px 0;">
+    <div class="pad" style="padding:26px 24px 0;">
       <h1 class="h1" style="margin:0 0 8px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
         New booking request
       </h1>
@@ -711,7 +802,7 @@ function buildAdminAlertEmail(data, bookingId) {
       ${reservationReceipt(data, { forAdmin: true })}
     </div>
 
-    <div class="pad" style="padding:18px 32px 0;">
+    <div class="pad" style="padding:16px 24px 0;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#f6f7f9; border:1px solid ${BRAND.line}; border-radius:8px;">
         <tr><td style="padding:12px 16px;">
           <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
@@ -721,7 +812,7 @@ function buildAdminAlertEmail(data, bookingId) {
       </table>
     </div>
 
-    <div class="pad" style="padding:20px 32px 34px;">
+    <div class="pad" style="padding:18px 24px 30px;">
       <p style="margin:0 0 2px; font-size:13px; color:${BRAND.muted};">Booking ID</p>
       <p style="margin:0; font-size:13px; color:${INK}; font-family:'Courier New',monospace;">${esc(bookingId)}</p>
       ${button('Open Admin Dashboard', `${ADMIN_URL}/admin`)}
@@ -737,7 +828,7 @@ function buildAdminAlertEmail(data, bookingId) {
 function buildAdminReplyEmail(customerName, messageBody) {
   const safeMessage = esc(messageBody).replace(/\n/g, '<br>');
   const content = `
-    <div class="pad" style="padding:34px 32px 10px;">
+    <div class="pad" style="padding:28px 24px 10px;">
       <h1 class="h1" style="margin:0 0 14px; font-size:23px; line-height:1.3; color:${BRAND.text}; font-weight:700;">
         Hello ${esc(customerName || 'there')},
       </h1>
@@ -764,7 +855,7 @@ function buildInquiryAdminEmail(data, id) {
         ${esc(data.name || 'Someone')} contacted you through the website.
       </p>
     </div>
-    <div class="pad" style="padding:0 32px 8px;">
+    <div class="pad" style="padding:0 24px 8px;">
       ${panel(`${heading('Contact')}${rowsTable([
         { label: 'Name', value: data.name },
         { label: 'Email', value: data.email },
@@ -773,7 +864,7 @@ function buildInquiryAdminEmail(data, id) {
         { label: 'Event Date', value: data.event_date },
       ])}`)}
     </div>
-    <div class="pad" style="padding:14px 32px 0;">
+    <div class="pad" style="padding:14px 24px 0;">
       ${panel(`${heading('Message')}<p style="margin:0; font-size:14px; line-height:1.7; color:${BRAND.text};">${esc(data.message).replace(/\n/g, '<br>')}</p>`)}
     </div>
     <div class="pad" style="padding:22px 32px 34px;">
@@ -792,7 +883,7 @@ function buildInquiryAdminEmail(data, id) {
 function buildInquiryConfirmationEmail(data) {
   const firstName = data.name ? String(data.name).split(' ')[0] : 'there';
   const content = `
-    <div class="pad" style="padding:34px 32px 10px;">
+    <div class="pad" style="padding:28px 24px 10px;">
       <h1 class="h1" style="margin:0 0 10px; font-size:23px; line-height:1.3; color:${BRAND.text}; font-weight:700;">
         Thank you, ${esc(firstName)}
       </h1>
@@ -801,7 +892,7 @@ function buildInquiryConfirmationEmail(data) {
         For urgent requests, please call or text us — we are available 24 hours a day.
       </p>
     </div>
-    ${data.message ? `<div class="pad" style="padding:0 32px 8px;">${panel(`${heading('Your Message')}<p style="margin:0; font-size:14px; line-height:1.7; color:${BRAND.text};">${esc(data.message).replace(/\n/g, '<br>')}</p>`)}</div>` : ''}
+    ${data.message ? `<div class="pad" style="padding:0 24px 8px;">${panel(`${heading('Your Message')}<p style="margin:0; font-size:14px; line-height:1.7; color:${BRAND.text};">${esc(data.message).replace(/\n/g, '<br>')}</p>`)}</div>` : ''}
     <div class="pad" style="padding:22px 32px 34px;">
       <p style="margin:0; font-size:14px; line-height:1.6; color:${BRAND.muted};">
         Call or text
