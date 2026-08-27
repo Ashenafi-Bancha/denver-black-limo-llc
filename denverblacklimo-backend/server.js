@@ -76,6 +76,7 @@ const {
   getResend,
   sendBookingEmails,
   sendSignedAgreementEmails,
+  sendDriverDispatchEmail,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,
@@ -534,6 +535,303 @@ app.post('/api/agreement/:token/sign', rateLimit({
   } catch (err) {
     console.error('Agreement signing error:', err.message);
     if (!res.headersSent) res.status(500).json({ error: 'Could not record your signature. Please call us.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DISPATCH, PHONE BOOKINGS AND ORDER ANALYTICS
+// ─────────────────────────────────────────────
+
+/**
+ * Assigns a chauffeur and emails them the trip sheet. Outside drivers have no
+ * dashboard access, so the email is the whole handover — see the trip sheet in
+ * emails.js for what it carries and, deliberately, what it does not.
+ */
+app.post('/api/bookings/:id/dispatch', authenticateToken, async (req, res) => {
+  try {
+    const { driverName, driverEmail, driverPhone, vehicle, pay, notes } = req.body || {};
+    const name = String(driverName || '').trim();
+    const email = String(driverEmail || '').trim();
+    if (!name) return res.status(400).json({ error: "The driver's name is required." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: "A valid driver email address is required." });
+    }
+
+    const { rows } = await pool.query('SELECT * FROM bookings WHERE id = $1;', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+    const booking = { ...rows[0], reference: bookingRef(rows[0].id) };
+
+    const driver = {
+      name,
+      email,
+      phone: String(driverPhone || '').trim(),
+      vehicle: String(vehicle || '').trim(),
+      pay: String(pay || '').trim(),
+      notes: String(notes || '').trim(),
+    };
+
+    const sent = await sendDriverDispatchEmail(booking, driver);
+
+    // The assignment is always kept, so a failed send never costs the office
+    // what it typed. Only the dispatched timestamp waits for the email to
+    // land: a trip marked dispatched that no driver received is worse than
+    // one plainly marked unsent.
+    const saved = await pool.query(
+      `UPDATE bookings
+          SET driver_name = $1, driver_email = $2, driver_phone = $3, driver_vehicle = $4,
+              driver_pay = $5, driver_notes = $6, updated_at = now(),
+              driver_dispatched_at = CASE WHEN $7 THEN now() ELSE driver_dispatched_at END
+        WHERE id = $8
+        RETURNING driver_dispatched_at;`,
+      [driver.name, driver.email, driver.phone, driver.vehicle, driver.pay, driver.notes, sent.ok, req.params.id]
+    );
+
+    if (!sent.ok) {
+      console.error(`Trip sheet NOT sent for ${booking.reference}: ${sent.error}`);
+      return res.status(502).json({
+        error: `Driver saved, but the trip sheet could not be emailed: ${sent.error}`,
+        saved: true,
+      });
+    }
+    console.log(`Dispatched ${booking.reference} to ${driver.name} <${driver.email}>`);
+    res.json({ ok: true, dispatchedAt: saved.rows[0].driver_dispatched_at, driver });
+  } catch (err) {
+    console.error('Dispatch error:', err.message);
+    res.status(500).json({ error: 'Could not dispatch this booking.' });
+  }
+});
+
+/**
+ * The drivers the office actually uses, newest first. Derived from past
+ * dispatches rather than a separate address book, so there is nothing to
+ * maintain and the list can never go stale.
+ */
+app.get('/api/drivers', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT ON (lower(driver_email))
+              driver_name AS name, driver_email AS email, driver_phone AS phone,
+              driver_vehicle AS vehicle,
+              COALESCE(driver_dispatched_at, updated_at) AS last_used
+         FROM bookings
+        WHERE driver_email IS NOT NULL AND driver_email <> ''
+        ORDER BY lower(driver_email), COALESCE(driver_dispatched_at, updated_at) DESC
+        LIMIT 50;`
+    );
+    rows.sort((a, b) => new Date(b.last_used) - new Date(a.last_used));
+    res.json(rows);
+  } catch (err) {
+    console.error('Driver list error:', err.message);
+    res.status(500).json({ error: 'Could not load drivers.' });
+  }
+});
+
+/**
+ * A booking taken over the phone. Same table and the same downstream handling
+ * as a website booking — it is only marked with its source, which is what
+ * makes the order counts worth reading.
+ *
+ * The customer email is optional: plenty of phone callers never give one, and
+ * the office may not want to send anything at all for a trip already agreed.
+ */
+app.post('/api/bookings/manual', authenticateToken, async (req, res) => {
+  try {
+    const d = req.body || {};
+    const name = String(d.name || '').trim();
+    const phone = String(d.phone || '').trim();
+    if (!name) return res.status(400).json({ error: 'Customer name is required.' });
+    if (!phone) return res.status(400).json({ error: 'A phone number is required.' });
+    if (!String(d.pickupDate || '').match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return res.status(400).json({ error: 'A valid pick-up date is required.' });
+    }
+    const email = String(d.email || '').trim();
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ error: 'That email address does not look right.' });
+    }
+
+    const agreementToken = crypto.randomBytes(32).toString('hex');
+    const status = ['Pending', 'Reviewed', 'Quoted', 'Confirmed', 'Completed', 'Cancelled'].includes(d.status)
+      ? d.status
+      : 'Confirmed';
+
+    const { rows } = await pool.query(
+      `INSERT INTO bookings (
+         status, source, name, phone, email, company, service_type, trip_type,
+         airport_direction, airline_name, flight_number, pickup_date, pickup_time,
+         pickup_location, dropoff_location, additional_stops, passengers, luggage,
+         vehicle_preference, special_requests, details, agreement_token
+       ) VALUES (
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+       ) RETURNING id, created_at;`,
+      [
+        status,
+        String(d.source || 'Phone'),
+        name, phone, email || null, String(d.company || '').trim() || null,
+        String(d.serviceType || '').trim() || null,
+        String(d.tripType || '').trim() || null,
+        String(d.airportDirection || '').trim() || null,
+        String(d.airline || '').trim() || null,
+        String(d.flightNumber || '').trim() || null,
+        d.pickupDate,
+        String(d.pickupTime || '').trim() || null,
+        String(d.pickupLocation || '').trim() || null,
+        String(d.dropoffLocation || '').trim() || null,
+        String(d.additionalStops || '').trim() || null,
+        d.passengers || null,
+        d.luggage || null,
+        String(d.vehiclePreference || '').trim() || null,
+        String(d.specialRequests || '').trim() || null,
+        d.details ? JSON.stringify(d.details) : null,
+        agreementToken,
+      ]
+    );
+
+    const bookingId = rows[0].id;
+    const reference = bookingRef(bookingId);
+    console.log(`Manual booking ${reference} added by admin (${String(d.source || 'Phone')})`);
+
+    // Only when asked, and only when there is somewhere to send it.
+    if (d.sendConfirmation && email) {
+      sendBookingEmails(
+        {
+          name, phone, email,
+          company: String(d.company || '').trim(),
+          service_type: d.serviceType,
+          trip_type: d.tripType,
+          airport_direction: d.airportDirection,
+          airline_name: d.airline,
+          flight_number: d.flightNumber,
+          pickup_date: d.pickupDate,
+          pickup_time: d.pickupTime,
+          pickup_location: d.pickupLocation,
+          dropoff_location: d.dropoffLocation,
+          additional_stops: d.additionalStops,
+          passengers: d.passengers,
+          luggage: d.luggage,
+          vehicle_preference: d.vehiclePreference,
+          special_requests: d.specialRequests,
+          details: d.details,
+          reference,
+          agreement_token: agreementToken,
+        },
+        bookingId
+      ).catch((err) => console.error('Manual booking email failed:', err.message));
+    }
+
+    res.status(201).json({ id: bookingId, reference, status, emailed: Boolean(d.sendConfirmation && email) });
+  } catch (err) {
+    console.error('Manual booking error:', err.message);
+    res.status(500).json({ error: 'Could not save this booking.' });
+  }
+});
+
+/**
+ * Order counts for market analysis.
+ *
+ * Everything is aggregated in the database over the whole table: the bookings
+ * the dashboard lists are only the most recent hundred, so counting those in
+ * the browser would quietly understate every total the moment the business
+ * passes a hundred trips.
+ *
+ * Months and weekdays are grouped in Denver local time — an order taken at
+ * 7pm on the 31st belongs to that month for the people who took it, whatever
+ * UTC thinks.
+ */
+app.get('/api/analytics/orders', authenticateToken, async (req, res) => {
+  const TZ = "AT TIME ZONE 'America/Denver'";
+  // pickup_date is stored as text, and hand-entered rows will not all be valid
+  // dates. Casting only what matches yields NULL for the rest rather than
+  // failing the whole query on one bad row. [0-9] rather than \d: the class
+  // needs no backslash, so nothing can be lost between here and the server.
+  const PICKUP = "(CASE WHEN pickup_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' THEN pickup_date::date END)";
+  try {
+    const [totals, monthly, byService, bySource, byStatus, byVehicle, byWeekday, repeats, lead] = await Promise.all([
+      pool.query(`
+        SELECT
+          COUNT(*)                                                                                   AS all_time,
+          COUNT(*) FILTER (WHERE (created_at ${TZ})::date = (now() ${TZ})::date)                     AS today,
+          COUNT(*) FILTER (WHERE (created_at ${TZ}) >= date_trunc('week',  now() ${TZ}))             AS this_week,
+          COUNT(*) FILTER (WHERE (created_at ${TZ}) >= date_trunc('month', now() ${TZ}))             AS this_month,
+          COUNT(*) FILTER (WHERE (created_at ${TZ}) >= date_trunc('month', now() ${TZ}) - interval '1 month'
+                             AND (created_at ${TZ}) <  date_trunc('month', now() ${TZ}))             AS last_month,
+          COUNT(*) FILTER (WHERE (created_at ${TZ}) >= date_trunc('year',  now() ${TZ}))             AS this_year,
+          COUNT(*) FILTER (WHERE ${PICKUP} >= (now() ${TZ})::date)                                   AS upcoming
+        FROM bookings;`),
+      pool.query(`
+        WITH months AS (
+          SELECT generate_series(
+                   date_trunc('month', now() ${TZ}) - interval '11 months',
+                   date_trunc('month', now() ${TZ}),
+                   interval '1 month'
+                 ) AS m
+        )
+        SELECT to_char(months.m, 'YYYY-MM') AS month,
+               to_char(months.m, 'Mon')     AS label,
+               COUNT(b.id)                  AS count,
+               COUNT(b.id) FILTER (WHERE b.source <> 'Website') AS offline
+          FROM months
+          LEFT JOIN bookings b
+            ON date_trunc('month', b.created_at ${TZ}) = months.m
+         GROUP BY months.m
+         ORDER BY months.m;`),
+      pool.query(`SELECT COALESCE(NULLIF(service_type, ''), 'Not specified') AS name, COUNT(*) AS count
+                    FROM bookings GROUP BY 1 ORDER BY count DESC;`),
+      pool.query(`SELECT COALESCE(NULLIF(source, ''), 'Website') AS name, COUNT(*) AS count
+                    FROM bookings GROUP BY 1 ORDER BY count DESC;`),
+      pool.query(`SELECT status AS name, COUNT(*) AS count FROM bookings GROUP BY 1 ORDER BY count DESC;`),
+      pool.query(`SELECT COALESCE(NULLIF(vehicle_preference, ''), 'Not specified') AS name, COUNT(*) AS count
+                    FROM bookings GROUP BY 1 ORDER BY count DESC LIMIT 8;`),
+      pool.query(`SELECT to_char(${PICKUP}, 'Dy')       AS name,
+                         EXTRACT(DOW FROM ${PICKUP})   AS dow,
+                         COUNT(*)                      AS count
+                    FROM bookings WHERE ${PICKUP} IS NOT NULL
+                   GROUP BY 1, 2 ORDER BY dow;`),
+      pool.query(`SELECT COUNT(*) AS repeat_customers, COALESCE(SUM(n), 0) AS repeat_orders
+                    FROM (SELECT COUNT(*) AS n FROM bookings
+                           WHERE email IS NOT NULL AND email <> ''
+                           GROUP BY lower(email) HAVING COUNT(*) > 1) t;`),
+      pool.query(`SELECT ROUND(AVG(${PICKUP} - (created_at ${TZ})::date)::numeric, 1) AS avg_lead_days
+                    FROM bookings WHERE ${PICKUP} IS NOT NULL;`),
+    ]);
+
+    const t = totals.rows[0];
+    const num = (v) => Number(v || 0);
+    const thisMonth = num(t.this_month);
+    const lastMonth = num(t.last_month);
+
+    res.json({
+      totals: {
+        allTime: num(t.all_time),
+        today: num(t.today),
+        thisWeek: num(t.this_week),
+        thisMonth,
+        lastMonth,
+        thisYear: num(t.this_year),
+        upcoming: num(t.upcoming),
+        // Null rather than a fake 100% when there is nothing to compare with.
+        monthChangePct: lastMonth ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null,
+      },
+      monthly: monthly.rows.map((r) => ({
+        month: r.month,
+        label: r.label,
+        count: num(r.count),
+        offline: num(r.offline),
+      })),
+      byService: byService.rows.map((r) => ({ name: r.name, count: num(r.count) })),
+      bySource: bySource.rows.map((r) => ({ name: r.name, count: num(r.count) })),
+      byStatus: byStatus.rows.map((r) => ({ name: r.name, count: num(r.count) })),
+      byVehicle: byVehicle.rows.map((r) => ({ name: r.name, count: num(r.count) })),
+      byWeekday: byWeekday.rows.map((r) => ({ name: r.name.trim(), count: num(r.count) })),
+      repeat: {
+        customers: num(repeats.rows[0].repeat_customers),
+        orders: num(repeats.rows[0].repeat_orders),
+      },
+      avgLeadDays: lead.rows[0].avg_lead_days === null ? null : Number(lead.rows[0].avg_lead_days),
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('Order analytics error:', err.message);
+    res.status(500).json({ error: 'Could not load order analytics.' });
   }
 });
 
