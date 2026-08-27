@@ -4,7 +4,7 @@ import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
   RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
-  FileCheck, FileWarning,
+  FileCheck, FileWarning, Car, Plus,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -15,6 +15,9 @@ import {
   BOOKING_STATUSES, INQUIRY_STATUSES, statusStyle, matchesQuery,
 } from '../admin/adminUtils'
 import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, ConfirmDialog, ResultDialog, type Toast } from '../admin/AdminUI'
+import { DispatchModal, type DispatchTarget, type DriverSummary } from '../admin/AdminDispatch'
+import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
+import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
 import { OPTION_CLASS } from '../lib/formStyles'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
@@ -41,6 +44,14 @@ type Booking = {
   review_request_sent_at?: string | null
   agreement_token?: string | null
   agreement_signed_at?: string | null
+  source?: string | null
+  driver_name?: string | null
+  driver_email?: string | null
+  driver_phone?: string | null
+  driver_vehicle?: string | null
+  driver_pay?: string | null
+  driver_notes?: string | null
+  driver_dispatched_at?: string | null
 }
 
 type Inquiry = {
@@ -127,7 +138,21 @@ export function AdminDashboard() {
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
   )
-  const [activeTab, setActiveTab] = useState<Tab>('overview')
+  /**
+   * The open tab lives in the URL hash, so a refresh keeps you where you were
+   * and a tab can be bookmarked or sent to someone — /admin#analytics.
+   */
+  const TABS: Tab[] = ['overview', 'bookings', 'inbox', 'content', 'analytics']
+  const [activeTab, setActiveTab] = useState<Tab>(() => {
+    const fromHash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
+    return (TABS as string[]).includes(fromHash) ? (fromHash as Tab) : 'overview'
+  })
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (window.location.hash.replace('#', '') !== activeTab) {
+      window.history.replaceState(null, '', `#${activeTab}`)
+    }
+  }, [activeTab])
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { settings, refreshSettings } = useSiteSettings()
 
@@ -193,6 +218,16 @@ export function AdminDashboard() {
   const [deleting, setDeleting] = useState(false)
   /** Booking id currently having its review request sent. */
   const [reviewSending, setReviewSending] = useState<string | null>(null)
+
+  // Dispatch, phone bookings and order analytics.
+  const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null)
+  const [drivers, setDrivers] = useState<DriverSummary[]>([])
+  const [dispatchBusy, setDispatchBusy] = useState(false)
+  const [dispatchError, setDispatchError] = useState('')
+  const [newBookingOpen, setNewBookingOpen] = useState(false)
+  const [newBookingBusy, setNewBookingBusy] = useState(false)
+  const [newBookingError, setNewBookingError] = useState('')
+  const [orders, setOrders] = useState<OrderAnalytics | null>(null)
   /** Outcome card shown in the middle of the screen after a delete or a save. */
   const [actionResult, setActionResult] = useState<{ ok: boolean; title: string; message?: string } | null>(null)
 
@@ -229,9 +264,14 @@ export function AdminDashboard() {
       if (mode === 'initial') setLoading(true)
       if (mode === 'manual') setRefreshing(true)
       try {
-        const [bRes, iRes] = await Promise.all([
+        // Order counts and the driver list come from the server too: the
+        // bookings call returns only the most recent hundred, so counting
+        // those in the browser would understate every total.
+        const [bRes, iRes, oRes, dRes] = await Promise.all([
           fetch(`${API_URL}/bookings`, { headers: authHeaders() }),
           fetch(`${API_URL}/inquiries`, { headers: authHeaders() }),
+          fetch(`${API_URL}/analytics/orders`, { headers: authHeaders() }),
+          fetch(`${API_URL}/drivers`, { headers: authHeaders() }),
         ])
         if (bRes.status === 401 || bRes.status === 403 || iRes.status === 401 || iRes.status === 403) {
           handleAuthFailure()
@@ -239,6 +279,9 @@ export function AdminDashboard() {
         }
         if (bRes.ok) setBookings(await bRes.json())
         if (iRes.ok) setInquiries(await iRes.json())
+        // These two are extras: a hiccup on either should not blank the page.
+        if (oRes.ok) setOrders(await oRes.json())
+        if (dRes.ok) setDrivers(await dRes.json())
         if (!bRes.ok || !iRes.ok) throw new Error('Request failed')
         setLastUpdated(new Date())
       } catch {
@@ -371,6 +414,61 @@ export function AdminDashboard() {
    * Asks a finished customer for a Google review. Reviews are the strongest signal
    * in local search, and this turns "remember to ask" into one button.
    */
+  /** Emails the chauffeur their trip sheet and records the assignment. */
+  const sendDispatch = async (payload: Parameters<Parameters<typeof DispatchModal>[0]['onSend']>[0]) => {
+    if (!dispatchTarget) return
+    setDispatchBusy(true)
+    setDispatchError('')
+    try {
+      const res = await fetch(`${API_URL}/bookings/${dispatchTarget.id}/dispatch`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.status === 401 || res.status === 403) return handleAuthFailure()
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setDispatchError(body.error || 'The trip sheet could not be sent.')
+        // A saved-but-unsent assignment still changed the record.
+        if (body.saved) loadData('auto')
+        return
+      }
+      setDispatchTarget(null)
+      pushToast(`Trip sheet sent to ${payload.driverName}.`)
+      loadData('auto')
+    } catch {
+      setDispatchError('Could not reach the server. Please try again.')
+    } finally {
+      setDispatchBusy(false)
+    }
+  }
+
+  /** Saves a booking taken over the phone. */
+  const saveManualBooking = async (payload: NewBookingPayload) => {
+    setNewBookingBusy(true)
+    setNewBookingError('')
+    try {
+      const res = await fetch(`${API_URL}/bookings/manual`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.status === 401 || res.status === 403) return handleAuthFailure()
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setNewBookingError(body.error || 'Could not save this booking.')
+        return
+      }
+      setNewBookingOpen(false)
+      pushToast(`${body.reference} added${body.emailed ? ' — confirmation emailed.' : '.'}`)
+      loadData('auto')
+    } catch {
+      setNewBookingError('Could not reach the server. Please try again.')
+    } finally {
+      setNewBookingBusy(false)
+    }
+  }
+
   const requestReview = async (b: Booking) => {
     setReviewSending(b.id)
     try {
@@ -700,7 +798,15 @@ export function AdminDashboard() {
             <div>
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div><h1 className="font-display text-3xl text-brand-gold">Booking Requests</h1><p className="text-sm text-white/60 mt-1">Manage and respond to all incoming transportation requests.</p></div>
-                <RefreshButton />
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => { setNewBookingError(''); setNewBookingOpen(true) }}
+                    className="inline-flex items-center gap-2 rounded-lg bg-gold-gradient px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-brand-black transition hover:brightness-110"
+                  >
+                    <Plus className="h-4 w-4" /> New booking
+                  </button>
+                  <RefreshButton />
+                </div>
               </div>
 
               <div className="mb-6 space-y-3">
@@ -788,6 +894,43 @@ export function AdminDashboard() {
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setDispatchError('')
+                              setDispatchTarget({
+                                id: b.id,
+                                reference: bookingRef(b.id),
+                                customer: b.name,
+                                pickup: `${fmtDate(b.pickup_date)}${b.pickup_time ? ` · ${fmtTime(b.pickup_time)}` : ''}`,
+                                vehicle: b.vehicle_preference || '',
+                                driverName: b.driver_name,
+                                driverEmail: b.driver_email,
+                                driverPhone: b.driver_phone,
+                                driverVehicle: b.driver_vehicle,
+                                driverPay: b.driver_pay,
+                                driverNotes: b.driver_notes,
+                                dispatchedAt: b.driver_dispatched_at,
+                              })
+                            }}
+                            title={
+                              b.driver_dispatched_at
+                                ? `Trip sheet sent to ${b.driver_name} on ${new Date(b.driver_dispatched_at).toLocaleDateString()} — click to re-send`
+                                : b.driver_name
+                                  ? `${b.driver_name} assigned, trip sheet not sent — click to send`
+                                  : 'Assign a driver and email the trip sheet'
+                            }
+                            className={`flex items-center gap-1.5 rounded border px-3 py-2 text-xs transition-colors ${
+                              b.driver_dispatched_at
+                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                : b.driver_name
+                                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                  : 'border-white/15 text-white/70 hover:border-brand-gold/40 hover:text-brand-gold'
+                            }`}
+                          >
+                            <Car className="h-3.5 w-3.5" />
+                            {b.driver_dispatched_at ? (b.driver_name || 'Driver').split(' ')[0] : b.driver_name ? 'Not sent' : 'Driver'}
+                          </button>
                           {b.agreement_signed_at ? (
                             <a
                               href={`${API_URL}/agreement/${b.agreement_token}/pdf?download=1`}
@@ -997,10 +1140,23 @@ export function AdminDashboard() {
                 <div><h1 className="font-display text-3xl text-brand-gold">Dashboard Analytics</h1><p className="text-sm text-white/60 mt-1">Overview of booking statistics and popular services.</p></div>
                 <div className="sm:text-right"><p className="text-sm text-white/60 uppercase tracking-wider">Total Bookings</p><p className="text-4xl font-display text-brand-gold">{bookings.length}</p></div>
               </div>
+              {orders && orders.totals.allTime > 0 && (
+                <div className="mb-10">
+                  <div className="mb-5">
+                    <h2 className="font-display text-2xl text-white">Orders &amp; market analysis</h2>
+                    <p className="mt-1 text-sm text-white/55">
+                      Counted across every booking ever taken, website and phone alike.
+                    </p>
+                  </div>
+                  <OrderAnalyticsPanel data={orders} />
+                </div>
+              )}
+
               {bookings.length === 0 ? (
                 <EmptyState text="Not enough data to display analytics." hint="Charts appear once the first booking arrives." />
               ) : (
                 <div className="space-y-6">
+                  <h2 className="font-display text-2xl text-white">Service &amp; status breakdown</h2>
                   <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                     <StatCard label="Confirmed" value={bookings.filter((b) => b.status === 'Confirmed').length} icon={<Check className="h-5 w-5" />} />
                     <StatCard label="Completed" value={bookings.filter((b) => b.status === 'Completed').length} icon={<Check className="h-5 w-5" />} />
@@ -1030,15 +1186,18 @@ export function AdminDashboard() {
                               contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
                               itemStyle={{ color: '#fff' }}
                             />
-                            {/* Colour comes from each row's `fill` — see serviceData. */}
-                            <Bar dataKey="count" radius={[4, 4, 0, 0]} />
+                            {/* Colour comes from each row's `fill` — see serviceData. Animation is
+                                off for the same reason as the order charts: Recharts draws
+                                from a rAF loop, and where that is throttled an animated
+                                chart shows its axes and nothing else. */}
+                            <Bar dataKey="count" radius={[4, 4, 0, 0]} isAnimationActive={false} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
                     <div className="border border-white/10 bg-brand-surface rounded-xl p-6 shadow-2xl shadow-black/20">
                       <h2 className="text-lg font-bold text-white mb-6 flex items-center gap-2"><PieChartIcon className="h-5 w-5 text-brand-gold" /> Booking Status</h2>
-                      <div className="h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={statusData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={2} dataKey="value" label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>{statusData.map((_entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}</Pie><RechartsTooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} /></PieChart></ResponsiveContainer></div>
+                      <div className="h-80"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={statusData} cx="50%" cy="50%" innerRadius={80} outerRadius={120} paddingAngle={2} dataKey="value" isAnimationActive={false} label={({ name, percent }) => `${name} ${((percent ?? 0) * 100).toFixed(0)}%`}>{statusData.map((_entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}</Pie><RechartsTooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} itemStyle={{ color: '#fff' }} /></PieChart></ResponsiveContainer></div>
                     </div>
                   </div>
                 </div>
@@ -1047,6 +1206,30 @@ export function AdminDashboard() {
           )}
         </div>
       </main>
+
+      <AnimatePresence>
+        {dispatchTarget && (
+          <DispatchModal
+            target={dispatchTarget}
+            drivers={drivers}
+            busy={dispatchBusy}
+            error={dispatchError}
+            onClose={() => setDispatchTarget(null)}
+            onSend={sendDispatch}
+          />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {newBookingOpen && (
+          <NewBookingModal
+            busy={newBookingBusy}
+            error={newBookingError}
+            onClose={() => setNewBookingOpen(false)}
+            onSave={saveManualBooking}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {emailModal && (

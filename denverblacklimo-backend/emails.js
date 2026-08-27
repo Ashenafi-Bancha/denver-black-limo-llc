@@ -1100,6 +1100,192 @@ async function sendSignedAgreementEmails(booking, signature, pdf) {
   });
 }
 
+// ─────────────────────────────────────────────
+// DRIVER TRIP SHEET
+// ─────────────────────────────────────────────
+//
+// Sent to the chauffeur running the trip, including outside drivers who have
+// no access to the dashboard. It is deliberately not the customer receipt: a
+// driver needs the passenger's phone number, where to stand, what the sign
+// should say and when to be there — and does not need the customer's price.
+//
+// The labelling follows what dispatch software recommends for trip sheets:
+// short, constant labels (CONTACT, STAGING, SIGN, SPECIAL INSTRUCTIONS) so a
+// driver reading on a phone, one-handed, finds the same thing in the same
+// place every time.
+
+/** Fifteen minutes before the pickup: when the vehicle should be on location. */
+function spotTime(hhmm) {
+  const m = String(hhmm || '').match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return '';
+  const total = Number(m[1]) * 60 + Number(m[2]) - 15;
+  const mins = ((total % 1440) + 1440) % 1440;
+  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+}
+
+/** A sign reads better with a surname than a full name. */
+function signName(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';
+}
+
+const mapsLink = (address) =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(String(address || ''))}`;
+
+/** A labelled block: the constant left-hand label, then the detail. */
+function sheetRow(label, valueHtml, opts = {}) {
+  if (!valueHtml) return '';
+  return `<tr>
+    <td style="padding:9px 12px 9px 0; width:96px; vertical-align:top; border-bottom:1px solid ${BRAND.line};">
+      <span style="font-size:10px; font-weight:700; letter-spacing:1.2px; color:${BRAND.muted}; text-transform:uppercase;">${esc(label)}</span>
+    </td>
+    <td style="padding:9px 0; vertical-align:top; border-bottom:1px solid ${BRAND.line}; font-size:${opts.size || 14}px; line-height:1.5; color:${INK};">
+      ${valueHtml}
+    </td>
+  </tr>`;
+}
+
+/** The one thing a late driver needs to see first: when to be on location. */
+function timeBanner(d) {
+  const spot = spotTime(d.pickup_time);
+  const pickup = d.pickup_time ? clock(d.pickup_time) : '';
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:${BRAND.black}; border-radius:8px;">
+    <tr>
+      <td style="width:50%; padding:16px 18px; text-align:center; border-right:1px solid #2e2e2e;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:1.4px; color:${BRAND.goldLight}; text-transform:uppercase;">Spot time</div>
+        <div style="font-size:26px; font-weight:700; color:#ffffff; line-height:1.3;">${esc(spot ? clock(spot).split(' / ')[0] : '—')}</div>
+        <div style="font-size:11px; color:#9a9a9a;">be on location</div>
+      </td>
+      <td style="width:50%; padding:16px 18px; text-align:center;">
+        <div style="font-size:10px; font-weight:700; letter-spacing:1.4px; color:${BRAND.goldLight}; text-transform:uppercase;">Pick-up</div>
+        <div style="font-size:26px; font-weight:700; color:#ffffff; line-height:1.3;">${esc(pickup ? pickup.split(' / ')[0] : '—')}</div>
+        <div style="font-size:11px; color:#9a9a9a;">${esc(longDate(d.pickup_date))}</div>
+      </td>
+    </tr>
+  </table>`;
+}
+
+function buildDriverDispatchEmail(d, driver) {
+  const stops = formatStops(d.additional_stops);
+  const flight = flightLabel(d);
+  const meet = meetPoint(d.terminal);
+  const arriving = isArrival(d);
+  const sign = signName(d.name);
+
+  const phoneDigits = String(d.phone || '').replace(/[^\d+]/g, '');
+  const contact = d.phone
+    ? `<b>${esc(d.name)}</b><br><a href="tel:${esc(phoneDigits)}" style="color:${BRAND.gold}; text-decoration:none; font-weight:700; font-size:16px;">${esc(d.phone)}</a>`
+    : `<b>${esc(d.name)}</b>`;
+
+  const address = (label, value) =>
+    value
+      ? `${esc(value)}<br><a href="${mapsLink(value)}" style="font-size:12px; color:${BRAND.gold}; text-decoration:none;">Open in Maps &rsaquo;</a>`
+      : '';
+
+  // Anything the driver would otherwise have to phone dispatch about.
+  const instructions = [
+    d.special_requests ? `<b>From the customer:</b> ${esc(d.special_requests)}` : '',
+    driver.notes ? `<b>From dispatch:</b> ${esc(driver.notes)}` : '',
+    (d.details && d.details.estimatedTravelTime) ? `Estimated travel time: ${esc(d.details.estimatedTravelTime)}` : '',
+  ].filter(Boolean).join('<br>');
+
+  const content = `
+    <div class="pad" style="padding:26px 24px 0;">
+      <p style="margin:0 0 6px; font-size:11px; font-weight:700; letter-spacing:1.6px; color:${BRAND.gold}; text-transform:uppercase;">Trip assignment</p>
+      <h1 class="h1" style="margin:0 0 6px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        ${esc(driver.name ? driver.name.split(' ')[0] : 'Hello')}, you are assigned to ${esc(d.reference || 'this trip')}
+      </h1>
+      <p style="margin:0 0 18px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        Please confirm by replying to this email or texting dispatch at
+        <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>.
+      </p>
+      ${timeBanner(d)}
+    </div>
+
+    <div class="pad" style="padding:18px 24px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
+        ${sheetRow('Contact', contact, { size: 15 })}
+        ${sheetRow('Service', `${esc(d.service_type || '')}${d.trip_type ? ` &middot; ${esc(d.trip_type)}` : ''}`)}
+        ${sheetRow('Vehicle', esc(driver.vehicle || d.vehicle_preference || d.vehicle_category || ''))}
+        ${sheetRow('Party', `${esc(String(d.passengers || '—'))} passenger${String(d.passengers) === '1' ? '' : 's'}${d.luggage ? ` &middot; ${esc(String(d.luggage))} bags` : ''}`)}
+        ${sheetRow('Pick-up', address('PU', d.pickup_location))}
+        ${stops ? sheetRow('Stops', esc(stops)) : ''}
+        ${sheetRow('Drop-off', address('DO', d.dropoff_location))}
+        ${flight ? sheetRow('Flight', `${esc(flight)}${arriving && d.pickup_time ? ` &middot; scheduled arrival ${esc(clock(d.pickup_time).split(' / ')[0])}` : ''}`) : ''}
+        ${arriving && meet ? sheetRow('Staging', esc(meet)) : ''}
+        ${arriving ? sheetRow('Sign', `<span style="display:inline-block; border:1px dashed ${BRAND.gold}; padding:6px 14px; font-size:16px; font-weight:700; color:${INK};">${esc(sign)}</span>`) : ''}
+        ${driver.pay ? sheetRow('Your pay', `<b>${esc(driver.pay)}</b>`) : ''}
+      </table>
+    </div>
+
+    ${
+      instructions
+        ? `<div class="pad" style="padding:16px 24px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#fff8e1; border:1px solid ${BRAND.gold}; border-radius:8px;">
+              <tr><td style="padding:14px 16px;">
+                <p style="margin:0 0 6px; font-size:10px; font-weight:700; letter-spacing:1.4px; color:#8a6d1a; text-transform:uppercase;">Special instructions</p>
+                <p style="margin:0; font-size:13px; line-height:1.6; color:${INK};">${instructions}</p>
+              </td></tr>
+            </table>
+          </div>`
+        : ''
+    }
+
+    ${
+      d.return_date || d.return_pickup_location
+        ? `<div class="pad" style="padding:16px 24px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:1px solid ${BRAND.line}; border-radius:8px;">
+              <tr><td style="padding:14px 16px;">
+                <p style="margin:0 0 6px; font-size:10px; font-weight:700; letter-spacing:1.4px; color:${BRAND.muted}; text-transform:uppercase;">Return leg</p>
+                <p style="margin:0; font-size:13px; line-height:1.6; color:${INK};">
+                  ${esc([d.return_pickup_location, d.return_dropoff_location].filter(Boolean).join(' → '))}
+                  ${d.return_date ? `<br>${esc(longDate(d.return_date))}${d.return_time ? ` at ${esc(clock(d.return_time).split(' / ')[0])}` : ''}` : ''}
+                  ${d.return_flight_number ? `<br>${esc([d.return_airline_name, d.return_flight_number].filter(Boolean).join(' '))}` : ''}
+                </p>
+              </td></tr>
+            </table>
+          </div>`
+        : ''
+    }
+
+    <div class="pad" style="padding:18px 24px 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:#f6f7f9; border:1px solid ${BRAND.line}; border-radius:8px;">
+        <tr><td style="padding:14px 16px;">
+          <p style="margin:0 0 6px; font-size:10px; font-weight:700; letter-spacing:1.4px; color:${BRAND.muted}; text-transform:uppercase;">On the day</p>
+          <p style="margin:0; font-size:13px; line-height:1.7; color:${INK};">
+            Text the passenger when you are on location. ${arriving ? 'For airport arrivals, watch the flight and text once it lands. ' : ''}
+            If you cannot reach the passenger, or anything changes, call dispatch immediately at
+            <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:700;">${BRAND.phone}</a> &mdash; do not release the vehicle without speaking to us.
+          </p>
+        </td></tr>
+      </table>
+    </div>
+
+    <div class="pad" style="padding:20px 24px 30px;">
+      <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+        Reservation ${esc(d.reference || '')} &middot; assigned ${esc(bookedOn())}. This trip sheet is for the assigned
+        chauffeur only. Please do not forward it.
+      </p>
+    </div>`;
+
+  return shell({
+    title: `Trip Assignment ${d.reference || ''}`,
+    preheader: `${longDate(d.pickup_date)} · spot ${spotTime(d.pickup_time)} · ${d.pickup_location || ''}`,
+    contentHtml: content,
+  });
+}
+
+/** Sends the trip sheet, and copies the office so dispatch has a record. */
+async function sendDriverDispatchEmail(booking, driver) {
+  const result = await deliver({
+    to: driver.email,
+    subject: `Trip Assignment ${booking.reference || ''} — ${longDate(booking.pickup_date)} ${booking.pickup_time ? clock(booking.pickup_time).split(' / ')[0] : ''}`.replace(/\s+/g, ' ').trim(),
+    html: buildDriverDispatchEmail(booking, driver),
+    label: 'driver trip sheet',
+  });
+  return result;
+}
+
 /** Inquiry confirmation + admin alert. Each is sent independently. */
 async function sendInquiryEmails(data, id) {
   if (data.email) {
@@ -1180,6 +1366,8 @@ module.exports = {
   getResend,
   sendBookingEmails,
   sendSignedAgreementEmails,
+  sendDriverDispatchEmail,
+  buildDriverDispatchEmail,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,
