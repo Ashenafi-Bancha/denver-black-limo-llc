@@ -685,6 +685,35 @@ function paymentNoticeHtml(d) {
   </table>`;
 }
 
+/**
+ * Signing is required before a reservation is confirmed, so this box leads the
+ * email: one instruction, one button, and the attached copy named so it is
+ * obvious what the paperclip holds.
+ */
+function agreementNoticeHtml(d) {
+  if (!d.agreement_token) return '';
+  const url = `${SITE}/agreement/${encodeURIComponent(d.agreement_token)}`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:${BRAND.black}; border:2px solid ${BRAND.gold}; border-radius:8px;">
+    <tr><td style="padding:20px 22px;">
+      <p style="margin:0 0 8px; font-size:13px; font-weight:700; letter-spacing:1.5px; color:${BRAND.goldLight}; text-transform:uppercase;">Action required &mdash; sign your reservation agreement</p>
+      <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#ffffff;">
+        Your reservation is confirmed once the agreement is signed. It takes about a minute on your phone:
+        read the agreement, sign with your finger, and the signed copy is emailed straight back to you.
+        The same document is attached to this email as a PDF.
+      </p>
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr><td style="background:${BRAND.gold}; border-radius:6px;">
+          <a href="${url}" style="display:inline-block; padding:14px 32px; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Read &amp; Sign the Agreement</a>
+        </td></tr>
+      </table>
+      <p style="margin:14px 0 0; font-size:11px; line-height:1.6; color:#b9b9b9;">
+        This link is personal to your reservation. If the button does not work, copy this address into your browser:<br>
+        <span style="color:${BRAND.goldLight}; word-break:break-all;">${url}</span>
+      </p>
+    </td></tr>
+  </table>`;
+}
+
 /** Airport arrivals get the terminal instructions up front, where they will be read. */
 function airportNoticeHtml(d) {
   if (!isArrival(d)) return '';
@@ -756,6 +785,10 @@ function buildCustomerConfirmationEmail(data) {
     </div>
 
     <div class="pad" style="padding:20px 24px 0;">
+      ${agreementNoticeHtml(data)}
+    </div>
+
+    <div class="pad" style="padding:${data.agreement_token ? '14px' : '20px'} 24px 0;">
       ${paymentNoticeHtml(data)}
       ${airportNoticeHtml(data)}
     </div>
@@ -913,14 +946,18 @@ function buildInquiryConfirmationEmail(data) {
  * response body (it does not throw), so the `error` field must be checked or
  * failures pass silently.
  */
-async function deliver({ to, subject, html, label }) {
+async function deliver({ to, subject, html, label, attachments }) {
   const resend = getResend();
   if (!resend) {
     console.warn(`RESEND_API_KEY not set — skipped ${label} to ${to}`);
     return { ok: false, error: 'Email service not configured' };
   }
   try {
-    const { data, error } = await resend.emails.send({ from: SENDER_EMAIL, to, subject, html });
+    const payload = { from: SENDER_EMAIL, to, subject, html };
+    // Resend takes attachments as { filename, content } with the content
+    // base64 encoded; the cap is 40MB per message and the agreement is ~160KB.
+    if (attachments && attachments.length) payload.attachments = attachments;
+    const { data, error } = await resend.emails.send(payload);
     if (error) {
       const message = error.message || JSON.stringify(error);
       console.error(`EMAIL FAILED (${label}) to ${to}: ${message}`);
@@ -940,14 +977,35 @@ async function deliver({ to, subject, html, label }) {
   }
 }
 
-/** Customer confirmation + admin alert. Each is sent independently. */
+/**
+ * Customer confirmation + admin alert. Each is sent independently, so a
+ * failure on one does not take the other down with it.
+ *
+ * The customer's copy carries the agreement as a PDF. If building it fails the
+ * email still goes — the signing link in the body is what actually matters,
+ * and a missing attachment is better than a missing confirmation.
+ */
 async function sendBookingEmails(bookingData, bookingId) {
   if (bookingData.email) {
+    let attachments;
+    try {
+      const { buildAgreementPdf } = require('./agreement');
+      const pdf = await buildAgreementPdf({ booking: bookingData });
+      attachments = [
+        {
+          filename: `Reservation-Agreement-${bookingData.reference || 'Denver-Black-Limo'}.pdf`,
+          content: pdf.toString('base64'),
+        },
+      ];
+    } catch (err) {
+      console.error(`Agreement PDF not attached (${err.message})`);
+    }
     await deliver({
       to: bookingData.email,
       subject: `Reservation Request ${bookingData.reference ? `${bookingData.reference} ` : ''}Received — Denver Black Limo LLC`,
       html: buildCustomerConfirmationEmail(bookingData),
       label: 'booking confirmation',
+      attachments,
     });
   }
   await deliver({
@@ -955,6 +1013,90 @@ async function sendBookingEmails(bookingData, bookingId) {
     subject: `New Booking Request ${bookingData.reference || ''} — ${bookingData.name || 'Website'}`.replace('  ', ' '),
     html: buildAdminAlertEmail(bookingData, bookingId),
     label: 'booking admin alert',
+  });
+}
+
+/**
+ * The countersigned agreement, once the customer has signed: their copy is the
+ * retained record the ESIGN Act asks for, and the office copy tells dispatch
+ * the trip is cleared to run.
+ */
+async function sendSignedAgreementEmails(booking, signature, pdf) {
+  const attachments = [
+    {
+      filename: `Reservation-Agreement-${booking.reference || 'Denver-Black-Limo'}-signed.pdf`,
+      content: pdf.toString('base64'),
+    },
+  ];
+  const when = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Denver',
+    dateStyle: 'long',
+    timeStyle: 'short',
+  }).format(new Date(signature.signed_at));
+
+  if (booking.email) {
+    const content = `
+      <div class="pad" style="padding:30px 24px 0;">
+        <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+          Thank you — your agreement is signed
+        </h1>
+        <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+          We have received your signed reservation agreement for
+          <b style="color:${INK};">${esc(booking.reference || 'your trip')}</b>, signed by
+          <b style="color:${INK};">${esc(signature.signer_name)}</b> on ${esc(when)}.
+          Your signed copy is attached to this email — please keep it for your records.
+        </p>
+        ${panel(`${heading('What happens next')}
+          <p style="margin:0; font-size:13px; line-height:1.7; color:${INK};">
+            Your reservation is now confirmed on our side. Our team will follow up with your quote and
+            payment details, and your chauffeur's information before the trip. If anything about your
+            plans changes, call or text us any time at
+            <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>.
+          </p>`)}
+      </div>
+      <div class="pad" style="padding:22px 24px 30px;">
+        <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+          The full agreement is also published at
+          <a href="${SITE}/terms" style="color:${BRAND.gold}; text-decoration:none;">${SITE.replace(/^https?:\/\//, '')}/terms</a>.
+        </p>
+      </div>`;
+    await deliver({
+      to: booking.email,
+      subject: `Signed Agreement ${booking.reference || ''} — Denver Black Limo LLC`.replace('  ', ' '),
+      html: shell({ title: 'Signed Agreement', preheader: `Your signed reservation agreement for ${booking.reference || 'your trip'}.`, contentHtml: content }),
+      label: 'signed agreement (customer)',
+      attachments,
+    });
+  }
+
+  const adminContent = `
+    <div class="pad" style="padding:30px 24px 0;">
+      <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        Agreement signed
+      </h1>
+      <p style="margin:0 0 16px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        <b style="color:${INK};">${esc(signature.signer_name)}</b> signed the reservation agreement for
+        <b style="color:${INK};">${esc(booking.reference || '')}</b>. The signed PDF is attached.
+      </p>
+      ${panel(`${heading('Signature record')}${rowsTable([
+        { label: 'Reservation', value: booking.reference },
+        { label: 'Customer', value: booking.name },
+        { label: 'Email', value: booking.email },
+        { label: 'Signed by', value: signature.signer_name },
+        { label: 'Signed at', value: when },
+        { label: 'IP address', value: signature.signer_ip },
+        { label: 'Agreement version', value: signature.terms_version },
+      ])}`)}
+    </div>
+    <div class="pad" style="padding:20px 24px 30px;">
+      ${button('Open Admin Dashboard', `${ADMIN_URL}/admin`)}
+    </div>`;
+  await deliver({
+    to: ADMIN_NOTIFY_EMAIL,
+    subject: `Agreement Signed ${booking.reference || ''} — ${booking.name || 'Customer'}`.replace('  ', ' '),
+    html: shell({ title: 'Agreement Signed', preheader: `${signature.signer_name} signed ${booking.reference || ''}`, contentHtml: adminContent }),
+    label: 'signed agreement (admin)',
+    attachments,
   });
 }
 
@@ -1037,6 +1179,7 @@ module.exports = {
   ADMIN_NOTIFY_EMAIL,
   getResend,
   sendBookingEmails,
+  sendSignedAgreementEmails,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,
