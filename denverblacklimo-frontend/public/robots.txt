@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /agreement
 
 Sitemap: https://denverblacklimo.llc/sitemap.xml

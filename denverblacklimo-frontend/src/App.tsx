@@ -18,6 +18,7 @@ import { BlogPostPage } from './pages/BlogPostPage'
 import { AdminDashboard } from './pages/AdminDashboard'
 import { NotFoundPage } from './pages/NotFoundPage'
 import { TermsPage } from './pages/TermsPage'
+import { AgreementSignPage } from './pages/AgreementSignPage'
 
 /** Route tree, router-agnostic so it can be wrapped by BrowserRouter (client) or StaticRouter (SSG). */
 export function AppRoutes() {
@@ -39,6 +40,7 @@ export function AppRoutes() {
         <Route path="book" element={<BookNowPage />} />
         <Route path="quote" element={<RequestQuotePage />} />
         <Route path="terms" element={<TermsPage />} />
+        <Route path="agreement/:token" element={<AgreementSignPage />} />
         <Route path="estimate" element={<EstimatePage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

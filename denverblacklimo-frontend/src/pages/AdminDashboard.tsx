@@ -4,6 +4,7 @@ import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
   RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
+  FileCheck, FileWarning,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -38,6 +39,8 @@ type Booking = {
   return_flight_number?: string; return_airline_name?: string
   return_dropoff_location?: string; return_additional_stops?: string
   review_request_sent_at?: string | null
+  agreement_token?: string | null
+  agreement_signed_at?: string | null
 }
 
 type Inquiry = {
@@ -785,6 +788,32 @@ export function AdminDashboard() {
                           </div>
                         </div>
                         <div className="flex shrink-0 items-center gap-3">
+                          {b.agreement_signed_at ? (
+                            <a
+                              href={`${API_URL}/agreement/${b.agreement_token}/pdf?download=1`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              title={`Agreement signed ${new Date(b.agreement_signed_at).toLocaleString()} — download the signed PDF`}
+                              className="flex items-center gap-1.5 rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-300 transition-colors hover:bg-emerald-500/20"
+                            >
+                              <FileCheck className="h-3.5 w-3.5" /> Signed
+                            </a>
+                          ) : b.agreement_token ? (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const link = `${window.location.origin}/agreement/${b.agreement_token}`
+                                navigator.clipboard?.writeText(link)
+                                  .then(() => pushToast('Signing link copied — send it to the customer.'))
+                                  .catch(() => pushToast('Could not copy the link.'))
+                              }}
+                              title="Agreement not signed yet — click to copy this customer's signing link"
+                              className="flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-300 transition-colors hover:bg-amber-500/20"
+                            >
+                              <FileWarning className="h-3.5 w-3.5" /> Unsigned
+                            </button>
+                          ) : null}
                           <a href={`tel:${b.phone}`} onClick={(e) => e.stopPropagation()} title={`Call ${b.phone}`} className="flex items-center gap-1.5 rounded border border-white/15 px-3 py-2 text-xs text-white/70 transition-colors hover:border-brand-gold/40 hover:text-brand-gold"><Phone className="h-3.5 w-3.5" /> Call</a>
                           <button onClick={(e) => { e.stopPropagation(); openEmailModal({ id: b.id, name: b.name, email: b.email, kind: 'booking' }) }} className="flex items-center gap-1.5 rounded border border-brand-gold/40 bg-brand-gold/5 px-3 py-2 text-xs text-brand-gold hover:bg-brand-gold/15 transition-colors"><Send className="h-3.5 w-3.5" /> Email</button>
                           <select value={b.status} onChange={(e) => { e.stopPropagation(); updateBookingStatus(b.id, e.target.value, b.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">

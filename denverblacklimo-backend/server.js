@@ -9,6 +9,11 @@ const fs = require('fs');
 
 const app = express();
 const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+// One proxy hop (DigitalOcean's load balancer) sits in front of this app.
+// Without trusting it, req.ip is the balancer for everyone — which would lump
+// all visitors into one rate-limit bucket and record the wrong address against
+// a signature.
+app.set('trust proxy', 1);
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 
@@ -61,6 +66,8 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
 const flights = require('./flights');
+const crypto = require('crypto');
+const { buildAgreementPdf, signatureBuffer, TERMS_VERSION } = require('./agreement');
 
 // Price estimator: calculation engine, route measurement, and the mapping from
 // the rates an admin edits into the shape the engine prices with.
@@ -80,6 +87,7 @@ const {
   ADMIN_NOTIFY_EMAIL,
   getResend,
   sendBookingEmails,
+  sendSignedAgreementEmails,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,
@@ -430,9 +438,9 @@ app.post('/api/bookings', rateLimit({
         return_pickup_location, return_date, return_time, passengers,
         luggage, vehicle_preference, special_requests, details,
         return_flight_number, return_airline_name, return_airline_code,
-        return_dropoff_location, return_additional_stops
+        return_dropoff_location, return_additional_stops, agreement_token
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
       ) RETURNING id;
     `;
     const values = [
@@ -444,11 +452,15 @@ app.post('/api/bookings', rateLimit({
       data.vehiclePreference, data.specialRequests,
       data.details ? JSON.stringify(data.details) : null,
       data.returnFlightNumber, data.returnAirline, data.returnAirlineCode,
-      data.returnDropoffLocation, data.returnAdditionalStops
+      data.returnDropoffLocation, data.returnAdditionalStops,
+      // The signing link is only as private as this token, so it comes from a
+      // cryptographic source rather than anything derived from the booking.
+      crypto.randomBytes(32).toString('hex'),
     ];
 
     const result = await pool.query(query, values);
     const bookingId = result.rows[0].id;
+    const agreementToken = values[values.length - 1];
 
     // Send emails in background (non-blocking)
     sendBookingEmails({
@@ -481,12 +493,173 @@ app.post('/api/bookings', rateLimit({
       special_requests: data.specialRequests,
       details: data.details,
       reference: bookingRef(bookingId),
+      agreement_token: agreementToken,
     }, bookingId);
 
     res.status(201).json({ id: bookingId, reference: bookingRef(bookingId), message: 'Booking received' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to create booking' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// RESERVATION AGREEMENT — READ AND SIGN
+// ─────────────────────────────────────────────
+//
+// The customer's confirmation email carries a private link to these routes.
+// The token is the only credential: it is 64 hex characters from a
+// cryptographic source, and it is the reason these routes can be public.
+//
+// A signature is written once. Signing again is refused rather than allowed to
+// overwrite the record, because the record is the evidence.
+
+/** Looks up a booking by signing token, with its signature if it has one. */
+async function loadAgreement(token) {
+  if (typeof token !== 'string' || !/^[a-f0-9]{32,64}$/i.test(token)) return null;
+  const { rows } = await pool.query(
+    `SELECT b.*, s.signer_name, s.signature_png, s.signed_at AS signature_at,
+            s.signer_ip, s.signer_user_agent, s.terms_version
+       FROM bookings b
+       LEFT JOIN agreement_signatures s ON s.booking_id = b.id
+      WHERE b.agreement_token = $1
+      LIMIT 1;`,
+    [token]
+  );
+  if (!rows.length) return null;
+  const b = rows[0];
+  const signature = b.signature_at
+    ? {
+        signer_name: b.signer_name,
+        signature_png: b.signature_png,
+        signed_at: b.signature_at,
+        signer_ip: b.signer_ip,
+        signer_user_agent: b.signer_user_agent,
+        terms_version: b.terms_version,
+      }
+    : null;
+  return { booking: { ...b, reference: bookingRef(b.id) }, signature };
+}
+
+/**
+ * What the signing page needs to render: enough of the trip for the customer
+ * to recognise it, and nothing that would matter if the link were forwarded.
+ */
+app.get('/api/agreement/:token', async (req, res) => {
+  try {
+    const found = await loadAgreement(req.params.token);
+    if (!found) return res.status(404).json({ error: 'This signing link is not valid.' });
+    const { booking: b, signature } = found;
+    res.json({
+      reference: b.reference,
+      name: b.name,
+      email: b.email,
+      serviceType: b.service_type,
+      pickupDate: b.pickup_date,
+      pickupTime: b.pickup_time,
+      pickupLocation: b.pickup_location,
+      dropoffLocation: b.dropoff_location,
+      vehicle: b.vehicle_preference,
+      passengers: b.passengers,
+      termsVersion: TERMS_VERSION,
+      signed: Boolean(signature),
+      signedAt: signature ? signature.signed_at : null,
+      signerName: signature ? signature.signer_name : null,
+    });
+  } catch (err) {
+    console.error('Agreement lookup error:', err.message);
+    res.status(500).json({ error: 'Could not load this agreement.' });
+  }
+});
+
+/** The agreement PDF — the signed copy once it exists, otherwise the blank one. */
+app.get('/api/agreement/:token/pdf', async (req, res) => {
+  try {
+    const found = await loadAgreement(req.params.token);
+    if (!found) return res.status(404).json({ error: 'This signing link is not valid.' });
+    const pdf = await buildAgreementPdf(found);
+    const name = `Reservation-Agreement-${found.booking.reference}${found.signature ? '-signed' : ''}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `${req.query.download ? 'attachment' : 'inline'}; filename="${name}"`);
+    res.send(pdf);
+  } catch (err) {
+    console.error('Agreement PDF error:', err.message);
+    res.status(500).json({ error: 'Could not produce the agreement.' });
+  }
+});
+
+/**
+ * Records the signature, then sends the countersigned copy to the customer and
+ * the office. Rate limited because it is public and it writes.
+ */
+app.post('/api/agreement/:token/sign', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 12,
+  message: 'Too many attempts. Please wait a few minutes, or call us at (720) 499-6744.',
+}), async (req, res) => {
+  try {
+    const found = await loadAgreement(req.params.token);
+    if (!found) return res.status(404).json({ error: 'This signing link is not valid.' });
+    if (found.signature) {
+      return res.status(409).json({
+        error: 'This agreement has already been signed.',
+        signedAt: found.signature.signed_at,
+        signerName: found.signature.signer_name,
+      });
+    }
+
+    const { signerName, signaturePng, agreed } = req.body || {};
+    const name = String(signerName || '').trim();
+    if (agreed !== true) {
+      return res.status(400).json({ error: 'Please tick the box to confirm you agree to the terms.' });
+    }
+    if (name.length < 2 || name.length > 120) {
+      return res.status(400).json({ error: 'Please type your full name as your signature.' });
+    }
+    if (!signatureBuffer(signaturePng)) {
+      return res.status(400).json({ error: 'Please sign in the box before submitting.' });
+    }
+
+    const ip = String(req.ip || '').slice(0, 64);
+    const agent = String(req.get('user-agent') || '').slice(0, 400);
+
+    // ON CONFLICT guards the double tap: two submissions land, the first wins,
+    // and the second is reported back as already signed rather than duplicating.
+    const inserted = await pool.query(
+      `INSERT INTO agreement_signatures
+         (booking_id, signer_name, signature_png, signer_ip, signer_user_agent, terms_version)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       ON CONFLICT (booking_id) DO NOTHING
+       RETURNING signed_at;`,
+      [found.booking.id, name, signaturePng, ip, agent, TERMS_VERSION]
+    );
+    if (!inserted.rows.length) {
+      return res.status(409).json({ error: 'This agreement has already been signed.' });
+    }
+    const signedAt = inserted.rows[0].signed_at;
+    await pool.query('UPDATE bookings SET agreement_signed_at = $1, updated_at = now() WHERE id = $2;', [
+      signedAt,
+      found.booking.id,
+    ]);
+    console.log(`Agreement signed: ${found.booking.reference} by ${name} (${ip})`);
+
+    // The customer is not kept waiting on the PDF and two emails.
+    res.json({ ok: true, signedAt, reference: found.booking.reference });
+
+    const signature = {
+      signer_name: name,
+      signature_png: signaturePng,
+      signed_at: signedAt,
+      signer_ip: ip,
+      signer_user_agent: agent,
+      terms_version: TERMS_VERSION,
+    };
+    buildAgreementPdf({ booking: found.booking, signature })
+      .then((pdf) => sendSignedAgreementEmails(found.booking, signature, pdf))
+      .catch((err) => console.error('Signed agreement delivery failed:', err.message));
+  } catch (err) {
+    console.error('Agreement signing error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Could not record your signature. Please call us.' });
   }
 });
 

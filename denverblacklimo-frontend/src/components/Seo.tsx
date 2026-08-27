@@ -9,7 +9,7 @@ import { DEFAULT_FAQS } from '../content/defaults'
 export const SITE_URL = 'https://denverblacklimo.llc'
 const BRAND = 'Denver Black Limo LLC'
 
-type Meta = { title: string; description: string; notFound?: boolean }
+type Meta = { title: string; description: string; notFound?: boolean; noindex?: boolean }
 
 /**
  * Static hosting answers every unknown URL with this app and a 200, which
@@ -74,6 +74,11 @@ const ROUTES: Record<string, Meta> = {
     description:
       'Book luxury chauffeured transportation in Denver in under a minute. Airport transfers, weddings, corporate travel, mountain resorts, and special events. Request your personalized quote.',
   },
+  '/agreement': {
+    title: `Sign Your Reservation Agreement | ${BRAND}`,
+    description: 'Read and electronically sign your Denver Black Limo reservation agreement.',
+    noindex: true,
+  },
   '/terms': {
     title: `Reservation Terms & Conditions | ${BRAND}`,
     description:
@@ -94,6 +99,9 @@ const ROUTES: Record<string, Meta> = {
 export function metaFor(pathname: string): Meta {
   const path = pathname !== '/' && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
   if (ROUTES[path]) return ROUTES[path]
+
+  // Every signing link carries its own token, so the prefix is what matches.
+  if (path.startsWith('/agreement/')) return ROUTES['/agreement']
 
   if (path.startsWith('/services/')) {
     const svc = getServiceBySlug(path.split('/')[2])
@@ -238,7 +246,7 @@ function upsertLink(rel: string, href: string) {
 export function RouteSeo() {
   const { pathname } = useLocation()
   useEffect(() => {
-    const { title, description, notFound } = metaFor(pathname)
+    const { title, description, notFound, noindex } = metaFor(pathname)
     const url = SITE_URL + (pathname === '/' ? '' : pathname)
     document.title = title
     upsertMeta('name', 'description', description)
@@ -250,8 +258,10 @@ export function RouteSeo() {
     // A missing page must not present itself as an indexable copy of the
     // homepage: noindex it and drop the canonical, which would otherwise
     // vouch for a URL that does not exist.
-    upsertMeta('name', 'robots', notFound ? 'noindex, follow' : 'index, follow, max-image-preview:large')
-    if (notFound) {
+    // A private signing link is kept out of search for the same reason a
+    // missing page is: it should never be found by anyone but its recipient.
+    upsertMeta('name', 'robots', notFound || noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large')
+    if (notFound || noindex) {
       document.head.querySelector('link[rel="canonical"]')?.remove()
     } else {
       upsertLink('canonical', url)
