@@ -803,7 +803,7 @@ export function AdminDashboard() {
                     onClick={() => { setNewBookingError(''); setNewBookingOpen(true) }}
                     className="inline-flex items-center gap-2 rounded-lg bg-gold-gradient px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-brand-black transition hover:brightness-110"
                   >
-                    <Plus className="h-4 w-4" /> New booking
+                    <Plus className="h-4 w-4" /> Add new booking
                   </button>
                   <RefreshButton />
                 </div>
