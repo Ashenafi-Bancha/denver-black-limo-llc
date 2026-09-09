@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
-  RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
+  RefreshCw, AlertTriangle, CalendarClock, Users, UserRound, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
   FileCheck, FileWarning, Car, Plus,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
@@ -16,6 +16,8 @@ import {
 } from '../admin/adminUtils'
 import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, ConfirmDialog, ResultDialog, type Toast } from '../admin/AdminUI'
 import { DispatchModal, type DispatchTarget, type DriverSummary } from '../admin/AdminDispatch'
+import { AdminDrivers } from '../admin/AdminDrivers'
+import { AdminCustomers } from '../admin/AdminCustomers'
 import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
 import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
 import { OPTION_CLASS } from '../lib/formStyles'
@@ -61,7 +63,7 @@ type Inquiry = {
 
 type EmailTarget = { id: string; name: string; email: string; kind: 'booking' | 'inquiry' }
 
-type Tab = 'overview' | 'bookings' | 'inbox' | 'content' | 'analytics'
+type Tab = 'overview' | 'bookings' | 'drivers' | 'customers' | 'inbox' | 'content' | 'analytics'
 
 type BookingSort = 'pickup' | 'newest'
 
@@ -142,7 +144,7 @@ export function AdminDashboard() {
    * The open tab lives in the URL hash, so a refresh keeps you where you were
    * and a tab can be bookmarked or sent to someone — /admin#analytics.
    */
-  const TABS: Tab[] = ['overview', 'bookings', 'inbox', 'content', 'analytics']
+  const TABS: Tab[] = ['overview', 'bookings', 'drivers', 'customers', 'inbox', 'content', 'analytics']
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const fromHash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
     return (TABS as string[]).includes(fromHash) ? (fromHash as Tab) : 'overview'
@@ -195,6 +197,13 @@ export function AdminDashboard() {
   // Dispatch, phone bookings and order analytics.
   const [dispatchTarget, setDispatchTarget] = useState<DispatchTarget | null>(null)
   const [drivers, setDrivers] = useState<DriverSummary[]>([])
+  /**
+   * The same drivers, but measured against the trip being assigned — who is
+   * free at that hour and where their day leaves them. Fetched when the panel
+   * opens rather than with the page, because the answer is different for
+   * every trip.
+   */
+  const [assignDrivers, setAssignDrivers] = useState<DriverSummary[]>([])
   const [dispatchBusy, setDispatchBusy] = useState(false)
   const [dispatchError, setDispatchError] = useState('')
   const [newBookingOpen, setNewBookingOpen] = useState(false)
@@ -388,6 +397,24 @@ export function AdminDashboard() {
    * in local search, and this turns "remember to ask" into one button.
    */
   /** Emails the chauffeur their trip sheet and records the assignment. */
+  useEffect(() => {
+    if (!dispatchTarget) return
+    let cancelled = false
+    setAssignDrivers([])
+    fetch(`${API_URL}/drivers?forBooking=${encodeURIComponent(dispatchTarget.id)}`, {
+      headers: authHeaders(),
+    })
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => {
+        if (!cancelled) setAssignDrivers(rows)
+      })
+      // Losing the whereabouts is survivable: the plain roster still assigns.
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [dispatchTarget, authHeaders])
+
   const sendDispatch = async (payload: Parameters<Parameters<typeof DispatchModal>[0]['onSend']>[0]) => {
     if (!dispatchTarget) return
     setDispatchBusy(true)
@@ -605,6 +632,8 @@ export function AdminDashboard() {
   const navItems: { id: Tab; label: string; icon: React.ReactNode; badge?: number; badgeTone?: 'gold' | 'alert' }[] = [
     { id: 'overview', label: 'Overview', icon: <Home className="h-4 w-4" />, badge: urgentTrips.length || undefined, badgeTone: 'alert' },
     { id: 'bookings', label: 'Bookings', icon: <Calendar className="h-4 w-4" />, badge: pendingCount || undefined },
+    { id: 'drivers', label: 'Drivers', icon: <UserRound className="h-4 w-4" /> },
+    { id: 'customers', label: 'Customers', icon: <Users className="h-4 w-4" /> },
     { id: 'inbox', label: 'Inbox', icon: <InboxIcon className="h-4 w-4" />, badge: newInquiries || undefined },
     { id: 'content', label: 'Content (CMS)', icon: <LayoutDashboard className="h-4 w-4" /> },
     { id: 'analytics', label: 'Analytics', icon: <BarChart3 className="h-4 w-4" /> },
@@ -1104,6 +1133,10 @@ export function AdminDashboard() {
           )}
 
           {/* CONTENT (CMS) */}
+          {activeTab === 'drivers' && <AdminDrivers token={token} onResult={pushToast} />}
+
+          {activeTab === 'customers' && <AdminCustomers token={token} onResult={pushToast} />}
+
           {activeTab === 'content' && <CmsManager token={token} settings={settings} refresh={refreshSettings} onResult={setActionResult} />}
 
           {/* ANALYTICS */}
@@ -1184,7 +1217,7 @@ export function AdminDashboard() {
         {dispatchTarget && (
           <DispatchModal
             target={dispatchTarget}
-            drivers={drivers}
+            drivers={assignDrivers.length ? assignDrivers : drivers}
             busy={dispatchBusy}
             error={dispatchError}
             onClose={() => setDispatchTarget(null)}
