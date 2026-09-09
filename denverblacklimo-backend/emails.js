@@ -1286,6 +1286,253 @@ async function sendDriverDispatchEmail(booking, driver) {
   return result;
 }
 
+// ─────────────────────────────────────────────
+// PRICE QUOTE
+// ─────────────────────────────────────────────
+//
+// The office sends a price; the customer accepts it with one tap. The tap is
+// the point: people shop two or three companies at once, and the one that is
+// easiest to say yes to wins the trip. A quote they have to reply to loses
+// some share of the people who meant to book.
+
+const money = (n, currency = 'USD') => {
+  // The sign belongs in front of the symbol: a discount reads "-$11.00",
+  // never "$-11.00".
+  const v = Number(n || 0);
+  return `${v < 0 ? '-' : ''}${currency === 'USD' ? '$' : `${currency} `}${Math.abs(v).toFixed(2)}`;
+};
+
+/** The priced lines, as sent. Never recalculated on read. */
+function quoteTable(lineItems, total, currency) {
+  const rows = (lineItems || [])
+    .filter((l) => l && l.label)
+    .map(
+      (l) => `<tr>
+        <td style="padding:9px 0; font-size:13px; line-height:1.5; color:${INK}; border-bottom:1px solid ${BRAND.line};">${esc(l.label)}</td>
+        <td style="padding:9px 0; font-size:13px; line-height:1.5; color:${INK}; text-align:right; white-space:nowrap; border-bottom:1px solid ${BRAND.line};">${esc(money(l.amount, currency))}</td>
+      </tr>`
+    )
+    .join('');
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
+    ${rows}
+    <tr>
+      <td style="padding:14px 0 0; font-size:15px; font-weight:700; color:${INK};">Total</td>
+      <td style="padding:14px 0 0; font-size:22px; font-weight:700; color:${INK}; text-align:right; white-space:nowrap;">${esc(money(total, currency))}</td>
+    </tr>
+  </table>`;
+}
+
+/** The trip the price is for, so the customer can check it before accepting. */
+function quoteTripRows(d) {
+  return rowsTable([
+    { label: 'Service', value: d.service_type },
+    { label: 'Date', value: longDate(d.pickup_date) },
+    { label: 'Time', value: d.pickup_time ? clock(d.pickup_time) : '' },
+    { label: 'Pick-up', value: d.pickup_location },
+    { label: 'Stops', value: formatStops(d.additional_stops) },
+    { label: 'Drop-off', value: d.dropoff_location },
+    { label: 'Vehicle', value: d.vehicle_preference || d.vehicle_category },
+    { label: 'Passengers', value: d.passengers },
+  ]);
+}
+
+function buildQuoteEmail(booking, quote) {
+  const firstName = booking.name ? String(booking.name).split(' ')[0] : 'there';
+  const url = `${SITE}/quote/${encodeURIComponent(quote.token)}`;
+  const currency = quote.currency || 'USD';
+
+  const content = `
+    <div class="pad" style="padding:30px 24px 0;">
+      <p style="margin:0 0 6px; font-size:11px; font-weight:700; letter-spacing:1.6px; color:${BRAND.gold}; text-transform:uppercase;">Your price quote</p>
+      <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        ${esc(firstName)}, here is your price
+      </h1>
+      <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        Thank you for choosing Denver Black Limo. Below is the price for your trip
+        ${booking.reference ? `(reservation <b style="color:${INK};">${esc(booking.reference)}</b>)` : ''}.
+        Tap accept and your reservation is confirmed &mdash; no forms to fill in.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:2px solid ${BRAND.gold}; border-radius:8px;">
+        <tr><td style="padding:20px 22px;">
+          ${quoteTable(quote.line_items, quote.total, currency)}
+          ${
+            quote.valid_until
+              ? `<p style="margin:14px 0 0; padding-top:12px; border-top:1px solid ${BRAND.line}; font-size:12px; color:${BRAND.muted};">
+                   This price is held until <b style="color:${INK};">${esc(longDate(quote.valid_until))}</b>.
+                 </p>`
+              : ''
+          }
+        </td></tr>
+      </table>
+
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 0;">
+        <tr><td style="background:${BRAND.gold}; border-radius:6px;">
+          <a href="${url}" style="display:inline-block; padding:16px 40px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Accept this quote</a>
+        </td></tr>
+      </table>
+      <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+        Prefer to talk it through? Call or text
+        <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>,
+        any time. You can also decline on that page if your plans have changed.
+      </p>
+    </div>
+
+    ${
+      quote.note
+        ? `<div class="pad" style="padding:20px 24px 0;">
+            ${panel(`${heading('A note from our team')}<p style="margin:0; font-size:14px; line-height:1.7; color:${INK};">${esc(quote.note)}</p>`)}
+          </div>`
+        : ''
+    }
+
+    <div class="pad" style="padding:20px 24px 0;">
+      ${panel(`${heading('The trip this covers')}${quoteTripRows(booking)}`)}
+    </div>
+
+    <div class="pad" style="padding:20px 24px 0;">
+      ${panel(`${heading("What's included")}
+        <p style="margin:0; font-size:13px; line-height:1.8; color:${INK};">
+          A professional chauffeur, a clean and inspected vehicle, all taxes and standard fees, and flight tracking on
+          airport trips. Gratuity is not included and is always your choice. Additional time, extra stops, tolls and
+          parking are billed as used, exactly as set out in our
+          <a href="${SITE}/terms" style="color:${BRAND.gold}; text-decoration:none;">terms and conditions</a>.
+        </p>`)}
+    </div>
+
+    <div class="pad" style="padding:22px 24px 30px;">
+      <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+        This quote is personal to your reservation. If the button does not work, open this address:<br>
+        <span style="color:${BRAND.gold}; word-break:break-all;">${url}</span>
+      </p>
+    </div>`;
+
+  return shell({
+    title: 'Your Price Quote',
+    preheader: `${money(quote.total, currency)} for ${booking.service_type || 'your trip'} on ${longDate(booking.pickup_date)}. Tap to accept.`,
+    contentHtml: content,
+  });
+}
+
+/** Sent to the customer the moment they accept, so they have it in writing. */
+function buildQuoteAcceptedCustomerEmail(booking, quote) {
+  const firstName = booking.name ? String(booking.name).split(' ')[0] : 'there';
+  const currency = quote.currency || 'USD';
+  const needsSignature = Boolean(booking.agreement_token) && !booking.agreement_signed_at;
+
+  const content = `
+    <div class="pad" style="padding:30px 24px 0;">
+      <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        Thank you, ${esc(firstName)} &mdash; your trip is confirmed
+      </h1>
+      <p style="margin:0 0 18px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        You accepted the quote of <b style="color:${INK};">${esc(money(quote.total, currency))}</b> for
+        ${booking.reference ? `reservation <b style="color:${INK};">${esc(booking.reference)}</b>` : 'your trip'}.
+        We have it on file and your chauffeur will be assigned.
+      </p>
+      ${panel(`${heading('Your trip')}${quoteTripRows(booking)}`)}
+    </div>
+
+    ${
+      needsSignature
+        ? `<div class="pad" style="padding:20px 24px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; background:${BRAND.black}; border:2px solid ${BRAND.gold}; border-radius:8px;">
+              <tr><td style="padding:20px 22px;">
+                <p style="margin:0 0 8px; font-size:13px; font-weight:700; letter-spacing:1.5px; color:${BRAND.goldLight}; text-transform:uppercase;">One last step</p>
+                <p style="margin:0 0 14px; font-size:14px; line-height:1.6; color:#ffffff;">
+                  Please sign the reservation agreement. It takes about a minute and the signed copy is emailed back to you.
+                </p>
+                <table role="presentation" cellpadding="0" cellspacing="0">
+                  <tr><td style="background:${BRAND.gold}; border-radius:6px;">
+                    <a href="${SITE}/agreement/${encodeURIComponent(booking.agreement_token)}" style="display:inline-block; padding:14px 32px; font-size:13px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Read &amp; Sign the Agreement</a>
+                  </td></tr>
+                </table>
+              </td></tr>
+            </table>
+          </div>`
+        : ''
+    }
+
+    <div class="pad" style="padding:22px 24px 30px;">
+      <p style="margin:0; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        Anything to change? Call or text
+        <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>
+        any time, and quote ${esc(booking.reference || 'your reservation')}.
+      </p>
+    </div>`;
+
+  return shell({
+    title: 'Quote Accepted',
+    preheader: `Your trip is confirmed at ${money(quote.total, currency)}.`,
+    contentHtml: content,
+  });
+}
+
+/** The office needs to know the moment a quote is answered, either way. */
+function buildQuoteResponseAdminEmail(booking, quote, accepted) {
+  const currency = quote.currency || 'USD';
+  const content = `
+    <div class="pad" style="padding:30px 24px 0;">
+      <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        Quote ${accepted ? 'accepted' : 'declined'}
+      </h1>
+      <p style="margin:0 0 18px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        <b style="color:${INK};">${esc(booking.name || 'The customer')}</b>
+        ${accepted ? 'accepted' : 'declined'} the quote of
+        <b style="color:${INK};">${esc(money(quote.total, currency))}</b>
+        for <b style="color:${INK};">${esc(booking.reference || '')}</b>.
+        ${accepted ? 'The booking is now Confirmed.' : 'The booking has been left as it was.'}
+      </p>
+      ${panel(`${heading('Details')}${rowsTable([
+        { label: 'Customer', value: booking.name },
+        { label: 'Phone', value: booking.phone },
+        { label: 'Email', value: booking.email },
+        { label: 'Trip', value: `${booking.service_type || ''} · ${longDate(booking.pickup_date)}` },
+        { label: 'Quoted', value: money(quote.total, currency) },
+        { label: 'Suggested by estimator', value: quote.suggested_total ? money(quote.suggested_total, currency) : '' },
+        { label: accepted ? 'Accepted at' : 'Declined at', value: bookedOn(new Date(quote.responded_at || Date.now())) },
+        { label: 'Reason given', value: quote.decline_reason },
+      ])}`)}
+    </div>
+    <div class="pad" style="padding:20px 24px 30px;">
+      ${button('Open Admin Dashboard', `${ADMIN_URL}/admin`)}
+    </div>`;
+
+  return shell({
+    title: `Quote ${accepted ? 'Accepted' : 'Declined'}`,
+    preheader: `${booking.name || 'Customer'} ${accepted ? 'accepted' : 'declined'} ${money(quote.total, currency)}`,
+    contentHtml: content,
+  });
+}
+
+/** Sends the quote to the customer. */
+async function sendQuoteEmail(booking, quote) {
+  return deliver({
+    to: booking.email,
+    subject: `Your Price Quote${booking.reference ? ` ${booking.reference}` : ''} — Denver Black Limo LLC`,
+    html: buildQuoteEmail(booking, quote),
+    label: 'price quote',
+  });
+}
+
+/** Tells both sides how the quote was answered. */
+async function sendQuoteResponseEmails(booking, quote, accepted) {
+  if (accepted && booking.email) {
+    await deliver({
+      to: booking.email,
+      subject: `Trip Confirmed${booking.reference ? ` ${booking.reference}` : ''} — Denver Black Limo LLC`,
+      html: buildQuoteAcceptedCustomerEmail(booking, quote),
+      label: 'quote accepted (customer)',
+    });
+  }
+  await deliver({
+    to: ADMIN_NOTIFY_EMAIL,
+    subject: `Quote ${accepted ? 'Accepted' : 'Declined'} ${booking.reference || ''} — ${booking.name || 'Customer'}`.replace('  ', ' '),
+    html: buildQuoteResponseAdminEmail(booking, quote, accepted),
+    label: `quote ${accepted ? 'accepted' : 'declined'} (admin)`,
+  });
+}
+
 /** Inquiry confirmation + admin alert. Each is sent independently. */
 async function sendInquiryEmails(data, id) {
   if (data.email) {
@@ -1368,6 +1615,9 @@ module.exports = {
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
   buildDriverDispatchEmail,
+  sendQuoteEmail,
+  sendQuoteResponseEmails,
+  buildQuoteEmail,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,

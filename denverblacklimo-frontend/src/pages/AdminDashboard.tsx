@@ -4,7 +4,7 @@ import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
   RefreshCw, AlertTriangle, CalendarClock, Users, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
-  FileCheck, FileWarning, Car, Plus,
+  FileCheck, FileWarning, Car, Plus, DollarSign,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
 import { useSiteSettings } from '../context/SiteSettingsContext'
@@ -18,6 +18,7 @@ import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, 
 import { DispatchModal, type DispatchTarget, type DriverSummary } from '../admin/AdminDispatch'
 import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
 import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
+import { QuoteModal, type QuoteTarget } from '../admin/AdminQuote'
 import { OPTION_CLASS } from '../lib/formStyles'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
@@ -52,6 +53,10 @@ type Booking = {
   driver_pay?: string | null
   driver_notes?: string | null
   driver_dispatched_at?: string | null
+  quote_status?: string | null
+  quote_total?: string | number | null
+  quote_sent_at?: string | null
+  estimate_shown?: string | number | null
 }
 
 type Inquiry = {
@@ -228,6 +233,9 @@ export function AdminDashboard() {
   const [newBookingBusy, setNewBookingBusy] = useState(false)
   const [newBookingError, setNewBookingError] = useState('')
   const [orders, setOrders] = useState<OrderAnalytics | null>(null)
+  const [quoteTarget, setQuoteTarget] = useState<QuoteTarget | null>(null)
+  const [quoteBusy, setQuoteBusy] = useState(false)
+  const [quoteError, setQuoteError] = useState('')
   /** Outcome card shown in the middle of the screen after a delete or a save. */
   const [actionResult, setActionResult] = useState<{ ok: boolean; title: string; message?: string } | null>(null)
 
@@ -440,6 +448,33 @@ export function AdminDashboard() {
       setDispatchError('Could not reach the server. Please try again.')
     } finally {
       setDispatchBusy(false)
+    }
+  }
+
+  /** Sends a price quote the customer can accept with one tap. */
+  const sendQuote = async (payload: Parameters<Parameters<typeof QuoteModal>[0]['onSend']>[0]) => {
+    if (!quoteTarget) return
+    setQuoteBusy(true)
+    setQuoteError('')
+    try {
+      const res = await fetch(`${API_URL}/bookings/${quoteTarget.id}/quote`, {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.status === 401 || res.status === 403) return handleAuthFailure()
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setQuoteError(body.error || 'The quote could not be sent.')
+        return
+      }
+      setQuoteTarget(null)
+      pushToast(`Quote for $${Number(body.total).toFixed(2)} sent to ${quoteTarget.customer}.`)
+      loadData('auto')
+    } catch {
+      setQuoteError('Could not reach the server. Please try again.')
+    } finally {
+      setQuoteBusy(false)
     }
   }
 
@@ -897,6 +932,55 @@ export function AdminDashboard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              setQuoteError('')
+                              setQuoteTarget({
+                                id: b.id,
+                                reference: bookingRef(b.id),
+                                customer: b.name,
+                                email: b.email,
+                                serviceType: b.service_type,
+                                pickupDate: b.pickup_date,
+                                pickupTime: b.pickup_time,
+                                pickupLocation: b.pickup_location,
+                                dropoffLocation: b.dropoff_location,
+                                vehicle: b.vehicle_preference,
+                                passengers: b.passengers,
+                                estimateShown: b.estimate_shown == null ? null : Number(b.estimate_shown),
+                                quoteStatus: b.quote_status,
+                                quoteTotal: b.quote_total == null ? null : Number(b.quote_total),
+                              })
+                            }}
+                            title={
+                              b.quote_status === 'Accepted'
+                                ? `Quote of $${Number(b.quote_total).toFixed(2)} accepted — click to send another`
+                                : b.quote_status === 'Declined'
+                                  ? 'The customer declined the last quote — click to send a new price'
+                                  : b.quote_status === 'Sent'
+                                    ? `Quote of $${Number(b.quote_total).toFixed(2)} sent, awaiting an answer`
+                                    : 'Send this customer a price they can accept'
+                            }
+                            className={`flex items-center gap-1.5 rounded border px-3 py-2 text-xs transition-colors ${
+                              b.quote_status === 'Accepted'
+                                ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                : b.quote_status === 'Declined'
+                                  ? 'border-red-500/40 bg-red-500/10 text-red-300 hover:bg-red-500/20'
+                                  : b.quote_status === 'Sent'
+                                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                    : 'border-white/15 text-white/70 hover:border-brand-gold/40 hover:text-brand-gold'
+                            }`}
+                          >
+                            <DollarSign className="h-3.5 w-3.5" />
+                            {b.quote_status === 'Accepted'
+                              ? 'Accepted'
+                              : b.quote_status === 'Declined'
+                                ? 'Declined'
+                                : b.quote_status === 'Sent'
+                                  ? 'Quoted'
+                                  : 'Quote'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setDispatchError('')
                               setDispatchTarget({
                                 id: b.id,
@@ -1206,6 +1290,18 @@ export function AdminDashboard() {
           )}
         </div>
       </main>
+
+      <AnimatePresence>
+        {quoteTarget && (
+          <QuoteModal
+            target={quoteTarget}
+            busy={quoteBusy}
+            error={quoteError}
+            onClose={() => setQuoteTarget(null)}
+            onSend={sendQuote}
+          />
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {dispatchTarget && (

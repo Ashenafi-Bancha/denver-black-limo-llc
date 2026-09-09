@@ -89,6 +89,8 @@ const {
   sendBookingEmails,
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
+  sendQuoteEmail,
+  sendQuoteResponseEmails,
   sendInquiryEmails,
   sendAdminReply,
   sendReviewRequest,
@@ -439,9 +441,9 @@ app.post('/api/bookings', rateLimit({
         return_pickup_location, return_date, return_time, passengers,
         luggage, vehicle_preference, special_requests, details,
         return_flight_number, return_airline_name, return_airline_code,
-        return_dropoff_location, return_additional_stops, agreement_token
+        return_dropoff_location, return_additional_stops, agreement_token, estimate_shown
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31
       ) RETURNING id;
     `;
     const values = [
@@ -457,11 +459,16 @@ app.post('/api/bookings', rateLimit({
       // The signing link is only as private as this token, so it comes from a
       // cryptographic source rather than anything derived from the booking.
       crypto.randomBytes(32).toString('hex'),
+      // What the website showed this customer. Recorded rather than trusted:
+      // it is only ever read back to the office, never used to price anything.
+      Number.isFinite(Number(data.estimateShown)) && Number(data.estimateShown) > 0
+        ? Number(data.estimateShown)
+        : null,
     ];
 
     const result = await pool.query(query, values);
     const bookingId = result.rows[0].id;
-    const agreementToken = values[values.length - 1];
+    const agreementToken = values[values.length - 2];
 
     // Send emails in background (non-blocking)
     sendBookingEmails({
@@ -958,6 +965,255 @@ app.get('/api/analytics/orders', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Order analytics error:', err.message);
     res.status(500).json({ error: 'Could not load order analytics.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// PRICE QUOTES
+// ─────────────────────────────────────────────
+//
+// The office sends a price and the customer answers it with one tap. The
+// office always sets the number: the estimator only suggests, because a rate
+// card cannot see a wedding running late or a regular customer worth keeping.
+//
+// A quote is never recalculated after it is sent. The customer was given
+// specific numbers, and those are what they accept.
+
+/** Money as stored: two decimals, never negative-zero, never NaN. */
+function toAmount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
+}
+
+/** Loads a booking with its most recent quote, by public quote token. */
+async function loadQuote(token) {
+  if (typeof token !== 'string' || !/^[a-f0-9]{32,64}$/i.test(token)) return null;
+  const { rows } = await pool.query(
+    `SELECT q.*, b.name, b.email, b.phone, b.service_type, b.pickup_date, b.pickup_time,
+            b.pickup_location, b.dropoff_location, b.additional_stops, b.passengers,
+            b.vehicle_preference, b.agreement_token, b.agreement_signed_at, b.status AS booking_status,
+            b.id AS booking_id
+       FROM quotes q
+       JOIN bookings b ON b.id = q.booking_id
+      WHERE q.token = $1
+      LIMIT 1;`,
+    [token]
+  );
+  if (!rows.length) return null;
+  const r = rows[0];
+  return {
+    quote: {
+      id: r.id,
+      token: r.token,
+      currency: r.currency,
+      line_items: r.line_items,
+      total: Number(r.total),
+      note: r.note,
+      valid_until: r.valid_until,
+      suggested_total: r.suggested_total === null ? null : Number(r.suggested_total),
+      status: r.status,
+      sent_at: r.sent_at,
+      responded_at: r.responded_at,
+      decline_reason: r.decline_reason,
+    },
+    booking: { ...r, id: r.booking_id, reference: bookingRef(r.booking_id) },
+  };
+}
+
+/**
+ * Writes a quote and emails it. The quote is only recorded when the email
+ * leaves: a quote the customer never received, sitting in the dashboard
+ * marked Sent, is worse than none at all — the office would stop chasing it.
+ */
+app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT * FROM bookings WHERE id = $1;', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+    const booking = { ...rows[0], reference: bookingRef(rows[0].id) };
+    if (!booking.email) {
+      return res.status(400).json({ error: 'This booking has no email address, so a quote cannot be sent.' });
+    }
+
+    const body = req.body || {};
+    const items = Array.isArray(body.lineItems) ? body.lineItems : [];
+    const cleaned = items
+      .map((l) => ({ label: String((l && l.label) || '').trim().slice(0, 120), amount: toAmount(l && l.amount) }))
+      .filter((l) => l.label && l.amount !== null);
+    if (!cleaned.length) {
+      return res.status(400).json({ error: 'Add at least one priced line before sending.' });
+    }
+
+    // The total is the sum of what the customer can see. A total that does not
+    // match its own lines is the one thing a quote must never do.
+    const total = Math.round(cleaned.reduce((sum, l) => sum + l.amount, 0) * 100) / 100;
+    if (total <= 0) return res.status(400).json({ error: 'The total must be more than zero.' });
+
+    const validUntil = /^\d{4}-\d{2}-\d{2}$/.test(String(body.validUntil || '')) ? body.validUntil : null;
+    const quote = {
+      token: crypto.randomBytes(32).toString('hex'),
+      currency: String(body.currency || 'USD').slice(0, 8),
+      line_items: cleaned,
+      total,
+      note: String(body.note || '').trim().slice(0, 2000) || null,
+      valid_until: validUntil,
+      suggested_total: toAmount(body.suggestedTotal),
+    };
+
+    const sent = await sendQuoteEmail(booking, quote);
+    if (!sent.ok) {
+      return res.status(502).json({ error: sent.error || 'The quote could not be emailed.' });
+    }
+
+    const saved = await pool.query(
+      `INSERT INTO quotes (booking_id, token, currency, line_items, total, note, valid_until, suggested_total)
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+       RETURNING id, sent_at;`,
+      [
+        booking.id, quote.token, quote.currency, JSON.stringify(quote.line_items),
+        quote.total, quote.note, quote.valid_until, quote.suggested_total,
+      ]
+    );
+
+    // Mirrored onto the booking so the dashboard can show quote state without
+    // joining, and the status moves on so nobody re-quotes the same trip.
+    await pool.query(
+      `UPDATE bookings
+          SET quote_status = 'Sent', quote_total = $1, quote_sent_at = now(),
+              status = CASE WHEN status IN ('Pending', 'Reviewed') THEN 'Quoted' ELSE status END,
+              updated_at = now()
+        WHERE id = $2;`,
+      [quote.total, booking.id]
+    );
+
+    console.log(`Quote sent: ${booking.reference} ${quote.currency} ${quote.total} to ${booking.email}`);
+    res.status(201).json({ ok: true, id: saved.rows[0].id, total: quote.total, sentAt: saved.rows[0].sent_at });
+  } catch (err) {
+    console.error('Quote send error:', err.message);
+    res.status(500).json({ error: 'Could not send this quote.' });
+  }
+});
+
+/** Every quote sent for a booking, newest first — the negotiation history. */
+app.get('/api/bookings/:id/quotes', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, token, currency, line_items, total, note, valid_until, suggested_total,
+              status, sent_at, responded_at, decline_reason
+         FROM quotes WHERE booking_id = $1 ORDER BY sent_at DESC;`,
+      [req.params.id]
+    );
+    res.json(rows.map((r) => ({ ...r, total: Number(r.total) })));
+  } catch (err) {
+    console.error('Quote history error:', err.message);
+    res.status(500).json({ error: 'Could not load quotes.' });
+  }
+});
+
+/** What the acceptance page shows. Public: the token is the credential. */
+app.get('/api/quote/:token', async (req, res) => {
+  try {
+    const found = await loadQuote(req.params.token);
+    if (!found) return res.status(404).json({ error: 'This quote link is not valid.' });
+    const { quote, booking } = found;
+    const expired =
+      quote.status === 'Sent' &&
+      quote.valid_until &&
+      new Date(quote.valid_until).getTime() < new Date(new Date().toISOString().slice(0, 10)).getTime();
+
+    res.json({
+      reference: booking.reference,
+      name: booking.name,
+      serviceType: booking.service_type,
+      pickupDate: booking.pickup_date,
+      pickupTime: booking.pickup_time,
+      pickupLocation: booking.pickup_location,
+      dropoffLocation: booking.dropoff_location,
+      vehicle: booking.vehicle_preference,
+      passengers: booking.passengers,
+      currency: quote.currency,
+      lineItems: quote.line_items,
+      total: quote.total,
+      note: quote.note,
+      validUntil: quote.valid_until,
+      status: quote.status,
+      expired,
+      respondedAt: quote.responded_at,
+      // Offered so an accepted quote can lead straight into signing.
+      agreementToken: quote.status === 'Accepted' && !booking.agreement_signed_at ? booking.agreement_token : null,
+      agreementSigned: Boolean(booking.agreement_signed_at),
+    });
+  } catch (err) {
+    console.error('Quote lookup error:', err.message);
+    res.status(500).json({ error: 'Could not load this quote.' });
+  }
+});
+
+/**
+ * The customer's answer. Accepting confirms the booking; declining leaves it
+ * alone so the office can follow up rather than lose the trip to a status.
+ */
+app.post('/api/quote/:token/respond', rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: 'Too many attempts. Please call us at (720) 499-6744.',
+}), async (req, res) => {
+  try {
+    const found = await loadQuote(req.params.token);
+    if (!found) return res.status(404).json({ error: 'This quote link is not valid.' });
+    const { quote, booking } = found;
+
+    if (quote.status !== 'Sent') {
+      return res.status(409).json({
+        error: `This quote was already ${quote.status.toLowerCase()}.`,
+        status: quote.status,
+        respondedAt: quote.responded_at,
+      });
+    }
+    if (quote.valid_until && new Date(quote.valid_until) < new Date(new Date().toISOString().slice(0, 10))) {
+      return res.status(410).json({ error: 'This quote has expired. Please call us and we will send a fresh price.' });
+    }
+
+    const accepted = req.body && req.body.accept === true;
+    const reason = String((req.body && req.body.reason) || '').trim().slice(0, 500) || null;
+    const ip = String(req.ip || '').slice(0, 64);
+    const agent = String(req.get('user-agent') || '').slice(0, 400);
+
+    // Guarded on status so two taps cannot both win.
+    const updated = await pool.query(
+      `UPDATE quotes
+          SET status = $1, responded_at = now(), responder_ip = $2, responder_agent = $3, decline_reason = $4
+        WHERE id = $5 AND status = 'Sent'
+        RETURNING responded_at;`,
+      [accepted ? 'Accepted' : 'Declined', ip, agent, accepted ? null : reason, quote.id]
+    );
+    if (!updated.rows.length) {
+      return res.status(409).json({ error: 'This quote was already answered.' });
+    }
+    const respondedAt = updated.rows[0].responded_at;
+
+    await pool.query(
+      `UPDATE bookings
+          SET quote_status = $1,
+              status = CASE WHEN $2 THEN 'Confirmed' ELSE status END,
+              updated_at = now()
+        WHERE id = $3;`,
+      [accepted ? 'Accepted' : 'Declined', accepted, booking.id]
+    );
+
+    console.log(`Quote ${accepted ? 'ACCEPTED' : 'declined'}: ${booking.reference} by ${booking.name} (${ip})`);
+    res.json({
+      ok: true,
+      status: accepted ? 'Accepted' : 'Declined',
+      respondedAt,
+      agreementToken: accepted && !booking.agreement_signed_at ? booking.agreement_token : null,
+    });
+
+    // The customer is not kept waiting on two emails.
+    sendQuoteResponseEmails(booking, { ...quote, responded_at: respondedAt, decline_reason: accepted ? null : reason }, accepted)
+      .catch((err) => console.error('Quote response email failed:', err.message));
+  } catch (err) {
+    console.error('Quote response error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: 'Could not record your answer. Please call us.' });
   }
 });
 

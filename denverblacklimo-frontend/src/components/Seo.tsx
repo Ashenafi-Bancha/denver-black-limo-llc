@@ -74,6 +74,11 @@ const ROUTES: Record<string, Meta> = {
     description:
       'Book luxury chauffeured transportation in Denver in under a minute. Airport transfers, weddings, corporate travel, mountain resorts, and special events. Request your personalized quote.',
   },
+  '/quote-link': {
+    title: `Your Price Quote | ${BRAND}`,
+    description: 'Review and accept your Denver Black Limo price quote.',
+    noindex: true,
+  },
   '/agreement': {
     title: `Sign Your Reservation Agreement | ${BRAND}`,
     description: 'Read and electronically sign your Denver Black Limo reservation agreement.',
@@ -102,6 +107,8 @@ export function metaFor(pathname: string): Meta {
 
   // Every signing link carries its own token, so the prefix is what matches.
   if (path.startsWith('/agreement/')) return ROUTES['/agreement']
+  // /quote is the public request form; /quote/<token> is one customer's price.
+  if (path.startsWith('/quote/')) return ROUTES['/quote-link']
 
   if (path.startsWith('/services/')) {
     const svc = getServiceBySlug(path.split('/')[2])

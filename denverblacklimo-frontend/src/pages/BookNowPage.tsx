@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { FlightCheck, type FlightInfo } from '../components/FlightCheck'
+import { BookingEstimate } from '../components/BookingEstimate'
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   SERVICE_TYPES,
@@ -143,6 +144,12 @@ export function BookNowPage() {
   /** Hidden field — only bots fill it in. */
   const [honeypot, setHoneypot] = useState('')
   const [draftRestored, setDraftRestored] = useState(false)
+  /**
+   * What the estimator showed this customer. Kept outside `form` so it can
+   * never be mistaken for something they typed, and saved with the booking so
+   * the office can see it before quoting a different number.
+   */
+  const [estimateShown, setEstimateShown] = useState<number | null>(null)
   const [searchParams] = useSearchParams()
   /**
    * "Reserve Your Ride Now" on a service page links here as /book?service=<slug>.
@@ -559,6 +566,8 @@ export function BookNowPage() {
       luggage: String(form.luggage),
       vehiclePreference: form.vehicleCategory,
       specialRequests: form.specialRequests,
+      // What the website quoted this customer while they were filling this in.
+      estimateShown,
       // structured extras
       details,
     }
@@ -859,6 +868,21 @@ export function BookNowPage() {
         </SummaryGroup>
       ) : null
 
+    // Priced from the trip as it stands, whichever layout collected it. A
+    // mountain trip names its destination as a resort, same as the payload does.
+    const estimateCard = (
+      <BookingEstimate
+        serviceType={form.serviceType}
+        vehicleName={form.vehicleCategory}
+        pickup={derivedPickup}
+        dropoff={derivedDropoff || form.resort}
+        date={form.pickupDate}
+        time={form.pickupTime}
+        hours={Number(String(form.durationHours).replace(/[^0-9]/g, '')) || undefined}
+        onEstimate={setEstimateShown}
+      />
+    )
+
     const noticeCard = (
       <div className="rounded-lg border border-[color:var(--gold)]/40 bg-[color:var(--gold)]/5 p-4" style={{ ['--gold' as string]: GOLD }}>
         <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider" style={{ color: GOLD }}>
@@ -919,6 +943,7 @@ export function BookNowPage() {
                 </>
               )}
             </div>
+            <div className="sm:col-span-2">{estimateCard}</div>
             <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2">
               {noticeCard}
               {helpCard}
@@ -935,6 +960,7 @@ export function BookNowPage() {
                 {contactGroup}
               </>
             )}
+            {estimateCard}
             {noticeCard}
             {helpCard}
           </div>
