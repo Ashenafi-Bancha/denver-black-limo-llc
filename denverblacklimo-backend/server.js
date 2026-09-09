@@ -183,6 +183,13 @@ function bookingRef(id) {
   return `DBL-${String(id).replace(/-/g, '').slice(0, 6).toUpperCase()}`;
 }
 
+/**
+ * Checked before an id reaches a query that would otherwise fail outright on a
+ * malformed uuid. Where a route can still answer usefully without it, this is
+ * what lets it degrade instead of erroring.
+ */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // --- Auth Middleware ---
 const authenticateToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
@@ -735,27 +742,365 @@ app.post('/api/bookings/:id/dispatch', authenticateToken, async (req, res) => {
 });
 
 /**
- * The drivers the office actually uses, newest first. Derived from past
- * dispatches rather than a separate address book, so there is nothing to
- * maintain and the list can never go stale.
+ * A trip's real moment, rebuilt from two VARCHAR columns.
+ *
+ * pickup_date and pickup_time are text, so every comparison casts through a
+ * guard: one malformed row must not take the whole roster down with it. The
+ * character class is [0-9] rather than \d because a backslash does not
+ * survive the trip through a JavaScript string.
+ */
+const TRIP_AT = `(CASE
+          WHEN pickup_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' AND pickup_time ~ '^[0-9]{2}:[0-9]{2}$'
+            THEN (pickup_date || ' ' || pickup_time)::timestamp
+          WHEN pickup_date ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+            THEN pickup_date::timestamp
+        END)`;
+
+/**
+ * Two trips this close together are treated as a clash. Bookings carry no end
+ * time — an airport transfer runs an hour and a charter runs all day — so the
+ * window is a deliberate guess, wide enough to catch the double-booking that
+ * actually happens and narrow enough not to cry wolf over a morning and an
+ * evening run.
+ */
+const CLASH_HOURS = 3;
+
+/**
+ * The roster.
+ *
+ * Reads the drivers table, and adds the two things the office cannot see by
+ * looking at a person: whether their paperwork is still valid, and how much
+ * work they have actually done.
+ *
+ * With ?forBooking=<id> each driver also carries whether they are free at that
+ * hour and where their day leaves them. There is no driver app yet, so
+ * "location" is not a GPS fix: it is the drop-off of the trip they run before
+ * this one. A dispatcher choosing who takes a 2:30 pick-up at DEN wants to
+ * know who finishes at DEN at 1:15, and that is knowable today without a
+ * single satellite. When the driver app reports positions, last_lat/last_lng
+ * fill in and replace that line.
  */
 app.get('/api/drivers', authenticateToken, async (req, res) => {
   try {
+    const forBooking = String(req.query.forBooking || '').trim();
+    const includeInactive = req.query.all === '1';
+    const measured = UUID_RE.test(forBooking);
+
+    // Dates are formatted in SQL, never sent as timestamps. An expiry is a
+    // calendar day with no zone attached; serialized as a Date it gets re-read
+    // in the viewer's zone and can land a day out.
     const { rows } = await pool.query(
-      `SELECT DISTINCT ON (lower(driver_email))
-              driver_name AS name, driver_email AS email, driver_phone AS phone,
-              driver_vehicle AS vehicle,
-              COALESCE(driver_dispatched_at, updated_at) AS last_used
-         FROM bookings
-        WHERE driver_email IS NOT NULL AND driver_email <> ''
-        ORDER BY lower(driver_email), COALESCE(driver_dispatched_at, updated_at) DESC
-        LIMIT 50;`
+      `WITH trips AS (
+         SELECT id, lower(driver_email) AS demail, pickup_location, dropoff_location, status,
+                ${TRIP_AT} AS at
+           FROM bookings
+          WHERE driver_email IS NOT NULL AND driver_email <> ''
+       ),
+       target AS (
+         -- A scalar subquery, so this always yields exactly one row: the trip
+         -- being assigned, or NULL when the roster was asked for on its own.
+         -- Selecting FROM bookings here would yield no rows at all in that
+         -- case, and the CROSS JOIN below would empty the entire roster.
+         SELECT (SELECT ${TRIP_AT} FROM bookings WHERE id = $1) AS at
+       )
+       SELECT d.id, d.name, d.email, d.phone, d.vehicle_type, d.vehicle_plate,
+              d.license_number, d.insurance_policy, d.default_pay, d.notes, d.active,
+              to_char(d.license_expires,   'YYYY-MM-DD') AS license_expires,
+              to_char(d.insurance_expires, 'YYYY-MM-DD') AS insurance_expires,
+              to_char(d.medical_expires,   'YYYY-MM-DD') AS medical_expires,
+              d.last_lat, d.last_lng, d.last_location_at,
+              COALESCE(t.trips, 0)     AS trips,
+              COALESCE(t.completed, 0) AS completed,
+              to_char(t.last_trip, 'YYYY-MM-DD') AS last_trip,
+              prev.dropoff_location AS finishes_place, to_char(prev.at,  'FMHH12:MI AM') AS finishes_at,
+              nxt.pickup_location   AS starts_place,   to_char(nxt.at,   'FMHH12:MI AM') AS starts_at,
+              clash.id AS clash_id,                    to_char(clash.at, 'FMHH12:MI AM') AS clash_at
+         FROM drivers d
+         LEFT JOIN LATERAL (
+           SELECT count(*) AS trips,
+                  count(*) FILTER (WHERE tr.status = 'Completed') AS completed,
+                  max(tr.at) AS last_trip
+             FROM trips tr WHERE tr.demail = lower(d.email)
+         ) t ON true
+         CROSS JOIN target g
+         LEFT JOIN LATERAL (
+           SELECT tr.dropoff_location, tr.at FROM trips tr
+            WHERE tr.demail = lower(d.email) AND tr.id <> $1 AND tr.status <> 'Cancelled'
+              AND tr.at IS NOT NULL AND g.at IS NOT NULL
+              AND tr.at < g.at AND tr.at::date = g.at::date
+            ORDER BY tr.at DESC LIMIT 1
+         ) prev ON true
+         LEFT JOIN LATERAL (
+           SELECT tr.pickup_location, tr.at FROM trips tr
+            WHERE tr.demail = lower(d.email) AND tr.id <> $1 AND tr.status <> 'Cancelled'
+              AND tr.at IS NOT NULL AND g.at IS NOT NULL
+              AND tr.at > g.at AND tr.at::date = g.at::date
+            ORDER BY tr.at ASC LIMIT 1
+         ) nxt ON true
+         LEFT JOIN LATERAL (
+           SELECT tr.id, tr.at FROM trips tr
+            WHERE tr.demail = lower(d.email) AND tr.id <> $1 AND tr.status <> 'Cancelled'
+              AND tr.at IS NOT NULL AND g.at IS NOT NULL
+              AND abs(extract(epoch FROM (tr.at - g.at))) < ${CLASH_HOURS} * 3600
+            ORDER BY abs(extract(epoch FROM (tr.at - g.at))) ASC LIMIT 1
+         ) clash ON true
+        ${includeInactive ? '' : 'WHERE d.active'}
+        ORDER BY d.active DESC, t.last_trip DESC NULLS LAST, d.name;`,
+      measured ? [forBooking] : [null]
     );
-    rows.sort((a, b) => new Date(b.last_used) - new Date(a.last_used));
-    res.json(rows);
+
+    res.json(rows.map((r) => shapeDriver(r, measured)));
   } catch (err) {
     console.error('Driver list error:', err.message);
     res.status(500).json({ error: 'Could not load drivers.' });
+  }
+});
+
+/** Today as a calendar day — the only thing an expiry date can be compared to. */
+function today() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+/**
+ * How long a document has left, and whether that is a problem.
+ *
+ * Thirty days is the warning window because that is roughly how long renewing
+ * a commercial policy or a medical card takes without a scramble. Anything
+ * already past is not a warning: an expired licence means that driver cannot
+ * legally take the trip, and the office has to see it before assigning one.
+ */
+function docStatus(date) {
+  if (!date) return { status: 'missing', days: null };
+  const days = Math.round((new Date(`${date}T00:00:00`) - today()) / 86400000);
+  return { status: days < 0 ? 'expired' : days <= 30 ? 'expiring' : 'ok', days };
+}
+
+function shapeDriver(r, measured) {
+  const docs = {
+    license: { ...docStatus(r.license_expires), expires: r.license_expires, number: r.license_number },
+    insurance: { ...docStatus(r.insurance_expires), expires: r.insurance_expires, policy: r.insurance_policy },
+    medical: { ...docStatus(r.medical_expires), expires: r.medical_expires },
+  };
+  // The worst of the three is what the roster shows. A driver with a valid
+  // licence and lapsed insurance is not "mostly fine".
+  const compliance = ['expired', 'expiring', 'missing', 'ok'].find((s) =>
+    Object.values(docs).some((doc) => doc.status === s)
+  );
+
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    phone: r.phone,
+    vehicle: r.vehicle_type,
+    vehiclePlate: r.vehicle_plate,
+    defaultPay: r.default_pay,
+    notes: r.notes,
+    active: r.active,
+    trips: Number(r.trips || 0),
+    completed: Number(r.completed || 0),
+    lastTrip: r.last_trip,
+    docs,
+    compliance,
+    // Written by the driver app when there is one. Until then this stays null
+    // and the dashboard says so rather than guessing.
+    position:
+      r.last_lat != null && r.last_lng != null
+        ? { lat: Number(r.last_lat), lng: Number(r.last_lng), at: r.last_location_at }
+        : null,
+    ...(measured
+      ? {
+          status: r.clash_id ? 'clash' : r.finishes_at || r.starts_at ? 'working' : 'free',
+          finishesPlace: r.finishes_place || null,
+          finishesAt: r.finishes_at || null,
+          startsPlace: r.starts_place || null,
+          startsAt: r.starts_at || null,
+          clashRef: r.clash_id ? bookingRef(r.clash_id) : null,
+          clashAt: r.clash_at || null,
+        }
+      : {}),
+  };
+}
+
+/** The fields the office may set on a driver, and what they have to look like. */
+function readDriverBody(body) {
+  const str = (v, max) => String(v ?? '').trim().slice(0, max) || null;
+  const date = (v) => {
+    const t = String(v ?? '').trim();
+    return /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(t) ? t : null;
+  };
+  return {
+    name: str(body.name, 255),
+    email: str(body.email, 255),
+    phone: str(body.phone, 50),
+    vehicle_type: str(body.vehicle, 255),
+    vehicle_plate: str(body.vehiclePlate, 50),
+    license_number: str(body.licenseNumber, 100),
+    license_expires: date(body.licenseExpires),
+    insurance_policy: str(body.insurancePolicy, 100),
+    insurance_expires: date(body.insuranceExpires),
+    medical_expires: date(body.medicalExpires),
+    default_pay: str(body.defaultPay, 100),
+    notes: str(body.notes, 4000),
+    active: body.active === undefined ? true : Boolean(body.active),
+  };
+}
+
+const DRIVER_COLS = [
+  'name', 'email', 'phone', 'vehicle_type', 'vehicle_plate', 'license_number',
+  'license_expires', 'insurance_policy', 'insurance_expires', 'medical_expires',
+  'default_pay', 'notes', 'active',
+];
+
+app.post('/api/drivers', authenticateToken, async (req, res) => {
+  try {
+    const d = readDriverBody(req.body || {});
+    if (!d.name || d.name.length < 2) return res.status(400).json({ error: "The driver's name is required." });
+    if (!d.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email)) {
+      return res.status(400).json({ error: 'A valid email address is required — the trip sheet is sent to it.' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO drivers (${DRIVER_COLS.join(', ')})
+       VALUES (${DRIVER_COLS.map((_, i) => `$${i + 1}`).join(', ')})
+       RETURNING id;`,
+      DRIVER_COLS.map((c) => d[c])
+    );
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    // The unique index on lower(email) is the check. Doing it with a SELECT
+    // first would still race two people adding the same driver at once.
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'A driver with that email address already exists.' });
+    }
+    console.error('Create driver error:', err.message);
+    res.status(500).json({ error: 'Could not add this driver.' });
+  }
+});
+
+app.patch('/api/drivers/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Driver not found' });
+    const d = readDriverBody(req.body || {});
+    if (!d.name || !d.email) return res.status(400).json({ error: 'Name and email are both required.' });
+    const { rowCount } = await pool.query(
+      `UPDATE drivers
+          SET ${DRIVER_COLS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = now()
+        WHERE id = $${DRIVER_COLS.length + 1};`,
+      [...DRIVER_COLS.map((c) => d[c]), req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Driver not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Another driver already uses that email address.' });
+    }
+    console.error('Update driver error:', err.message);
+    res.status(500).json({ error: 'Could not save this driver.' });
+  }
+});
+
+/**
+ * Retiring a driver rather than deleting one. They still appear on every trip
+ * they ran, and removing them would rewrite what happened. A driver who never
+ * ran a trip is deleted outright — there is no history there to protect.
+ */
+app.delete('/api/drivers/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Driver not found' });
+    const { rows } = await pool.query(
+      `SELECT count(b.id)::int AS trips
+         FROM drivers d LEFT JOIN bookings b ON lower(b.driver_email) = lower(d.email)
+        WHERE d.id = $1
+        GROUP BY d.id;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Driver not found' });
+
+    if (rows[0].trips > 0) {
+      await pool.query('UPDATE drivers SET active = false, updated_at = now() WHERE id = $1;', [req.params.id]);
+      return res.json({ ok: true, retired: true, trips: rows[0].trips });
+    }
+    await pool.query('DELETE FROM drivers WHERE id = $1;', [req.params.id]);
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    console.error('Delete driver error:', err.message);
+    res.status(500).json({ error: 'Could not remove this driver.' });
+  }
+});
+
+/**
+ * The customer list, grouped out of the bookings themselves.
+ *
+ * There is no customers table and there does not need to be one: a customer is
+ * the set of trips booked from one email address, and deriving it means the
+ * list can never disagree with the bookings it came from. Email is the key
+ * because it is what confirmations are sent to; a caller with no email is
+ * counted on their booking but cannot be grouped, so they are left out rather
+ * than merged into a bogus "unknown" customer.
+ *
+ * What is deliberately missing is money. Nothing here has been paid through
+ * the site yet, so lifetime value and payment history have no source. The
+ * shape leaves room for them rather than inventing a number.
+ */
+app.get('/api/customers', authenticateToken, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT (array_agg(name    ORDER BY created_at DESC))[1] AS name,
+              (array_agg(email   ORDER BY created_at DESC))[1] AS email,
+              (array_agg(phone   ORDER BY created_at DESC))[1] AS phone,
+              (array_agg(company ORDER BY created_at DESC))[1] AS company,
+              count(*)::int                                             AS trips,
+              count(*) FILTER (WHERE status = 'Completed')::int          AS completed,
+              count(*) FILTER (WHERE status = 'Cancelled')::int          AS cancelled,
+              count(*) FILTER (WHERE status IN ('Pending','Confirmed'))::int AS open,
+              count(*) FILTER (WHERE source = 'Phone')::int              AS by_phone,
+              to_char(min(created_at), 'YYYY-MM-DD') AS first_seen,
+              to_char(max(created_at), 'YYYY-MM-DD') AS last_seen,
+              mode() WITHIN GROUP (ORDER BY service_type)       AS top_service,
+              mode() WITHIN GROUP (ORDER BY vehicle_preference) AS top_vehicle,
+              to_char(max(${TRIP_AT}) FILTER (WHERE status <> 'Cancelled'), 'YYYY-MM-DD') AS last_trip,
+              to_char(min(${TRIP_AT}) FILTER (WHERE ${TRIP_AT} > now() AND status <> 'Cancelled'),
+                      'YYYY-MM-DD') AS next_trip
+         FROM bookings
+        WHERE email IS NOT NULL AND TRIM(email) <> ''
+        GROUP BY lower(TRIM(email))
+        ORDER BY count(*) DESC, max(created_at) DESC
+        LIMIT 500;`
+    );
+
+    res.json(
+      rows.map((r) => ({
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        company: r.company,
+        trips: r.trips,
+        completed: r.completed,
+        cancelled: r.cancelled,
+        open: r.open,
+        byPhone: r.by_phone,
+        firstSeen: r.first_seen,
+        lastSeen: r.last_seen,
+        lastTrip: r.last_trip,
+        nextTrip: r.next_trip,
+        topService: r.top_service,
+        topVehicle: r.top_vehicle,
+        // Two trips is the line between someone who tried us and someone who
+        // came back, which is the only distinction worth drawing here.
+        repeat: r.trips > 1,
+        // A customer who cancels most of what they book is worth knowing about
+        // before the office holds a car for them again.
+        cancelRate: r.trips ? Math.round((r.cancelled / r.trips) * 100) : 0,
+        // No payment provider is connected, so there is nothing to total.
+        // Left null on purpose: a zero here would read as "spent nothing".
+        totalPaid: null,
+        payments: null,
+      }))
+    );
+  } catch (err) {
+    console.error('Customer list error:', err.message);
+    res.status(500).json({ error: 'Could not load customers.' });
   }
 });
 
