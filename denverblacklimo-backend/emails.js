@@ -1607,6 +1607,121 @@ async function sendReviewRequest(data) {
   });
 }
 
+/**
+ * The farmout sheet sent to an affiliate company.
+ *
+ * Not the customer's receipt and not the driver's trip sheet either. An
+ * affiliate is a business being handed a job: it needs enough to dispatch one
+ * of its own chauffeurs, plus a way to reach us when something changes. So it
+ * carries the routing, the passenger and the flight, and it leaves out what the
+ * customer is paying us — that is between us and the customer, and an affiliate
+ * quoting from it would be a problem.
+ *
+ * Built from the same shell and the same blocks as every other message here, so
+ * it inherits the header, the footer and the responsive behaviour for free.
+ */
+function buildAffiliateFarmoutEmail(booking, affiliate) {
+  const arrival = isArrival(booking);
+  const stops = formatStops(booking.additional_stops);
+  // The same 10px rule the receipt uses between stacked blocks.
+  const vgap = '<div style="height:10px; line-height:10px;">&nbsp;</div>';
+
+  const flight = flightLabel(booking);
+
+  const sections = [
+    headedBox(
+      'Reservation',
+      pairRows([
+        { label: 'Reference', value: booking.reference },
+        { label: 'Pick-up date', value: longDate(booking.pickup_date) },
+        { label: 'Pick-up time', value: clock(booking.pickup_time) },
+        { label: 'Service', value: booking.service_type },
+        { label: 'Passengers', value: String(booking.passengers || '1') },
+        { label: 'Vehicle requested', value: booking.vehicle_preference || 'Not specified' },
+      ])
+    ),
+    headedBox(
+      'Passenger',
+      pairRows([
+        { label: 'Name', value: booking.name },
+        { label: 'Phone', value: booking.phone },
+        { label: 'Company', value: booking.company },
+      ])
+    ),
+    flight
+      ? headedBox(
+          'Flight',
+          pairRows([
+            { label: 'Flight', value: flight },
+            { label: 'Terminal', value: booking.terminal },
+            { label: 'Meeting point', value: arrival ? meetPoint(booking.terminal) : '' },
+          ])
+        )
+      : '',
+    headedBox('Routing', routingHtml(booking)),
+    stops
+      ? headedBox('Additional stops', `<p style="margin:0; font-size:12px; color:${INK};">${esc(stops)}</p>`)
+      : '',
+    booking.special_requests
+      ? headedBox(
+          'Special requests',
+          `<p style="margin:0; font-size:12px; color:${INK};">${esc(booking.special_requests)}</p>`
+        )
+      : '',
+    box(
+      `<p style="margin:0 0 6px; font-size:12px; font-weight:700; color:${BRAND.gold};">WHAT WE NEED FROM YOU</p>
+       ${bullets([
+         'Confirm this reservation by reply, and send the chauffeur name, direct number and vehicle once assigned.',
+         `Your chauffeur represents ${BRAND.name} on this trip. No affiliate branding, cards or signage.`,
+         'Please do not discuss pricing with the passenger, or accept additional services without our approval.',
+         `Call dispatch on ${BRAND.phone} immediately if anything changes.`,
+       ])}`
+    ),
+  ].filter(Boolean);
+
+  const contentHtml = [
+    heading('Trip farmed out to your company'),
+    panel(
+      `<p style="margin:0 0 6px; font-size:14px; color:${BRAND.text};">
+         <b>${esc(affiliate.company_name)}</b> &mdash; please confirm receipt of this reservation.
+       </p>
+       <p style="margin:0; font-size:12px; color:${BRAND.muted};">
+         Reference <b style="color:${BRAND.text};">${esc(booking.reference)}</b>, issued by ${BRAND.name}.
+       </p>`
+    ),
+    sections.join(vgap),
+  ].join('');
+
+  return shell({
+    title: `Farmout ${booking.reference} — ${longDate(booking.pickup_date)}`,
+    preheader: `${longDate(booking.pickup_date)} at ${clock(booking.pickup_time)} — ${booking.name}`,
+    contentHtml,
+  });
+}
+
+/**
+ * Sends the farmout sheet. Resolves rather than throws, the same as every other
+ * send here, so the caller decides what a failure means.
+ */
+async function sendAffiliateFarmoutEmail(booking, affiliate) {
+  const resend = getResend();
+  if (!resend) return { ok: false, error: 'Email is not configured on the server.' };
+  try {
+    const { error } = await resend.emails.send({
+      from: `${BRAND.name} <${SENDER_EMAIL}>`,
+      to: affiliate.email,
+      replyTo: ADMIN_NOTIFY_EMAIL,
+      subject: `Farmout ${booking.reference} — ${longDate(booking.pickup_date)} at ${clock(booking.pickup_time)}`,
+      html: buildAffiliateFarmoutEmail(booking, affiliate),
+    });
+    if (error) return { ok: false, error: error.message || 'Resend rejected the message.' };
+    console.log(`Email sent (affiliate farmout) to ${affiliate.email}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 module.exports = {
   SENDER_EMAIL,
   ADMIN_NOTIFY_EMAIL,
@@ -1615,6 +1730,8 @@ module.exports = {
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
   buildDriverDispatchEmail,
+  sendAffiliateFarmoutEmail,
+  buildAffiliateFarmoutEmail,
   sendQuoteEmail,
   sendQuoteResponseEmails,
   buildQuoteEmail,

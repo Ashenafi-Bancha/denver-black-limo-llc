@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Check, Clock, LogOut, Phone, Mail, FileText, Eye, EyeOff, Lock, Loader2, Send, X, Calendar,
   LayoutDashboard, BarChart3, PieChart as PieChartIcon, Inbox as InboxIcon, MessageSquare, Menu,
-  RefreshCw, AlertTriangle, CalendarClock, Users, UserRound, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
+  RefreshCw, AlertTriangle, CalendarClock, Users, UserRound, Building2, MapPin, ArrowUpDown, Home, Trash2, ExternalLink, ChevronDown, Star,
   FileCheck, FileWarning, Car, Plus, DollarSign,
 } from 'lucide-react'
 import { Logo } from '../components/Logo'
@@ -18,6 +18,8 @@ import { ToastStack, SearchInput, FilterChip, CopyButton, StatCard, EmptyState, 
 import { DispatchModal, type DispatchTarget, type DriverSummary } from '../admin/AdminDispatch'
 import { AdminDrivers } from '../admin/AdminDrivers'
 import { AdminCustomers } from '../admin/AdminCustomers'
+import { AdminAffiliates } from '../admin/AdminAffiliates'
+import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
 import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
 import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
 import { QuoteModal, type QuoteTarget } from '../admin/AdminQuote'
@@ -48,6 +50,14 @@ type Booking = {
   agreement_token?: string | null
   agreement_signed_at?: string | null
   source?: string | null
+  affiliate_id?: string | null
+  affiliate_company?: string | null
+  affiliate_email?: string | null
+  affiliate_phone?: string | null
+  affiliate_contact?: string | null
+  affiliate_active?: boolean | null
+  affiliate_assigned_at?: string | null
+  affiliate_notified_at?: string | null
   driver_name?: string | null
   driver_email?: string | null
   driver_phone?: string | null
@@ -68,7 +78,7 @@ type Inquiry = {
 
 type EmailTarget = { id: string; name: string; email: string; kind: 'booking' | 'inquiry' }
 
-type Tab = 'overview' | 'bookings' | 'drivers' | 'customers' | 'inbox' | 'content' | 'analytics'
+type Tab = 'overview' | 'bookings' | 'drivers' | 'affiliates' | 'customers' | 'inbox' | 'content' | 'analytics'
 
 type BookingSort = 'pickup' | 'newest'
 
@@ -149,7 +159,7 @@ export function AdminDashboard() {
    * The open tab lives in the URL hash, so a refresh keeps you where you were
    * and a tab can be bookmarked or sent to someone — /admin#analytics.
    */
-  const TABS: Tab[] = ['overview', 'bookings', 'drivers', 'customers', 'inbox', 'content', 'analytics']
+  const TABS: Tab[] = ['overview', 'bookings', 'drivers', 'affiliates', 'customers', 'inbox', 'content', 'analytics']
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const fromHash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
     return (TABS as string[]).includes(fromHash) ? (fromHash as Tab) : 'overview'
@@ -238,6 +248,11 @@ export function AdminDashboard() {
   const [assignDrivers, setAssignDrivers] = useState<DriverSummary[]>([])
   const [dispatchBusy, setDispatchBusy] = useState(false)
   const [dispatchError, setDispatchError] = useState('')
+  // Farming a trip out to a partner company — separate from dispatching a
+  // chauffeur, and deliberately so.
+  const [affiliateTarget, setAffiliateTarget] = useState<AffiliateTarget | null>(null)
+  const [affiliateBusy, setAffiliateBusy] = useState(false)
+  const [affiliateError, setAffiliateError] = useState('')
   const [newBookingOpen, setNewBookingOpen] = useState(false)
   const [newBookingBusy, setNewBookingBusy] = useState(false)
   const [newBookingError, setNewBookingError] = useState('')
@@ -449,6 +464,38 @@ export function AdminDashboard() {
       cancelled = true
     }
   }, [dispatchTarget, authHeaders])
+
+  const assignAffiliate = async (payload: { affiliateId: string | null; notify: boolean }) => {
+    if (!affiliateTarget) return
+    setAffiliateBusy(true)
+    setAffiliateError('')
+    try {
+      const res = await fetch(`${API_URL}/bookings/${affiliateTarget.id}/affiliate`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify(payload),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        // A 502 means the assignment saved but the email did not go — the
+        // panel stays open so the office can see exactly what happened.
+        setAffiliateError(body.error || 'Could not assign this affiliate.')
+        if (body.saved) loadData('auto')
+        return
+      }
+      pushToast(
+        payload.affiliateId
+          ? `Affiliate assigned${body.notified ? ' — farmout sheet sent.' : '.'}`
+          : 'Affiliate removed.'
+      )
+      setAffiliateTarget(null)
+      loadData('auto')
+    } catch {
+      setAffiliateError('Could not reach the server. Please try again.')
+    } finally {
+      setAffiliateBusy(false)
+    }
+  }
 
   const sendDispatch = async (payload: Parameters<Parameters<typeof DispatchModal>[0]['onSend']>[0]) => {
     if (!dispatchTarget) return
@@ -695,6 +742,7 @@ export function AdminDashboard() {
     { id: 'overview', label: 'Overview', icon: <Home className="h-4 w-4" />, badge: urgentTrips.length || undefined, badgeTone: 'alert' },
     { id: 'bookings', label: 'Bookings', icon: <Calendar className="h-4 w-4" />, badge: pendingCount || undefined },
     { id: 'drivers', label: 'Drivers', icon: <UserRound className="h-4 w-4" /> },
+    { id: 'affiliates', label: 'Affiliates', icon: <Building2 className="h-4 w-4" /> },
     { id: 'customers', label: 'Customers', icon: <Users className="h-4 w-4" /> },
     { id: 'inbox', label: 'Inbox', icon: <InboxIcon className="h-4 w-4" />, badge: newInquiries || undefined },
     { id: 'content', label: 'Content (CMS)', icon: <LayoutDashboard className="h-4 w-4" /> },
@@ -1010,6 +1058,39 @@ export function AdminDashboard() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
+                              setAffiliateError('')
+                              setAffiliateTarget({
+                                id: b.id,
+                                reference: bookingRef(b.id),
+                                customer: b.name,
+                                pickup: `${fmtDate(b.pickup_date)}${b.pickup_time ? ` · ${fmtTime(b.pickup_time)}` : ''}`,
+                                affiliateId: b.affiliate_id ?? null,
+                                affiliateCompany: b.affiliate_company ?? null,
+                                affiliateEmail: b.affiliate_email ?? null,
+                                affiliatePhone: b.affiliate_phone ?? null,
+                                affiliateActive: b.affiliate_active ?? null,
+                                notifiedAt: b.affiliate_notified_at ?? null,
+                              })
+                            }}
+                            title={
+                              b.affiliate_company
+                                ? `Farmed out to ${b.affiliate_company}${b.affiliate_notified_at ? ' — sheet sent' : ' — sheet not sent'}`
+                                : 'Assign this trip to a partner company'
+                            }
+                            className={`flex items-center gap-1.5 rounded border px-3 py-2 text-xs transition-colors ${
+                              b.affiliate_company
+                                ? b.affiliate_notified_at
+                                  ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'
+                                  : 'border-amber-500/40 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20'
+                                : 'border-white/15 text-white/70 hover:border-brand-gold/40 hover:text-brand-gold'
+                            }`}
+                          >
+                            <Building2 className="h-3.5 w-3.5" />
+                            {b.affiliate_company ? b.affiliate_company.split(' ')[0] : 'Affiliate'}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
                               setDispatchError('')
                               setDispatchTarget({
                                 id: b.id,
@@ -1107,6 +1188,36 @@ export function AdminDashboard() {
                       {expanded === b.id && (
                         <div className="border-t border-white/10 bg-black/40 p-6">
                           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+                            {b.affiliate_company && (
+                              <div className="space-y-3 md:col-span-2 lg:col-span-3">
+                                <h4 className="flex items-center gap-2 text-xs font-bold tracking-widest text-brand-gold"><Building2 className="h-4 w-4" /> ASSIGNED AFFILIATE</h4>
+                                <div className="rounded border border-brand-gold/30 bg-brand-gold/5 p-4">
+                                  <div className="flex flex-wrap items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                      <p className="font-display text-lg text-brand-gold-light">{b.affiliate_company}</p>
+                                      {b.affiliate_contact && <p className="mt-0.5 text-xs text-white/50">Contact: {b.affiliate_contact}</p>}
+                                      <div className="mt-2 space-y-1 text-sm text-white/80">
+                                        <p className="flex items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-brand-gold/60" /> <a href={`mailto:${b.affiliate_email}`} className="truncate hover:text-brand-gold">{b.affiliate_email}</a> <CopyButton value={b.affiliate_email || ''} label="affiliate email" /></p>
+                                        {b.affiliate_phone && <p className="flex items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-brand-gold/60" /> <a href={`tel:${b.affiliate_phone}`} className="hover:text-brand-gold">{b.affiliate_phone}</a> <CopyButton value={b.affiliate_phone} label="affiliate phone" /></p>}
+                                      </div>
+                                    </div>
+                                    <div className="text-right text-xs">
+                                      {b.affiliate_notified_at ? (
+                                        <p className="text-emerald-300">Farmout sheet sent {new Date(b.affiliate_notified_at).toLocaleDateString()}</p>
+                                      ) : (
+                                        <p className="text-amber-300">Farmout sheet not sent</p>
+                                      )}
+                                      {b.affiliate_assigned_at && <p className="mt-1 text-white/40">Assigned {new Date(b.affiliate_assigned_at).toLocaleDateString()}</p>}
+                                      {b.affiliate_active === false && <p className="mt-1 text-white/40">Company now inactive</p>}
+                                    </div>
+                                  </div>
+                                  <p className="mt-3 border-t border-brand-gold/20 pt-2 text-xs text-white/40">
+                                    This partner company runs the trip and supplies its own chauffeur. Any driver
+                                    assigned below is separate.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
                             <div className="space-y-3">
                               <h4 className="text-xs font-bold tracking-widest text-brand-gold flex items-center gap-2"><FileText className="h-4 w-4" /> CONTACT INFO</h4>
                               <div className="space-y-2 text-sm text-white/80 p-4 bg-brand-surface rounded border border-white/5">
@@ -1246,6 +1357,8 @@ export function AdminDashboard() {
           {/* CONTENT (CMS) */}
           {activeTab === 'drivers' && <AdminDrivers token={token} onResult={pushToast} />}
 
+          {activeTab === 'affiliates' && <AdminAffiliates token={token} onResult={pushToast} />}
+
           {activeTab === 'customers' && <AdminCustomers token={token} onResult={pushToast} />}
 
           {activeTab === 'content' && <CmsManager token={token} settings={cmsSettings} refresh={refreshAll} onResult={setActionResult} />}
@@ -1380,6 +1493,19 @@ export function AdminDashboard() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {affiliateTarget && (
+          <AssignAffiliateModal
+            target={affiliateTarget}
+            token={token}
+            busy={affiliateBusy}
+            error={affiliateError}
+            onClose={() => setAffiliateTarget(null)}
+            onAssign={assignAffiliate}
+          />
         )}
       </AnimatePresence>
 

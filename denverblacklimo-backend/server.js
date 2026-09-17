@@ -89,6 +89,7 @@ const {
   sendBookingEmails,
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
+  sendAffiliateFarmoutEmail,
   sendQuoteEmail,
   sendQuoteResponseEmails,
   sendInquiryEmails,
@@ -1029,6 +1030,232 @@ app.delete('/api/drivers/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// AFFILIATES
+// ─────────────────────────────────────────────
+//
+// A partner company that runs a trip on our behalf. Kept firmly apart from the
+// drivers resource above: a driver is a person we dispatch and whose paperwork
+// we hold, an affiliate is a company we hand the whole job to and who supplies
+// their own chauffeur and vehicle.
+
+/** The fields the office may set on an affiliate, and what they have to look like. */
+function readAffiliateBody(body) {
+  const str = (v, max) => String(v ?? '').trim().slice(0, max) || null;
+  return {
+    company_name: str(body.companyName, 255),
+    email: str(body.email, 255),
+    phone: str(body.phone, 50),
+    contact_name: str(body.contactName, 255),
+    notes: str(body.notes, 4000),
+    active: body.active === undefined ? true : Boolean(body.active),
+  };
+}
+
+const AFFILIATE_COLS = ['company_name', 'email', 'phone', 'contact_name', 'notes', 'active'];
+
+function shapeAffiliate(r) {
+  return {
+    id: r.id,
+    companyName: r.company_name,
+    email: r.email,
+    phone: r.phone,
+    contactName: r.contact_name,
+    notes: r.notes,
+    active: r.active,
+    trips: Number(r.trips || 0),
+    completed: Number(r.completed || 0),
+    upcoming: Number(r.upcoming || 0),
+    lastTrip: r.last_trip,
+    createdAt: r.created_at,
+  };
+}
+
+/**
+ * The affiliate list, with how much work each company has actually been given.
+ *
+ * Inactive affiliates are returned only with ?all=1. Everywhere a trip is being
+ * assigned asks without it, which is what stops a company we have stopped
+ * working with being picked by accident.
+ */
+app.get('/api/affiliates', authenticateToken, async (req, res) => {
+  try {
+    const includeInactive = req.query.all === '1';
+    const { rows } = await pool.query(
+      `SELECT a.id, a.company_name, a.email, a.phone, a.contact_name, a.notes, a.active, a.created_at,
+              COALESCE(t.trips, 0)     AS trips,
+              COALESCE(t.completed, 0) AS completed,
+              COALESCE(t.upcoming, 0)  AS upcoming,
+              to_char(t.last_trip, 'YYYY-MM-DD') AS last_trip
+         FROM affiliates a
+         LEFT JOIN LATERAL (
+           SELECT count(*) AS trips,
+                  count(*) FILTER (WHERE b.status = 'Completed') AS completed,
+                  count(*) FILTER (WHERE ${TRIP_AT} > now() AND b.status <> 'Cancelled') AS upcoming,
+                  max(${TRIP_AT}) AS last_trip
+             FROM bookings b WHERE b.affiliate_id = a.id
+         ) t ON true
+        ${includeInactive ? '' : 'WHERE a.active'}
+        ORDER BY a.active DESC, t.trips DESC NULLS LAST, a.company_name;`
+    );
+    res.json(rows.map(shapeAffiliate));
+  } catch (err) {
+    console.error('Affiliate list error:', err.message);
+    res.status(500).json({ error: 'Could not load the affiliates.' });
+  }
+});
+
+app.post('/api/affiliates', authenticateToken, async (req, res) => {
+  try {
+    const a = readAffiliateBody(req.body || {});
+    if (!a.company_name || a.company_name.length < 2) {
+      return res.status(400).json({ error: 'The company name is required.' });
+    }
+    if (!a.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(a.email)) {
+      return res.status(400).json({ error: 'A valid company email address is required — the farmout sheet is sent to it.' });
+    }
+    const { rows } = await pool.query(
+      `INSERT INTO affiliates (${AFFILIATE_COLS.join(', ')})
+       VALUES (${AFFILIATE_COLS.map((_, i) => `$${i + 1}`).join(', ')})
+       RETURNING id;`,
+      AFFILIATE_COLS.map((c) => a[c])
+    );
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    // The unique index on lower(email) is the check — a SELECT first would
+    // still race two people adding the same company at once.
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'An affiliate with that email address already exists.' });
+    }
+    console.error('Create affiliate error:', err.message);
+    res.status(500).json({ error: 'Could not add this affiliate.' });
+  }
+});
+
+app.patch('/api/affiliates/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Affiliate not found' });
+    const a = readAffiliateBody(req.body || {});
+    if (!a.company_name || !a.email) {
+      return res.status(400).json({ error: 'The company name and email are both required.' });
+    }
+    const { rowCount } = await pool.query(
+      `UPDATE affiliates
+          SET ${AFFILIATE_COLS.map((c, i) => `${c} = $${i + 1}`).join(', ')}, updated_at = now()
+        WHERE id = $${AFFILIATE_COLS.length + 1};`,
+      [...AFFILIATE_COLS.map((c) => a[c]), req.params.id]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Affiliate not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err.code === '23505') {
+      return res.status(409).json({ error: 'Another affiliate already uses that email address.' });
+    }
+    console.error('Update affiliate error:', err.message);
+    res.status(500).json({ error: 'Could not save this affiliate.' });
+  }
+});
+
+/**
+ * Retiring an affiliate rather than deleting one. The trips they ran are still
+ * theirs, and the foreign key refuses the delete outright, so a company with
+ * any history is deactivated instead. One that never took a trip is removed.
+ */
+app.delete('/api/affiliates/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Affiliate not found' });
+    const { rows } = await pool.query(
+      `SELECT count(b.id)::int AS trips
+         FROM affiliates a LEFT JOIN bookings b ON b.affiliate_id = a.id
+        WHERE a.id = $1 GROUP BY a.id;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Affiliate not found' });
+
+    if (rows[0].trips > 0) {
+      await pool.query('UPDATE affiliates SET active = false, updated_at = now() WHERE id = $1;', [req.params.id]);
+      return res.json({ ok: true, retired: true, trips: rows[0].trips });
+    }
+    await pool.query('DELETE FROM affiliates WHERE id = $1;', [req.params.id]);
+    res.json({ ok: true, deleted: true });
+  } catch (err) {
+    console.error('Delete affiliate error:', err.message);
+    res.status(500).json({ error: 'Could not remove this affiliate.' });
+  }
+});
+
+/**
+ * Assigning a reservation to an affiliate, changing it, or clearing it.
+ *
+ * Sending affiliateId: null removes the assignment. An inactive affiliate is
+ * refused: the company can keep every trip it has already run, but must not be
+ * given a new one.
+ *
+ * The farmout email is opt-in, the same way a phone booking's confirmation is.
+ * The assignment is saved either way — losing what the office chose because a
+ * mail server was slow would help nobody — and affiliate_notified_at is only
+ * stamped when the send actually succeeds.
+ */
+app.put('/api/bookings/:id/affiliate', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { affiliateId, notify } = req.body || {};
+
+    if (affiliateId === null || affiliateId === '' || affiliateId === undefined) {
+      const { rowCount } = await pool.query(
+        `UPDATE bookings
+            SET affiliate_id = NULL, affiliate_assigned_at = NULL, affiliate_notified_at = NULL,
+                updated_at = now()
+          WHERE id = $1;`,
+        [req.params.id]
+      );
+      if (!rowCount) return res.status(404).json({ error: 'Booking not found' });
+      return res.json({ ok: true, affiliate: null });
+    }
+
+    if (!UUID_RE.test(String(affiliateId))) {
+      return res.status(400).json({ error: 'That is not a valid affiliate.' });
+    }
+
+    const { rows: affRows } = await pool.query('SELECT * FROM affiliates WHERE id = $1;', [affiliateId]);
+    if (!affRows.length) return res.status(404).json({ error: 'Affiliate not found' });
+    const affiliate = affRows[0];
+    if (!affiliate.active) {
+      return res.status(409).json({
+        error: `${affiliate.company_name} is inactive and cannot be given new trips. Reactivate them first.`,
+      });
+    }
+
+    const { rows: bookingRows } = await pool.query('SELECT * FROM bookings WHERE id = $1;', [req.params.id]);
+    if (!bookingRows.length) return res.status(404).json({ error: 'Booking not found' });
+    const booking = { ...bookingRows[0], reference: bookingRef(bookingRows[0].id) };
+
+    let sent = null;
+    if (notify) sent = await sendAffiliateFarmoutEmail(booking, affiliate);
+
+    await pool.query(
+      `UPDATE bookings
+          SET affiliate_id = $1, affiliate_assigned_at = now(), updated_at = now(),
+              affiliate_notified_at = CASE WHEN $2 THEN now() ELSE affiliate_notified_at END
+        WHERE id = $3;`,
+      [affiliateId, Boolean(sent && sent.ok), req.params.id]
+    );
+
+    if (notify && sent && !sent.ok) {
+      console.error(`Farmout sheet NOT sent for ${booking.reference}: ${sent.error}`);
+      return res.status(502).json({
+        error: `Affiliate assigned, but the farmout sheet could not be emailed: ${sent.error}`,
+        saved: true,
+      });
+    }
+    if (notify) console.log(`Farmed out ${booking.reference} to ${affiliate.company_name} <${affiliate.email}>`);
+    res.json({ ok: true, notified: Boolean(sent && sent.ok) });
+  } catch (err) {
+    console.error('Assign affiliate error:', err.message);
+    res.status(500).json({ error: 'Could not assign this affiliate.' });
+  }
+});
+
 /**
  * The customer list, grouped out of the bookings themselves.
  *
@@ -1565,7 +1792,17 @@ app.post('/api/quote/:token/respond', rateLimit({
 // Get all bookings (Protected)
 app.get('/api/bookings', authenticateToken, async (req, res) => {
   try {
-    const query = `SELECT * FROM bookings ORDER BY created_at DESC LIMIT 100;`;
+    // The affiliate is joined rather than copied onto the booking, so a company
+    // that corrects its phone number corrects it on every trip at once.
+    const query = `
+      SELECT b.*,
+             a.company_name AS affiliate_company, a.email AS affiliate_email,
+             a.phone AS affiliate_phone, a.contact_name AS affiliate_contact,
+             a.active AS affiliate_active
+        FROM bookings b
+        LEFT JOIN affiliates a ON a.id = b.affiliate_id
+       ORDER BY b.created_at DESC
+       LIMIT 100;`;
     const result = await pool.query(query);
     res.json(result.rows);
   } catch (err) {
