@@ -131,6 +131,31 @@ function buildHtml(route) {
 
   if (route === '/admin') {
     html = html.replace(/(<meta name="robots" content=)"[^"]*"/, `$1"noindex, nofollow"`)
+
+    // The PWA tags go on /admin alone. index.html is the template for every
+    // prerendered page, so putting the manifest there would offer to install
+    // "Denver Black Limo Admin" to a customer reading the fleet page.
+    html = html.replace(
+      '</head>',
+      `  <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="application-name" content="DBL Admin" />
+    <!-- iOS ignores the manifest: standalone mode, the status bar and the home
+         screen name all come from these instead. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="DBL Admin" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+  </head>`
+    )
+
+    // viewport-fit=cover lets the page paint under the notch, which is what
+    // makes env(safe-area-inset-*) report anything other than zero.
+    html = html.replace(
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />'
+    )
   }
 
   let body = ''
@@ -151,6 +176,18 @@ for (const route of ROUTES) {
   ok++
 }
 console.log(`✔ Prerendered ${ok} routes to static HTML.`)
+
+// The worker ships with a placeholder version. Replacing it here — after the
+// bundle and the HTML are both final — renames its cache, which is the whole
+// mechanism by which a deploy reaches people who already have the app open.
+const swPath = path.join(DIST, 'sw.js')
+if (fs.existsSync(swPath)) {
+  const build = new Date().toISOString().replace(/[:.]/g, '-')
+  fs.writeFileSync(swPath, fs.readFileSync(swPath, 'utf8').replaceAll('__BUILD_VERSION__', build))
+  console.log(`✔ Service worker stamped ${build}.`)
+} else {
+  console.warn('  ! sw.js missing from dist — the admin PWA will not update cleanly.')
+}
 
 // ── sitemap.xml — generated from the live route list so it never goes stale ──
 // Google ignores changefreq/priority but reads lastmod to decide what to

@@ -292,3 +292,27 @@
     @apply text-brand-gold/60 text-[8px];
   }
 }
+
+/* ── Touch targets in the admin app ──────────────────────────────────────────
+ *
+ * Keyed on pointer type rather than a width breakpoint, because a comfortable
+ * tap target is a property of the finger, not of the window. A phone gets 44px
+ * controls; a desktop keeps its compact density even when the window is
+ * narrow, which is what an operator working through a long list actually
+ * wants. Scoped to the admin so the marketing site is untouched.
+ *
+ * Checkboxes and radios are excluded: they are sized by the platform, and
+ * stretching them leaves a large empty box beside the label.
+ */
+@media (pointer: coarse) {
+  [data-admin] button,
+  [data-admin] select,
+  [data-admin] textarea,
+  [data-admin] input:not([type='checkbox']):not([type='radio']) {
+    min-height: 44px;
+  }
+
+  [data-admin] button {
+    min-width: 44px;
+  }
+}

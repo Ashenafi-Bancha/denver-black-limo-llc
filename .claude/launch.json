@@ -11,6 +11,19 @@
       "port": 5173,
       "cwd": "denverblacklimo-frontend",
       "autoPort": true
+    },
+    {
+      "name": "frontend-preview",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview",
+        "--",
+        "--port",
+        "4173"
+      ],
+      "port": 4173,
+      "cwd": "denverblacklimo-frontend"
     }
   ]
 }

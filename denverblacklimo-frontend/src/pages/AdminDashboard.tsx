@@ -20,6 +20,8 @@ import { AdminDrivers } from '../admin/AdminDrivers'
 import { AdminCustomers } from '../admin/AdminCustomers'
 import { AdminAffiliates } from '../admin/AdminAffiliates'
 import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
+import { AdminBottomNav } from '../admin/AdminBottomNav'
+import { InstallPrompt, OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
 import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
 import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
 import { QuoteModal, type QuoteTarget } from '../admin/AdminQuote'
@@ -171,6 +173,10 @@ export function AdminDashboard() {
     }
   }, [activeTab])
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Installability concerns, kept out of the business logic below.
+  const online = useOnline()
+  const { updateReady, update } = useServiceWorker()
+  usePwaMeta()
   const { settings, refreshSettings } = useSiteSettings()
 
   /**
@@ -767,11 +773,14 @@ export function AdminDashboard() {
   )
 
   return (
-    <div className="flex h-screen bg-brand-black overflow-hidden font-body text-white">
+    <div data-admin className="flex h-screen overflow-hidden bg-brand-black font-body text-white">
       {sidebarOpen && (
         <button aria-label="Close menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" />
       )}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 border-r border-white/10 bg-brand-surface flex flex-col shadow-2xl shadow-black/50 transition-transform duration-300 lg:static lg:z-10 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-white/10 bg-brand-surface shadow-2xl shadow-black/50 transition-transform duration-300 lg:static lg:z-10 lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
+        style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
         <div className="p-6 border-b border-white/10 flex items-center gap-3">
           <Logo iconOnly />
           <span className="font-display text-sm font-bold tracking-widest text-brand-gold uppercase">Admin Workspace</span>
@@ -795,7 +804,11 @@ export function AdminDashboard() {
       <main className="flex-1 overflow-y-auto relative">
         {/* Top bar — hamburger on mobile, plus a link back to the live site on every screen.
             The sidebar link alone was easy to miss, and invisible on mobile until you open the drawer. */}
-        <div className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-white/10 bg-brand-surface/95 px-4 py-3 backdrop-blur lg:relative">
+        {/* Sticky, so the offline state travels with the header rather than
+            scrolling away, and padded past the notch when installed on iOS. */}
+        <div className="sticky top-0 z-30 bg-brand-surface/95 backdrop-blur lg:relative" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <OfflineBanner online={online} />
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
           <div className="flex items-center gap-2 lg:hidden"><Logo iconOnly /><span className="font-display text-xs font-bold uppercase tracking-widest text-brand-gold">Admin Workspace</span></div>
           {/* Absolutely centred so the title sits mid-bar regardless of how wide the
               buttons on either side happen to be. */}
@@ -816,11 +829,15 @@ export function AdminDashboard() {
               <span aria-hidden="true" className="hidden sm:inline">View Public Site</span>
               <span aria-hidden="true" className="sm:hidden">Site</span>
             </a>
-            <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95 lg:hidden"><Menu className="h-5 w-5" /></button>
+            <button onClick={() => setSidebarOpen(true)} aria-label="Open menu" className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-brand-gold/40 text-brand-gold-light active:scale-95 lg:hidden"><Menu className="h-5 w-5" /></button>
           </div>
         </div>
+        </div>
         <div className="absolute inset-0 z-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-brand-gold/5 via-brand-black to-brand-black opacity-30 pointer-events-none"></div>
-        <div className="relative z-10 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div
+          className="relative z-10 mx-auto max-w-7xl p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8"
+          style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
+        >
 
           {/* OVERVIEW */}
           {activeTab === 'overview' && (
@@ -1003,9 +1020,28 @@ export function AdminDashboard() {
                               <span className="h-1 w-1 rounded-full bg-white/30" />
                               <span>{b.service_type}</span>
                             </p>
+                            {/* Route, vehicle and status in words. On a phone this
+                                card is the whole booking, and a coloured dot alone
+                                does not tell an operator what state a trip is in. */}
+                            <p className="mt-1 flex items-start gap-1.5 text-xs text-white/45 sm:hidden">
+                              <MapPin className="mt-0.5 h-3 w-3 shrink-0 text-brand-gold/50" />
+                              <span className="min-w-0">
+                                {b.pickup_location || '—'}
+                                {b.dropoff_location ? <> &rarr; {b.dropoff_location}</> : null}
+                              </span>
+                            </p>
+                            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/40 sm:hidden">
+                              <span className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider ${statusStyle(b.status)}`}>
+                                {b.status}
+                              </span>
+                              {b.vehicle_preference && <span>{b.vehicle_preference}</span>}
+                              <span>{b.passengers} pax</span>
+                              {b.affiliate_company && <span className="text-brand-gold/70">{b.affiliate_company}</span>}
+                              {b.driver_name && <span className="text-brand-gold/70">{b.driver_name}</span>}
+                            </p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap sm:gap-3">
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -1319,7 +1355,7 @@ export function AdminDashboard() {
                             <p className="mt-0.5 flex items-center gap-2 text-xs text-white/40">{q.service && <><span>{q.service}</span><span className="h-1 w-1 rounded-full bg-white/30" /></>}<span>{new Date(q.created_at).toLocaleString()}</span></p>
                           </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-3">
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-nowrap sm:gap-3">
                           <button onClick={(e) => { e.stopPropagation(); openEmailModal({ id: q.id, name: q.name, email: q.email, kind: 'inquiry' }) }} className="flex items-center gap-1.5 rounded border border-brand-gold/40 bg-brand-gold/5 px-3 py-2 text-xs text-brand-gold hover:bg-brand-gold/15 transition-colors"><Send className="h-3.5 w-3.5" /> Reply</button>
                           <select value={q.status} onChange={(e) => { e.stopPropagation(); updateInquiryStatus(q.id, e.target.value, q.status) }} onClick={(e) => e.stopPropagation()} className="border border-white/10 bg-brand-black px-3 py-2 rounded text-xs text-white focus:border-brand-gold outline-none">
                             {INQUIRY_STATUSES.map((s) => <option key={s} value={s} className={OPTION_CLASS}>{s}</option>)}
@@ -1495,6 +1531,24 @@ export function AdminDashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AdminBottomNav
+        items={[
+          { id: 'overview' as Tab, label: 'Home', icon: <Home className="h-4 w-4" />, badge: urgentTrips.length },
+          { id: 'bookings' as Tab, label: 'Trips', icon: <Calendar className="h-4 w-4" />, badge: pendingCount },
+          { id: 'drivers' as Tab, label: 'Drivers', icon: <UserRound className="h-4 w-4" /> },
+          { id: 'affiliates' as Tab, label: 'Partners', icon: <Building2 className="h-4 w-4" /> },
+        ]}
+        active={activeTab}
+        onSelect={(id) => {
+          setActiveTab(id)
+          window.scrollTo({ top: 0 })
+        }}
+        onMore={() => setSidebarOpen(true)}
+      />
+
+      <UpdateToast show={updateReady} onUpdate={update} />
+      <InstallPrompt />
 
       <AnimatePresence>
         {affiliateTarget && (
