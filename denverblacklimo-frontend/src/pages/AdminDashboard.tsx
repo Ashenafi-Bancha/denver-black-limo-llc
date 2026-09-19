@@ -21,7 +21,8 @@ import { AdminCustomers } from '../admin/AdminCustomers'
 import { AdminAffiliates } from '../admin/AdminAffiliates'
 import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
 import { AdminBottomNav } from '../admin/AdminBottomNav'
-import { InstallPrompt, OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
+import { OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
+import { InstallSheet, InstallSidebarCard, InstallStrip, useInstallAction } from '../admin/AdminInstall'
 import { NewBookingModal, type NewBookingPayload } from '../admin/AdminNewBooking'
 import { OrderAnalyticsPanel, type OrderAnalytics } from '../admin/AdminOrders'
 import { QuoteModal, type QuoteTarget } from '../admin/AdminQuote'
@@ -177,6 +178,8 @@ export function AdminDashboard() {
   const online = useOnline()
   const { updateReady, update } = useServiceWorker()
   usePwaMeta()
+  // Offered until the admin has been installed, then never again.
+  const installApp = useInstallAction()
   const { settings, refreshSettings } = useSiteSettings()
 
   /**
@@ -797,6 +800,15 @@ export function AdminDashboard() {
           ))}
         </nav>
         <div className="border-t border-white/10 p-4">
+          {!installApp.installed && (
+            <InstallSidebarCard
+              platform={installApp.platform}
+              onInstall={() => {
+                setSidebarOpen(false)
+                installApp.install()
+              }}
+            />
+          )}
           <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-red-400/80 hover:bg-red-400/10 hover:text-red-400 transition-colors"><LogOut className="h-4 w-4" /> Logout</button>
         </div>
       </aside>
@@ -838,6 +850,7 @@ export function AdminDashboard() {
           className="relative z-10 mx-auto max-w-7xl p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8"
           style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
         >
+          {!installApp.installed && <InstallStrip platform={installApp.platform} onInstall={installApp.install} />}
 
           {/* OVERVIEW */}
           {activeTab === 'overview' && (
@@ -1548,7 +1561,13 @@ export function AdminDashboard() {
       />
 
       <UpdateToast show={updateReady} onUpdate={update} />
-      <InstallPrompt />
+      <InstallSheet
+        open={installApp.sheetOpen}
+        onClose={installApp.closeSheet}
+        platform={installApp.platform}
+        canPrompt={installApp.canPrompt}
+        promptInstall={installApp.promptInstall}
+      />
 
       <AnimatePresence>
         {affiliateTarget && (
