@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../api/pending_status.dart';
 import '../models/trip.dart';
 import '../theme.dart';
 
@@ -21,11 +22,17 @@ class TripStatusBar extends StatelessWidget {
     required this.busy,
     required this.onSet,
     required this.now,
+    this.pending,
   });
 
   final Trip trip;
   final bool busy;
   final void Function(String status) onSet;
+
+  /// Presses still on the phone. Shown in place of the server's answer, or a
+  /// driver out of signal would press ARRIVED, see nothing change, and press
+  /// it again — putting two arrivals in a log that is read as evidence.
+  final PendingOverlay? pending;
 
   /// Passed in rather than read here, so the whole list ticks together and a
   /// widget rebuild cannot show two different "now"s on one screen.
@@ -53,9 +60,15 @@ class TripStatusBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final current = trip.driverStatus;
+    final unsent = pending;
+    final current = unsent?.status ?? trip.driverStatus;
+    final at = unsent?.statusAt ?? trip.statusAt;
     final next = nextAfter(current);
-    final waiting = trip.waitingFor(now);
+    final waiting = trip.waitingFor(
+      now,
+      queuedArrivedAt: unsent?.arrivedAt,
+      queuedStatus: unsent?.status,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -66,16 +79,18 @@ class TripStatusBar extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  trip.isClosed ? Icons.check_circle : Icons.radio_button_checked,
+                  unsent != null
+                      ? Icons.cloud_upload_outlined
+                      : (trip.isClosed ? Icons.check_circle : Icons.radio_button_checked),
                   size: 16,
                   color: trip.isClosed ? Brand.ok : Brand.gold,
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    trip.statusAt == null
+                    at == null
                         ? labels[current] ?? current
-                        : '${labels[current] ?? current} · ${clock(trip.statusAt!)}',
+                        : '${labels[current] ?? current} · ${clock(at)}',
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
@@ -83,6 +98,21 @@ class TripStatusBar extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Says the time is kept, not that it is lost. The server is
+                // sent the moment it happened, so a late sync still bills from
+                // the right minute.
+                if (unsent != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      unsent.count > 1 ? 'saved (${unsent.count})' : 'saved on phone',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white54,
+                      ),
+                    ),
+                  ),
                 // Only while it is actually running: once the passenger is
                 // aboard there is nothing to charge for.
                 if (waiting != null && waiting.inMinutes >= 1)

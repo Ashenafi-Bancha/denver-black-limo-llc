@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../api/api_client.dart';
 import '../api/driver_api.dart';
+import '../api/pending_status.dart';
 import '../models/trip.dart';
 import '../theme.dart';
 import '../widgets/trip_status_bar.dart';
@@ -43,8 +44,15 @@ class _TripsScreenState extends State<TripsScreen> {
     // Thirty seconds: the counter is read in minutes, and a driver standing
     // at a kerb should not be paying for a rebuild every second.
     _tick = Timer.periodic(const Duration(seconds: 30), (_) {
-      if (mounted) setState(() => _now = DateTime.now());
+      if (!mounted) return;
+      setState(() => _now = DateTime.now());
+      // No connectivity plugin: the signal is back if a request succeeds, and
+      // one request every thirty seconds while something is waiting costs less
+      // than another native dependency to find that out.
+      if (!widget.api.pending.isEmpty) _flush();
     });
+    // Anything left from a previous run goes as soon as the screen is up.
+    _flush();
   }
 
   @override
@@ -56,17 +64,30 @@ class _TripsScreenState extends State<TripsScreen> {
   Future<void> _setStatus(Trip trip, String status) async {
     setState(() => _savingTripId = trip.id);
     try {
-      await widget.api.setTripStatus(tripId: trip.id, status: status);
-      // Re-read rather than patch locally: the server decides what was
-      // recorded, including the timestamp it kept.
-      await _refresh();
+      final delivery = await widget.api.setTripStatus(tripId: trip.id, status: status);
+
+      if (delivery == StatusDelivery.sent) {
+        // Re-read rather than patch locally: the server decides what was
+        // recorded, including the timestamp it kept.
+        await _refresh();
+        // The signal is evidently back, so anything held from earlier goes now.
+        if (!widget.api.pending.isEmpty) await _flush();
+      }
+
       if (mounted) {
+        final queued = delivery == StatusDelivery.queued;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${TripStatusBar.labels[status]} · ${TripStatusBar.clock(DateTime.now())}'),
-            duration: const Duration(seconds: 2),
+            duration: Duration(seconds: queued ? 4 : 2),
+            content: Text(
+              '${TripStatusBar.labels[status]} · ${TripStatusBar.clock(DateTime.now())}'
+              '${queued ? ' — saved on this phone, sends when you have signal' : ''}',
+            ),
           ),
         );
+        // A queued press changes nothing on the server, so nothing refetches;
+        // the card still has to show it.
+        if (queued) setState(() {});
       }
     } on ApiException catch (e) {
       if (e.needsSignIn && mounted) {
@@ -94,6 +115,48 @@ class _TripsScreenState extends State<TripsScreen> {
     final next = _load();
     setState(() => _future = next);
     await next.catchError((_) => <Trip>[]);
+  }
+
+  /// Pull-to-refresh. A driver who has just come back into signal reaches for
+  /// this first, so it is the fastest way to drain the queue.
+  Future<void> _refreshAndFlush() async {
+    await _refresh();
+    if (!widget.api.pending.isEmpty) await _flush();
+  }
+
+  /// Sends whatever is waiting. Safe to call often — the API runs one drain
+  /// at a time, so overlapping calls cannot post the same press twice.
+  Future<void> _flush() async {
+    if (!widget.api.store.isSignedIn) return;
+    FlushOutcome out;
+    try {
+      out = await widget.api.flushPending();
+    } catch (_) {
+      // Nothing here is worth interrupting a driver for; the next tick retries.
+      return;
+    }
+    if (!mounted || !out.changedAnything) return;
+
+    if (out.sent > 0) await _refresh();
+    if (!mounted) return;
+    setState(() {});
+
+    // The two that must not pass quietly: the driver believed these were
+    // recorded, and they were not.
+    final lost = out.dropped + out.expired;
+    if (lost > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Brand.bad,
+          duration: const Duration(seconds: 8),
+          content: Text(
+            lost == 1
+                ? 'One saved press could not be recorded. Please tell dispatch what happened.'
+                : '$lost saved presses could not be recorded. Please tell dispatch what happened.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _open(Uri uri) async {
@@ -158,7 +221,7 @@ class _TripsScreenState extends State<TripsScreen> {
       body: RefreshIndicator(
         color: Brand.gold,
         backgroundColor: Brand.surface,
-        onRefresh: _refresh,
+        onRefresh: _refreshAndFlush,
         child: FutureBuilder<List<Trip>>(
           future: _future,
           builder: (context, snap) {
@@ -195,6 +258,7 @@ class _TripsScreenState extends State<TripsScreen> {
               itemBuilder: (_, i) => _TripCard(
                 trip: trips[i],
                 now: _now,
+                pending: widget.api.pending.overlayFor(trips[i].id),
                 busy: _savingTripId == trips[i].id,
                 onCall: (phone) => _open(Uri.parse('tel:$phone')),
                 onNavigate: (t) => _open(t.mapsUri),
@@ -213,6 +277,7 @@ class _TripCard extends StatelessWidget {
     required this.trip,
     required this.now,
     required this.busy,
+    this.pending,
     required this.onCall,
     required this.onNavigate,
     required this.onSetStatus,
@@ -221,6 +286,10 @@ class _TripCard extends StatelessWidget {
   final Trip trip;
   final DateTime now;
   final bool busy;
+
+  /// Presses for this trip that are still on the phone.
+  final PendingOverlay? pending;
+
   final void Function(String phone) onCall;
   final void Function(Trip trip) onNavigate;
   final void Function(Trip trip, String status) onSetStatus;
@@ -389,6 +458,7 @@ class _TripCard extends StatelessWidget {
             const Divider(height: 24, color: Brand.line),
 
             TripStatusBar(
+              pending: pending,
               trip: trip,
               now: now,
               busy: busy,

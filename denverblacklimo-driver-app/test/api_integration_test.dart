@@ -5,9 +5,12 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:dbl_driver/api/api_client.dart';
 import 'package:dbl_driver/api/auth_store.dart';
 import 'package:dbl_driver/api/driver_api.dart';
+import 'package:dbl_driver/api/pending_status.dart';
 
 /// Exercises the real client against a real backend.
 ///
@@ -88,7 +91,11 @@ void main() {
 
     setUp(() {
       store = AuthStore();
-      api = DriverApi(client: ApiClient(baseUrl: baseUrl, store: store), store: store);
+      api = DriverApi(
+        client: ApiClient(baseUrl: baseUrl, store: store),
+        store: store,
+        pending: PendingQueue(),
+      );
     });
 
     test('signs in, stores the session, and reads back the trips', () async {
@@ -155,7 +162,15 @@ void main() {
       }
 
       await api.signIn(email: email, password: password);
-      final before = (await api.trips()).first;
+      // Not simply the first trip: an arrival is only ever set, never moved,
+      // so a trip that has already arrived can never satisfy the assertion
+      // below. Taking any trip would make this pass once and fail on every
+      // re-run against the same scratch database.
+      final before = (await api.trips()).where((t) => t.arrivedAt == null).firstOrNull;
+      if (before == null) {
+        markTestSkipped('Every trip on this server has already arrived — reset the scratch database');
+        return;
+      }
 
       await api.setTripStatus(tripId: before.id, status: 'en_route');
       var after = (await api.trips()).firstWhere((t) => t.id == before.id);
@@ -180,6 +195,54 @@ void main() {
       await api.setTripStatus(tripId: before.id, status: 'dropped_off');
       after = (await api.trips(scope: 'all')).firstWhere((t) => t.id == before.id);
       expect(after.isClosed, isTrue);
+    });
+
+    test('a press made with no signal keeps its own time when it syncs', () async {
+      if (!await serverUp()) {
+        markTestSkipped('No backend at $baseUrl');
+        return;
+      }
+
+      await api.signIn(email: email, password: password);
+      final trip = (await api.trips()).where((t) => t.arrivedAt == null).firstOrNull;
+      if (trip == null) {
+        markTestSkipped('Every trip on this server has already arrived');
+        return;
+      }
+
+      // The same session and the same queue, on a client that cannot reach
+      // anything — a driver in a canyon.
+      final offline = DriverApi(
+        client: ApiClient(
+          baseUrl: baseUrl,
+          store: store,
+          httpClient: MockClient((_) async => throw const SocketException('no signal')),
+        ),
+        store: store,
+        pending: api.pending,
+      );
+
+      final pressedAt = DateTime.now().toUtc().subtract(const Duration(minutes: 25));
+      final how = await offline.setTripStatus(
+        tripId: trip.id,
+        status: 'arrived',
+        occurredAt: pressedAt,
+      );
+      expect(how, StatusDelivery.queued, reason: 'nothing was reachable, so it is on the phone');
+      expect(api.pending.length, 1);
+
+      // Back in signal. The real client sends it.
+      final out = await api.flushPending();
+      expect(out.sent, 1);
+      expect(api.pending.isEmpty, isTrue);
+
+      final after = (await api.trips()).firstWhere((t) => t.id == trip.id);
+      expect(after.driverStatus, 'arrived');
+      expect(
+        after.arrivedAt!.toUtc().difference(pressedAt).inSeconds.abs(),
+        lessThan(2),
+        reason: 'wait time must bill from when the car arrived, not when the phone found a tower',
+      );
     });
 
     test('a status that does not exist is refused', () async {

@@ -121,10 +121,25 @@ class Trip {
 
   /// How long the car has been waiting. What the free wait window in the
   /// reservation agreement is measured against.
-  Duration? waitingFor(DateTime now) {
-    if (arrivedAt == null) return null;
-    if (driverStatus == 'on_board' || isClosed) return null;
-    return now.difference(arrivedAt!);
+  /// How long the car has been waiting, or null if it is not waiting.
+  ///
+  /// The overrides carry a press that has not reached the server yet. Without
+  /// them a driver who pressed ARRIVED with no signal would watch the counter
+  /// stay at nothing — the one number on this screen that turns into money.
+  ///
+  /// The server's own [arrivedAt] wins when it has one: an arrival is only
+  /// ever set, never moved, so the recorded time is the earlier and the true
+  /// one.
+  Duration? waitingFor(
+    DateTime now, {
+    DateTime? queuedArrivedAt,
+    String? queuedStatus,
+  }) {
+    final arrived = arrivedAt ?? queuedArrivedAt;
+    final current = queuedStatus ?? driverStatus;
+    if (arrived == null) return null;
+    if (current == 'on_board' || current == 'dropped_off' || current == 'no_show') return null;
+    return now.difference(arrived);
   }
 
   bool get isAirport =>

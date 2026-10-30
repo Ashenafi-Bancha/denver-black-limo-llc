@@ -38,6 +38,16 @@ flutter test                   # unit tests; integration ones skip with no serve
 flutter test test/api_integration_test.dart   --dart-define=API_BASE_URL=http://localhost:3010/api   --dart-define=DRIVER_EMAIL=marcus@example.com   --dart-define=DRIVER_PASSWORD=...
 ```
 
+A status press is written to an on-device queue before it is sent
+(`lib/api/pending_status.dart`), because mountain work loses signal and the
+press is what a wait-time charge is billed from. The queue sends `occurredAt`,
+so a late sync still records the true minute; the admin shows the gap. Entries
+are owned by the driver who made them — a handset passed to the next shift must
+not post the last driver's presses under a new token, which the server would
+refuse as somebody else's trip and the app would then discard. Refusals that
+retrying cannot fix (400, 404, 409) are dropped so they cannot jam the queue;
+everything else is kept and retried on the next tick.
+
 The app reads its API address from `--dart-define=API_BASE_URL`, defaulting to
 production. On an Android emulator use `http://10.0.2.2:3001/api` — `localhost`
 there is the emulated device, not the machine running the server.
@@ -80,6 +90,16 @@ Each of these was a real bug. They are easy to reintroduce.
   that returns 400 for everything, so any test that genuinely needs a server
   fails with a misleading message. Set `HttpOverrides.global = null` in the
   test's `main` — see `test/api_integration_test.dart`.
+- **Re-running the integration suite trips the login rate limit.** Each pass
+  signs in several times and `/api/driver/login` allows 20 per window, so the
+  third or fourth run fails everywhere at once and looks like a broken client.
+  The limiter is in memory: restart the backend on a fresh port rather than
+  hunting it.
+- **The integration suite needs a database nobody has arrived in.** An arrival
+  is set once and never moved, so a trip that has already arrived can never
+  satisfy "no arrival yet". The tests now pick an un-arrived trip and skip with
+  a message if there is none — reset with
+  `DELETE FROM trip_events; UPDATE bookings SET driver_status=NULL, driver_status_at=NULL, driver_arrived_at=NULL;`
 - **Flutter web draws to a canvas, not the DOM.** `innerText` is empty and
   there are no `<input>` elements, so the browser pane cannot read or fill the
   driver app. Screenshots work; synthetic typing does not land reliably. Verify

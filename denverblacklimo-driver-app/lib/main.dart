@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api/api_client.dart';
 import 'api/auth_store.dart';
 import 'api/driver_api.dart';
+import 'api/pending_status.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/trips_screen.dart';
 import 'theme.dart';
@@ -20,8 +21,14 @@ void main() async {
   // the sign-in screen flash past on the way to their trips.
   await store.load();
 
+  // Presses made with no signal on a previous run. Loaded before the first
+  // frame too, so the trips list can show them as waiting rather than showing
+  // the server's older answer and inviting a second press.
+  final pending = PendingQueue();
+  await pending.load();
+
   final client = ApiClient(baseUrl: ApiClient.defaultBaseUrl, store: store);
-  runApp(DriverApp(api: DriverApi(client: client, store: store)));
+  runApp(DriverApp(api: DriverApi(client: client, store: store, pending: pending)));
 }
 
 class DriverApp extends StatefulWidget {
