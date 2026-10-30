@@ -22,5 +22,9 @@ export function ServiceDetailPage() {
     )
   }
 
+  // Under StaticRouter a redirect is a no-op that only prints a warning, once
+  // per prerendered service page. Sending the visitor on is the browser's job.
+  if (typeof window === 'undefined') return null
+
   return <Navigate to={`/services#${service.slug}`} replace />
 }

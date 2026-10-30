@@ -99,6 +99,15 @@ const ROUTES: Record<string, Meta> = {
     description:
       'Get an instant price for luxury chauffeured transportation in Denver. Enter your pick-up and destination, choose a vehicle, and see your estimate straight away.',
   },
+  // The admin is a tool, not a page of the site, and had no entry here — so
+  // every build prerendered it with the "Page Not Found" head. Nothing put it
+  // right later either: RouteSeo lives in Layout and /admin renders outside it,
+  // which left the browser tab and every shared link reading as a dead page.
+  '/admin': {
+    title: `Admin | ${BRAND}`,
+    description: 'Operations dashboard for Denver Black Limo LLC staff.',
+    noindex: true,
+  },
 }
 
 export function metaFor(pathname: string): Meta {
@@ -218,7 +227,8 @@ export function schemaFor(pathname: string): Json[] {
       })),
     })
     out.push(breadcrumbs([home, { name: 'Contact', path: '/contact' }]))
-  } else if (path !== '/' && ROUTES[path]) {
+  } else if (path !== '/' && ROUTES[path] && !ROUTES[path].noindex) {
+    // A page held out of the index has no use for a breadcrumb trail.
     const name = ROUTES[path].title.split('|')[0].split('—')[0].trim()
     out.push(breadcrumbs([home, { name, path }]))
   }
