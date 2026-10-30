@@ -148,6 +148,54 @@ void main() {
       expect(store.refreshToken, isNot(firstRefresh), reason: 'refresh tokens rotate on use');
     });
 
+    test('records a status, and the trip comes back carrying it', () async {
+      if (!await serverUp()) {
+        markTestSkipped('No backend at $baseUrl');
+        return;
+      }
+
+      await api.signIn(email: email, password: password);
+      final before = (await api.trips()).first;
+
+      await api.setTripStatus(tripId: before.id, status: 'en_route');
+      var after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      expect(after.driverStatus, 'en_route');
+      expect(after.statusAt, isNotNull);
+      expect(after.arrivedAt, isNull, reason: 'only arriving sets the arrival time');
+
+      await api.setTripStatus(tripId: before.id, status: 'arrived');
+      after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      expect(after.driverStatus, 'arrived');
+      expect(after.arrivedAt, isNotNull, reason: 'wait time is billed from this');
+
+      // The counter the agreement's free wait window is measured against.
+      final waiting = after.waitingFor(after.arrivedAt!.add(const Duration(minutes: 12)));
+      expect(waiting?.inMinutes, 12);
+
+      await api.setTripStatus(tripId: before.id, status: 'on_board');
+      after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      expect(after.waitingFor(DateTime.now()), isNull,
+          reason: 'nothing to charge for once the passenger is aboard');
+
+      await api.setTripStatus(tripId: before.id, status: 'dropped_off');
+      after = (await api.trips(scope: 'all')).firstWhere((t) => t.id == before.id);
+      expect(after.isClosed, isTrue);
+    });
+
+    test('a status that does not exist is refused', () async {
+      if (!await serverUp()) {
+        markTestSkipped('No backend at $baseUrl');
+        return;
+      }
+
+      await api.signIn(email: email, password: password);
+      final trip = (await api.trips(scope: 'all')).first;
+      await expectLater(
+        api.setTripStatus(tripId: trip.id, status: 'teleported'),
+        throwsA(isA<ApiException>()),
+      );
+    });
+
     test('signing out clears the device even though the server also hears it', () async {
       if (!await serverUp()) {
         markTestSkipped('No backend at $baseUrl');

@@ -489,6 +489,7 @@ app.get('/api/driver/trips', driverAuth.authenticateDriver, async (req, res) => 
               b.name AS passenger_name, b.phone AS passenger_phone,
               b.airline_name, b.flight_number, b.terminal, b.airport_direction,
               b.details, b.special_requests, b.driver_notes, b.driver_pay,
+              b.driver_status, b.driver_status_at, b.driver_arrived_at,
               ${TRIP_AT} AS pickup_at
          FROM bookings b
         WHERE lower(b.driver_email) = lower($1)
@@ -504,6 +505,131 @@ app.get('/api/driver/trips', driverAuth.authenticateDriver, async (req, res) => 
   } catch (err) {
     console.error('Driver trips error:', err.message);
     res.status(500).json({ error: 'Could not load your trips.' });
+  }
+});
+
+/**
+ * The order a trip runs in. Not enforced as a state machine — see below.
+ */
+const TRIP_STATUSES = ['en_route', 'arrived', 'on_board', 'dropped_off', 'no_show'];
+
+/**
+ * Records what the chauffeur pressed.
+ *
+ * Any status may follow any other. A state machine would be tidier and would
+ * also strand a driver who pressed "arrived" one street early, at the kerb,
+ * with a passenger waiting — and the office would hear about it by phone. The
+ * log keeps every press including the correction, so the sequence is still
+ * readable afterwards, which is what a disputed charge actually needs.
+ *
+ * Scoped to the signed-in driver: the booking must already be assigned to
+ * them. A driver cannot move someone else's trip.
+ */
+app.post('/api/driver/trips/:id/status', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Trip not found' });
+
+    const status = String(req.body?.status || '').trim();
+    if (!TRIP_STATUSES.includes(status)) {
+      return res.status(400).json({ error: 'That is not a status this trip can be set to.' });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, status, driver_email FROM bookings WHERE id = $1;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Trip not found' });
+
+    const booking = rows[0];
+    if ((booking.driver_email || '').toLowerCase() !== req.driver.email.toLowerCase()) {
+      // Deliberately the same answer as a trip that does not exist, so this
+      // cannot be used to discover other drivers' bookings.
+      return res.status(404).json({ error: 'Trip not found' });
+    }
+    if (booking.status === 'Cancelled') {
+      return res.status(409).json({ error: 'This trip was cancelled. Please call dispatch.' });
+    }
+
+    // The device may say when it happened — a status pressed with no signal
+    // and synced later. Anything in the future, or absurdly old, is ignored
+    // in favour of now: a clock that is wrong must not rewrite the record.
+    const claimed = Date.parse(req.body?.occurredAt ?? '');
+    const now = Date.now();
+    const occurredAt =
+      Number.isFinite(claimed) && claimed <= now + 60_000 && claimed > now - 7 * 86400_000
+        ? new Date(claimed)
+        : new Date(now);
+
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+
+    // One transaction: the log and the cache of it must never disagree. The
+    // first version wrote them separately and a failure on the second left an
+    // event recorded against a booking that still showed no status at all.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `INSERT INTO trip_events (booking_id, driver_id, driver_name, status, occurred_at, lat, lng, note)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+        [
+          req.params.id,
+          req.driver.id,
+          req.driver.name,
+          status,
+          occurredAt,
+          num(req.body?.lat),
+          num(req.body?.lng),
+          String(req.body?.note || '').trim().slice(0, 2000) || null,
+        ]
+      );
+
+      // The cache of the latest event.
+      //
+      // Whether this press sets the arrival time is decided here rather than
+      // in SQL. A CASE on $1 made Postgres deduce two types for one parameter
+      // — varchar from the assignment, text from the comparison — and refuse
+      // the statement. COALESCE says the rule just as plainly: arrival is set
+      // once and never moved afterwards, because it is what wait time is
+      // billed from, and a second "arrived" must not restart the clock.
+      const arrivedAt = status === 'arrived' ? occurredAt : null;
+      await client.query(
+        `UPDATE bookings
+            SET driver_status = $1,
+                driver_status_at = $2,
+                driver_arrived_at = COALESCE(driver_arrived_at, $3),
+                updated_at = now()
+          WHERE id = $4;`,
+        [status, occurredAt, arrivedAt, req.params.id]
+      );
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    console.log(`Trip ${bookingRef(req.params.id)} -> ${status} by ${req.driver.name}`);
+    res.json({ ok: true, status, at: occurredAt });
+  } catch (err) {
+    console.error('Trip status error:', err.message);
+    res.status(500).json({ error: 'Could not record that. Please try again.' });
+  }
+});
+
+/** The full sequence for one trip, for the office and for disputes. */
+app.get('/api/bookings/:id/events', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query(
+      `SELECT status, driver_name, occurred_at, recorded_at, lat, lng, note
+         FROM trip_events WHERE booking_id = $1 ORDER BY occurred_at ASC;`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Trip events error:', err.message);
+    res.status(500).json({ error: 'Could not load the trip history.' });
   }
 });
 

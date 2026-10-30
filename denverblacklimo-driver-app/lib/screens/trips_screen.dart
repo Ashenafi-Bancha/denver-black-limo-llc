@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -5,6 +7,7 @@ import '../api/api_client.dart';
 import '../api/driver_api.dart';
 import '../models/trip.dart';
 import '../theme.dart';
+import '../widgets/trip_status_bar.dart';
 
 /// The driver's schedule — the screen the app exists for.
 ///
@@ -26,10 +29,54 @@ class _TripsScreenState extends State<TripsScreen> {
   late Future<List<Trip>> _future;
   String _scope = 'upcoming';
 
+  /// The trip whose status is being saved, so only its button spins.
+  String? _savingTripId;
+
+  /// One clock for the whole list, so every wait counter agrees.
+  DateTime _now = DateTime.now();
+  Timer? _tick;
+
   @override
   void initState() {
     super.initState();
     _future = _load();
+    // Thirty seconds: the counter is read in minutes, and a driver standing
+    // at a kerb should not be paying for a rebuild every second.
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _tick?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _setStatus(Trip trip, String status) async {
+    setState(() => _savingTripId = trip.id);
+    try {
+      await widget.api.setTripStatus(tripId: trip.id, status: status);
+      // Re-read rather than patch locally: the server decides what was
+      // recorded, including the timestamp it kept.
+      await _refresh();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${TripStatusBar.labels[status]} · ${TripStatusBar.clock(DateTime.now())}'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } on ApiException catch (e) {
+      if (e.needsSignIn && mounted) {
+        widget.onSignedOut();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _savingTripId = null);
+    }
   }
 
   Future<List<Trip>> _load() async {
@@ -147,8 +194,11 @@ class _TripsScreenState extends State<TripsScreen> {
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (_, i) => _TripCard(
                 trip: trips[i],
+                now: _now,
+                busy: _savingTripId == trips[i].id,
                 onCall: (phone) => _open(Uri.parse('tel:$phone')),
                 onNavigate: (t) => _open(t.mapsUri),
+                onSetStatus: _setStatus,
               ),
             );
           },
@@ -159,11 +209,21 @@ class _TripsScreenState extends State<TripsScreen> {
 }
 
 class _TripCard extends StatelessWidget {
-  const _TripCard({required this.trip, required this.onCall, required this.onNavigate});
+  const _TripCard({
+    required this.trip,
+    required this.now,
+    required this.busy,
+    required this.onCall,
+    required this.onNavigate,
+    required this.onSetStatus,
+  });
 
   final Trip trip;
+  final DateTime now;
+  final bool busy;
   final void Function(String phone) onCall;
   final void Function(Trip trip) onNavigate;
+  final void Function(Trip trip, String status) onSetStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -312,14 +372,27 @@ class _TripCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: FilledButton.icon(
+                  child: OutlinedButton.icon(
                     onPressed: () => onNavigate(trip),
                     icon: const Icon(Icons.navigation, size: 18),
                     label: const Text('Navigate'),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: Brand.line),
+                      minimumSize: const Size.fromHeight(48),
+                    ),
                   ),
                 ),
               ],
+            ),
+
+            const Divider(height: 24, color: Brand.line),
+
+            TripStatusBar(
+              trip: trip,
+              now: now,
+              busy: busy,
+              onSet: (status) => onSetStatus(trip, status),
             ),
           ],
         ),

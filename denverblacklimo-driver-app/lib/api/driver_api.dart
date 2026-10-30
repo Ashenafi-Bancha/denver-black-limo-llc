@@ -65,6 +65,26 @@ class DriverApi {
         .toList(growable: false);
   }
 
+  /// Records what the driver pressed.
+  ///
+  /// `occurredAt` is sent as well as the status so the server keeps when it
+  /// happened rather than when it heard — the hook offline queueing will need,
+  /// and already honoured by the API.
+  Future<void> setTripStatus({
+    required String tripId,
+    required String status,
+    DateTime? occurredAt,
+    double? lat,
+    double? lng,
+  }) async {
+    await client.post('/driver/trips/$tripId/status', body: {
+      'status': status,
+      'occurredAt': (occurredAt ?? DateTime.now()).toUtc().toIso8601String(),
+      'lat': ?lat,
+      'lng': ?lng,
+    });
+  }
+
   Future<void> changePassword({required String current, required String next}) async {
     await client.post('/driver/password', body: {
       'currentPassword': current,

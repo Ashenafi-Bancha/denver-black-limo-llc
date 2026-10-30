@@ -35,6 +35,9 @@ class Trip {
     required this.specialRequests,
     required this.dispatchNotes,
     required this.pay,
+    required this.driverStatus,
+    required this.statusAt,
+    required this.arrivedAt,
   });
 
   final String id;
@@ -69,6 +72,15 @@ class Trip {
   /// Free text — "$140 flat", "70%", "as agreed" — never a number.
   final String pay;
 
+  /// Where the trip has got to: one of TripStatus.values, or empty if the
+  /// driver has not pressed anything yet.
+  final String driverStatus;
+  final DateTime? statusAt;
+
+  /// When the car reached the pick-up. The one timestamp wait time is billed
+  /// from, which is why the server never moves it once set.
+  final DateTime? arrivedAt;
+
   static String _str(dynamic v) => v == null ? '' : v.toString().trim();
 
   static DateTime? _date(dynamic v) {
@@ -99,7 +111,21 @@ class Trip {
         specialRequests: _str(j['special_requests']),
         dispatchNotes: _str(j['driver_notes']),
         pay: _str(j['driver_pay']),
+        driverStatus: _str(j['driver_status']),
+        statusAt: _date(j['driver_status_at']),
+        arrivedAt: _date(j['driver_arrived_at']),
       );
+
+  /// Finished, one way or the other — nothing further to press.
+  bool get isClosed => driverStatus == 'dropped_off' || driverStatus == 'no_show';
+
+  /// How long the car has been waiting. What the free wait window in the
+  /// reservation agreement is measured against.
+  Duration? waitingFor(DateTime now) {
+    if (arrivedAt == null) return null;
+    if (driverStatus == 'on_board' || isClosed) return null;
+    return now.difference(arrivedAt!);
+  }
 
   bool get isAirport =>
       airlineName.isNotEmpty ||
