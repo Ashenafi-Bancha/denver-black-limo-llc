@@ -19,6 +19,7 @@ import { DispatchModal, type DispatchTarget, type DriverSummary } from '../admin
 import { AdminDrivers } from '../admin/AdminDrivers'
 import { AdminCustomers } from '../admin/AdminCustomers'
 import { AdminAffiliates } from '../admin/AdminAffiliates'
+import { AdminTripHistory } from '../admin/AdminTripHistory'
 import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
 import { AdminBottomNav } from '../admin/AdminBottomNav'
 import { OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
@@ -61,6 +62,9 @@ type Booking = {
   affiliate_active?: boolean | null
   affiliate_assigned_at?: string | null
   affiliate_notified_at?: string | null
+  driver_status?: string | null
+  driver_status_at?: string | null
+  driver_arrived_at?: string | null
   driver_name?: string | null
   driver_email?: string | null
   driver_phone?: string | null
@@ -1308,6 +1312,14 @@ export function AdminDashboard() {
                                 {b.airline_name && (<div className="mt-3 pt-3 border-t border-white/10"><p className="font-bold text-brand-gold mb-1">AIRPORT ({b.airport_direction})</p><p>Airline: {b.airline_name}</p><p>Flight: {b.flight_number}</p>{b.terminal && <p>Terminal: {b.terminal}</p>}</div>)}
                               </div>
                             </div>
+                            {(b.driver_status || b.driver_name) && (
+                              <div className="space-y-3 md:col-span-2 lg:col-span-3">
+                                <h4 className="flex items-center gap-2 text-xs font-bold tracking-widest text-brand-gold"><Clock className="h-4 w-4" /> TRIP HISTORY</h4>
+                                <div className="rounded border border-white/5 bg-brand-surface p-4">
+                                  <AdminTripHistory bookingId={b.id} token={token} serviceType={b.service_type} />
+                                </div>
+                              </div>
+                            )}
                             {b.details && Object.keys(b.details).some((k) => DETAIL_LABELS[k] && b.details![k]) && (
                               <div className="md:col-span-2 lg:col-span-3 space-y-2">
                                 <h4 className="flex items-center gap-2 text-xs font-bold tracking-widest text-brand-gold"><FileText className="h-4 w-4" /> TRIP SPECIFICS</h4>
