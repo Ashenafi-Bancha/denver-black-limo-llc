@@ -65,6 +65,7 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
 const { pool, runMigrations } = require('./db');
+const driverAuth = require('./driverAuth');
 const flights = require('./flights');
 const crypto = require('crypto');
 const { buildAgreementPdf, signatureBuffer, TERMS_VERSION } = require('./agreement');
@@ -200,6 +201,12 @@ const authenticateToken = (req, res, next) => {
   
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) return res.sendStatus(403);
+    // A valid signature proves only that we issued this token, never what it
+    // may do. Driver tokens are signed with the same secret, so without this
+    // check a chauffeur's app token would open every admin route in the
+    // system. Tokens predating roles carry none and were admin by definition,
+    // so they are still honoured.
+    if (user && user.role && user.role !== 'admin') return res.sendStatus(403);
     req.user = user;
     next();
   });
@@ -303,6 +310,239 @@ app.post('/api/admin/login', rateLimit({
     res.json({ token: accessToken });
   } else {
     res.status(401).json({ error: 'Incorrect email or password' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DRIVER APP — AUTHENTICATION
+// ─────────────────────────────────────────────
+//
+// The chauffeur's half of the API. Everything here is scoped to the signed-in
+// driver: no route takes a driver id, because a driver app that can ask for
+// someone else's trips by changing a number in a URL is not access control.
+
+const driverLoginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: { error: 'Too many sign-in attempts. Please wait a few minutes and try again.' },
+});
+
+/** The device label and address recorded against a session. */
+function sessionContext(req) {
+  return {
+    deviceLabel: String(req.body?.device || req.headers['user-agent'] || '').slice(0, 255),
+    ip: req.ip,
+  };
+}
+
+app.post('/api/driver/login', driverLoginLimiter, async (req, res) => {
+  try {
+    const { email, password } = req.body || {};
+    const result = await driverAuth.authenticate(email, password);
+
+    if (!result.ok) {
+      if (result.reason === 'locked') {
+        return res.status(429).json({
+          error: 'Too many failed attempts. Try again in a few minutes, or call the office.',
+        });
+      }
+      if (result.reason === 'inactive') {
+        return res.status(403).json({ error: 'This account is no longer active. Please call the office.' });
+      }
+      if (result.reason === 'no_password') {
+        return res.status(403).json({ error: 'No password has been set for this account yet. Please call the office.' });
+      }
+      // "Wrong password" and "no such driver" are deliberately the same
+      // message: anything else tells a stranger which emails are real.
+      return res.status(401).json({ error: 'Incorrect email or password.' });
+    }
+
+    const { driver } = result;
+    const { refreshToken, expiresAt } = await driverAuth.createSession(driver.id, sessionContext(req));
+    console.log(`Driver signed in: ${driver.name} <${driver.email}>`);
+
+    res.json({
+      accessToken: driverAuth.signAccessToken(driver),
+      refreshToken,
+      refreshExpiresAt: expiresAt,
+      driver: {
+        id: driver.id,
+        name: driver.name,
+        email: driver.email,
+        phone: driver.phone,
+        vehicle: driver.vehicle_type,
+      },
+    });
+  } catch (err) {
+    console.error('Driver login error:', err.message);
+    res.status(500).json({ error: 'Could not sign you in. Please try again.' });
+  }
+});
+
+/**
+ * Exchanges a refresh token for a new pair. The old one stops working the
+ * moment this succeeds, so a stolen token surfaces as a sign-out on the real
+ * device rather than as a silent passenger.
+ */
+app.post('/api/driver/refresh', async (req, res) => {
+  try {
+    const rotated = await driverAuth.rotateSession(req.body?.refreshToken, { ip: req.ip });
+    if (!rotated) return res.status(403).json({ error: 'Your session has expired. Please sign in again.' });
+    res.json({ accessToken: rotated.accessToken, refreshToken: rotated.refreshToken });
+  } catch (err) {
+    console.error('Driver refresh error:', err.message);
+    res.status(500).json({ error: 'Could not refresh your session.' });
+  }
+});
+
+app.post('/api/driver/logout', async (req, res) => {
+  try {
+    await driverAuth.revokeSession(req.body?.refreshToken);
+    // Always 200: signing out must succeed even from an already-dead session,
+    // or an app can get stuck unable to clear itself.
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Driver logout error:', err.message);
+    res.json({ ok: true });
+  }
+});
+
+app.get('/api/driver/me', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name, email, phone, vehicle_type, vehicle_plate, default_pay,
+              to_char(license_expires, 'YYYY-MM-DD')   AS license_expires,
+              to_char(insurance_expires, 'YYYY-MM-DD') AS insurance_expires,
+              to_char(medical_expires, 'YYYY-MM-DD')   AS medical_expires
+         FROM drivers WHERE id = $1;`,
+      [req.driver.id]
+    );
+    res.json(rows[0] || null);
+  } catch (err) {
+    console.error('Driver profile error:', err.message);
+    res.status(500).json({ error: 'Could not load your profile.' });
+  }
+});
+
+app.post('/api/driver/password', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!newPassword || String(newPassword).length < 8) {
+      return res.status(400).json({ error: 'Your new password must be at least 8 characters.' });
+    }
+    const check = await driverAuth.authenticate(req.driver.email, currentPassword);
+    if (!check.ok) return res.status(403).json({ error: 'Your current password is not correct.' });
+
+    await driverAuth.setPassword(req.driver.id, String(newPassword));
+    // Every device is signed out, this one included: a password changed
+    // because a phone went missing must not leave that phone signed in.
+    res.json({ ok: true, signedOutEverywhere: true });
+  } catch (err) {
+    console.error('Driver password error:', err.message);
+    res.status(500).json({ error: 'Could not change your password.' });
+  }
+});
+
+/**
+ * The driver's own trips — the endpoint the whole app hangs off.
+ *
+ * Scoped by the token, never by a parameter. Matching is by email rather than
+ * driver_id because dispatch has always written the driver's details onto the
+ * booking as a snapshot, and trips assigned before this release have no id on
+ * them at all.
+ */
+app.get('/api/driver/trips', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const scope = String(req.query.scope || 'upcoming');
+    const where =
+      scope === 'past'
+        ? `${TRIP_AT} < now() OR b.status = 'Completed'`
+        : scope === 'all'
+          ? 'TRUE'
+          : `(${TRIP_AT} >= now() - interval '6 hours' OR ${TRIP_AT} IS NULL) AND b.status <> 'Cancelled'`;
+
+    const { rows } = await pool.query(
+      `SELECT b.id, b.status, b.service_type, b.trip_type,
+              b.pickup_date, b.pickup_time, b.pickup_location, b.dropoff_location,
+              b.additional_stops, b.passengers, b.luggage, b.vehicle_preference,
+              b.name AS passenger_name, b.phone AS passenger_phone,
+              b.airline_name, b.flight_number, b.terminal, b.airport_direction,
+              b.details, b.special_requests, b.driver_notes, b.driver_pay,
+              ${TRIP_AT} AS pickup_at
+         FROM bookings b
+        WHERE lower(b.driver_email) = lower($1)
+          AND (${where})
+        ORDER BY ${TRIP_AT} ASC NULLS LAST
+        LIMIT 200;`,
+      [req.driver.email]
+    );
+
+    // The passenger's email and what they are paying are deliberately absent.
+    // A chauffeur needs to run the trip, not to see the customer's invoice.
+    res.json(rows.map((r) => ({ ...r, reference: bookingRef(r.id) })));
+  } catch (err) {
+    console.error('Driver trips error:', err.message);
+    res.status(500).json({ error: 'Could not load your trips.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// DRIVER ACCOUNTS — ADMIN SIDE
+// ─────────────────────────────────────────────
+
+/**
+ * Sets or resets a driver's password and returns it once, in the clear, so the
+ * office can pass it on. It is never retrievable again — only replaceable.
+ */
+app.post('/api/drivers/:id/password', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Driver not found' });
+    const { rows } = await pool.query('SELECT id, name, email FROM drivers WHERE id = $1;', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Driver not found' });
+
+    const supplied = req.body?.password ? String(req.body.password) : null;
+    if (supplied && supplied.length < 8) {
+      return res.status(400).json({ error: 'A password must be at least 8 characters.' });
+    }
+    const password = supplied || driverAuth.generatePassword();
+    const endedSessions = await driverAuth.setPassword(req.params.id, password);
+
+    console.log(`Password set for driver ${rows[0].name}; ${endedSessions} session(s) ended`);
+    res.json({ ok: true, password, signedOutDevices: endedSessions });
+  } catch (err) {
+    console.error('Set driver password error:', err.message);
+    res.status(500).json({ error: 'Could not set this password.' });
+  }
+});
+
+/** The devices a driver is signed in on, so the office can see and end them. */
+app.get('/api/drivers/:id/sessions', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Driver not found' });
+    const { rows } = await pool.query(
+      `SELECT id, device_label, last_ip, created_at, last_used_at, expires_at, revoked_at
+         FROM driver_sessions
+        WHERE driver_id = $1
+        ORDER BY last_used_at DESC
+        LIMIT 50;`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Driver sessions error:', err.message);
+    res.status(500).json({ error: 'Could not load the sessions.' });
+  }
+});
+
+/** Remote sign-out — the promise made in the driver app's scope. */
+app.delete('/api/drivers/:id/sessions', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Driver not found' });
+    const ended = await driverAuth.revokeAllSessions(req.params.id);
+    res.json({ ok: true, signedOutDevices: ended });
+  } catch (err) {
+    console.error('Revoke driver sessions error:', err.message);
+    res.status(500).json({ error: 'Could not sign this driver out.' });
   }
 });
 
