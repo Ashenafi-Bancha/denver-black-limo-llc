@@ -30,6 +30,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # Plain HTTP rather than a client framework: this app makes a handful of
+  # requests and the interceptor logic it needs is specific enough to own.
+  http: ^1.2.2
+  # Keychain / Keystore. A driver's token is a credential, so it must not sit
+  # in shared preferences where a backup can read it.
+  flutter_secure_storage: ^9.2.2
+  # Hands the route to whichever maps app the driver prefers, and dials the
+  # passenger.
+  url_launcher: ^6.3.1
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -56,6 +65,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/logo.png
 
   # To add assets to your application, add an assets section, like this:
   # assets:

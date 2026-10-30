@@ -8,13 +8,34 @@ const path = require('path');
 const fs = require('fs');
 
 const app = express();
-const allowedOrigin = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+/**
+ * The browser origins allowed to call this API.
+ *
+ * A comma-separated list, because there is more than one browser client now:
+ * the public site, the admin, and the driver app's web target during
+ * development. Native builds of the driver app send no Origin at all and are
+ * unaffected by any of this — CORS is a browser rule, not an access control.
+ */
+const allowedOrigins = (process.env.ALLOWED_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
 // One proxy hop (DigitalOcean's load balancer) sits in front of this app.
 // Without trusting it, req.ip is the balancer for everyone — which would lump
 // all visitors into one rate-limit bucket and record the wrong address against
 // a signature.
 app.set('trust proxy', 1);
-app.use(cors({ origin: allowedOrigin }));
+app.use(
+  cors({
+    origin(origin, done) {
+      // No Origin header: a native app, curl, or a server-to-server call.
+      // Those were never subject to CORS, so refusing them here would only
+      // break them without making anything safer.
+      if (!origin) return done(null, true);
+      done(null, allowedOrigins.includes(origin));
+    },
+  })
+);
 app.use(express.json());
 
 /**
@@ -1050,6 +1071,10 @@ app.get('/api/drivers', authenticateToken, async (req, res) => {
               to_char(d.insurance_expires, 'YYYY-MM-DD') AS insurance_expires,
               to_char(d.medical_expires,   'YYYY-MM-DD') AS medical_expires,
               d.last_lat, d.last_lng, d.last_location_at,
+              -- Never the hash itself, only whether one exists.
+              (d.password_hash IS NOT NULL) AS has_password,
+              d.last_login_at,
+              COALESCE(sess.devices, 0) AS devices,
               COALESCE(t.trips, 0)     AS trips,
               COALESCE(t.completed, 0) AS completed,
               to_char(t.last_trip, 'YYYY-MM-DD') AS last_trip,
@@ -1057,6 +1082,11 @@ app.get('/api/drivers', authenticateToken, async (req, res) => {
               nxt.pickup_location   AS starts_place,   to_char(nxt.at,   'FMHH12:MI AM') AS starts_at,
               clash.id AS clash_id,                    to_char(clash.at, 'FMHH12:MI AM') AS clash_at
          FROM drivers d
+         LEFT JOIN LATERAL (
+           SELECT count(*)::int AS devices
+             FROM driver_sessions ds
+            WHERE ds.driver_id = d.id AND ds.revoked_at IS NULL AND ds.expires_at > now()
+         ) sess ON true
          LEFT JOIN LATERAL (
            SELECT count(*) AS trips,
                   count(*) FILTER (WHERE tr.status = 'Completed') AS completed,
@@ -1142,6 +1172,10 @@ function shapeDriver(r, measured) {
     trips: Number(r.trips || 0),
     completed: Number(r.completed || 0),
     lastTrip: r.last_trip,
+    // App access, so the office can see at a glance who can actually sign in.
+    hasPassword: Boolean(r.has_password),
+    lastLoginAt: r.last_login_at,
+    devices: Number(r.devices || 0),
     docs,
     compliance,
     // Written by the driver app when there is one. Until then this stays null

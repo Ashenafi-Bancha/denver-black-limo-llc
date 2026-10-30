@@ -1,0 +1,5 @@
+# The integration suite needs a running backend and is skipped without one.
+# Declaring the tag here keeps `flutter test` from warning about it.
+tags:
+  integration:
+    description: Talks to a real backend; skips itself when none is reachable.

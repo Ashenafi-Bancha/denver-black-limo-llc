@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import {
-  AlertTriangle, BadgeCheck, Car, Loader2, MapPin, Pencil, Plus, ShieldAlert, Trash2, UserRound, X,
+  AlertTriangle, BadgeCheck, Car, KeyRound, Loader2, MapPin, Pencil, Plus, ShieldAlert, Smartphone,
+  Trash2, UserRound, X,
 } from 'lucide-react'
+import { DriverAccessModal, type AccessTarget } from './AdminDriverAccess'
 import { ConfirmDialog, EmptyState, FilterChip, SearchInput, StatCard } from './AdminUI'
 
 /**
@@ -41,6 +43,10 @@ export interface Driver {
   docs: { license: DriverDoc; insurance: DriverDoc; medical: DriverDoc }
   compliance: 'ok' | 'expiring' | 'expired' | 'missing'
   position: { lat: number; lng: number; at: string } | null
+  /** Driver app access — whether a password exists, and where they are signed in. */
+  hasPassword: boolean
+  lastLoginAt: string | null
+  devices: number
 }
 
 const FIELD =
@@ -59,6 +65,16 @@ const TONE: Record<string, string> = {
   expired: 'border-red-500/40 bg-red-500/10 text-red-300',
   missing: 'border-white/20 bg-white/5 text-white/50',
 }
+
+/**
+ * Whether a driver can sign into the app.
+ *
+ * Named with a prefix so it sorts beside the component that uses it and can
+ * never be confused with the `active` flag, which is about dispatch rather
+ * than app access: a driver can be active and have no password, or have a
+ * password and be retired.
+ */
+const a_hasApp = (d: Driver) => Boolean(d.hasPassword)
 
 /** Plain English for a document's state, which is what the office reads. */
 function docText(doc: DriverDoc): string {
@@ -240,6 +256,7 @@ export function AdminDrivers({
   token: string | null
   onResult: (text: string, kind: 'ok' | 'err') => void
 }) {
+  const [accessTarget, setAccessTarget] = useState<AccessTarget | null>(null)
   const [drivers, setDrivers] = useState<Driver[]>([])
   const [loading, setLoading] = useState(true)
   const [query, setQuery] = useState('')
@@ -407,6 +424,21 @@ export function AdminDrivers({
 
                   {/* Filled by the driver app once it exists. Saying so beats a
                       blank space the office has to interpret. */}
+                  <p
+                    className={`mt-2 flex items-center gap-1.5 text-xs ${
+                      a_hasApp(d) ? 'text-emerald-300/70' : 'text-white/35'
+                    }`}
+                  >
+                    <Smartphone className="h-3 w-3 shrink-0" />
+                    {a_hasApp(d)
+                      ? d.lastLoginAt
+                        ? `App access · last signed in ${new Date(d.lastLoginAt).toLocaleDateString()}${
+                            d.devices ? ` · ${d.devices} device${d.devices === 1 ? '' : 's'}` : ''
+                          }`
+                        : 'App access · has never signed in'
+                      : 'No app access — no password set'}
+                  </p>
+
                   <p className="mt-2.5 flex items-center gap-1.5 text-xs text-white/30">
                     <MapPin className="h-3 w-3" />
                     {d.position
@@ -416,6 +448,26 @@ export function AdminDrivers({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    onClick={() =>
+                      setAccessTarget({
+                        id: d.id,
+                        name: d.name,
+                        email: d.email,
+                        hasPassword: a_hasApp(d),
+                        lastLoginAt: d.lastLoginAt,
+                        devices: d.devices || 0,
+                      })
+                    }
+                    title={a_hasApp(d) ? 'Reset the driver app password' : 'Give this driver access to the app'}
+                    className={`rounded border p-2 transition ${
+                      a_hasApp(d)
+                        ? 'border-white/10 text-white/50 hover:border-brand-gold/40 hover:text-brand-gold'
+                        : 'border-brand-gold/40 bg-brand-gold/10 text-brand-gold hover:bg-brand-gold/20'
+                    }`}
+                  >
+                    <KeyRound className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => {
                       setFormError('')
@@ -462,6 +514,16 @@ export function AdminDrivers({
         onConfirm={confirmRemove}
         onCancel={() => setPendingRemove(null)}
       />
+
+      {accessTarget && (
+        <DriverAccessModal
+          target={accessTarget}
+          token={token}
+          onClose={() => setAccessTarget(null)}
+          onResult={onResult}
+          onChanged={load}
+        />
+      )}
 
       {(adding || editing) && (
         <DriverForm

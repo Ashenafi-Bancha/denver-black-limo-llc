@@ -32,7 +32,15 @@ npx tsc --noEmit               # type-check without building
 flutter run -d chrome          # fastest loop; visible in the browser pane
 flutter run                    # Android device or emulator
 flutter analyze
+flutter test                   # unit tests; integration ones skip with no server
+
+# Integration tests, against a running backend:
+flutter test test/api_integration_test.dart   --dart-define=API_BASE_URL=http://localhost:3010/api   --dart-define=DRIVER_EMAIL=marcus@example.com   --dart-define=DRIVER_PASSWORD=...
 ```
+
+The app reads its API address from `--dart-define=API_BASE_URL`, defaulting to
+production. On an Android emulator use `http://10.0.2.2:3001/api` — `localhost`
+there is the emulated device, not the machine running the server.
 
 **iOS cannot be built on this machine.** It is Windows; Flutter does not list
 an iOS toolchain. Android is fully set up. iOS builds need macOS or a cloud Mac
@@ -64,7 +72,19 @@ Each of these was a real bug. They are easy to reintroduce.
   unconditionally for exactly this reason.
 - **Verify against the port you think you are using.** A stale `node server.js`
   holding the port will happily answer with old code and send you hunting a bug
-  you already fixed.
+  you already fixed. On this machine **port 3001 stays poisoned** — a listener
+  answers there that `Get-NetTCPConnection` cannot see, so it survives every
+  attempt to kill it. Start test servers on a fresh port (3010 and up) and the
+  problem disappears. Two separate "bugs" in one session were only this.
+- **`flutter test` blocks real network calls.** It installs an `HttpClient`
+  that returns 400 for everything, so any test that genuinely needs a server
+  fails with a misleading message. Set `HttpOverrides.global = null` in the
+  test's `main` — see `test/api_integration_test.dart`.
+- **Flutter web draws to a canvas, not the DOM.** `innerText` is empty and
+  there are no `<input>` elements, so the browser pane cannot read or fill the
+  driver app. Screenshots work; synthetic typing does not land reliably. Verify
+  the app's behaviour through `flutter test` instead, and use screenshots only
+  to check how it looks.
 
 ## Backend
 
@@ -79,6 +99,10 @@ Each of these was a real bug. They are easy to reintroduce.
   `authenticateDriver` both do.
 - Driver routes are scoped by the token, never by a parameter. No route takes a
   driver id from the client.
+- `ALLOWED_ORIGIN` is a **comma-separated list** of browser origins (the site,
+  the admin, and the driver app's web target in development). Requests with no
+  `Origin` header — native apps, curl, server-to-server — are always allowed,
+  because they were never subject to CORS in the first place.
 - Passwords use node's built-in `crypto.scrypt`. No bcrypt dependency: a native
   module that fails to build takes the whole deploy with it.
 
@@ -120,10 +144,24 @@ There is no test suite. Work is verified by running it:
 - Spin up a scratch PostgreSQL cluster on port 5499, point `DATABASE_URL` at
   it, boot the backend, and exercise the real endpoints with `curl`.
 - For UI, drive the browser pane and assert on measured geometry.
-- Set `RESEND_API_KEY=""` to stop test runs emailing anyone. **Note:**
-  PowerShell's `$env:X = ""` *deletes* the variable, so dotenv then loads the
-  real key from `.env` and mail really does go out.
+- **Every test server must be started with the mail key disabled. No
+  exceptions, every time.** Seeding hits the public `POST /api/bookings`, which
+  sends a real customer confirmation and a real admin alert to the owner's
+  personal Gmail — a test booking is indistinguishable from a real one at that
+  point. The reliable form, because dotenv will not override a variable that is
+  already present:
+
+  ```bash
+  RESEND_API_KEY=disabled DATABASE_URL=... PORT=3010 node server.js
+  ```
+
+  PowerShell's `$env:X = ""` *deletes* the variable rather than blanking it, so
+  dotenv then loads the real key and mail goes out. Omitting it entirely does
+  the same. Two alerts reached the owner's inbox this way once already.
 - Use `delivered@resend.dev` as a recipient — Resend accepts and discards it.
+  Addresses at `example.com` are rejected outright by Resend, which is a
+  useful accident: the only test mail that escapes is whatever goes to a real
+  address, and the admin alert is the one that does.
 
 ## Conventions
 
