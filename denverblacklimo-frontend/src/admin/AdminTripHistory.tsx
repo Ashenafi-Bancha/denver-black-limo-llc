@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Clock, Loader2, MapPin, Timer } from 'lucide-react'
+import { Clock, FileDown, Loader2, MapPin, Timer } from 'lucide-react'
 
 /**
  * What the chauffeur did on a trip, and when.
@@ -68,6 +68,8 @@ export function AdminTripHistory({
 }) {
   const [events, setEvents] = useState<TripEvent[] | null>(null)
   const [error, setError] = useState('')
+  const [downloading, setDownloading] = useState(false)
+  const [downloadFailed, setDownloadFailed] = useState(false)
 
   const headers = useMemo(
     () => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }),
@@ -104,6 +106,41 @@ export function AdminTripHistory({
     if (minutes < 1) return null
     return { minutes, from: arrived.occurred_at, to: ended.occurred_at, endedWith: ended.status }
   }, [events])
+
+  /**
+   * The record leaves the admin, which is the whole point of it — a customer
+   * disputing a charge does not get a login.
+   *
+   * Fetched rather than linked: the route is behind a token and an <a href>
+   * sends no Authorization header. The object URL is revoked straight after
+   * the click, or every record the office pulls stays in memory until the tab
+   * is closed.
+   */
+  const downloadRecord = useCallback(async () => {
+    setDownloading(true)
+    setDownloadFailed(false)
+    let url = ''
+    try {
+      const res = await fetch(`${API_URL}/bookings/${bookingId}/record.pdf?download=1`, { headers })
+      if (!res.ok) throw new Error()
+      // The server already names the file after the booking reference.
+      const disposition = res.headers.get('Content-Disposition') || ''
+      const named = /filename="([^"]+)"/.exec(disposition)?.[1]
+      const blob = await res.blob()
+      url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = named || 'Trip-Record.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+    } catch {
+      setDownloadFailed(true)
+    } finally {
+      if (url) URL.revokeObjectURL(url)
+      setDownloading(false)
+    }
+  }, [bookingId, headers])
 
   const hourly = /hourly|tour/i.test(serviceType || '')
   const airport = /airport|aviation|fbo/i.test(serviceType || '')
@@ -219,6 +256,27 @@ export function AdminTripHistory({
           )
         })}
       </ol>
+
+      <div className="flex flex-wrap items-center gap-3 border-t border-white/5 pt-3">
+        <button
+          type="button"
+          onClick={downloadRecord}
+          disabled={downloading}
+          className="inline-flex items-center gap-2 rounded border border-brand-gold/40 px-3 py-2 text-xs font-semibold text-brand-gold transition hover:bg-brand-gold/10 disabled:opacity-50"
+        >
+          {downloading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : (
+            <FileDown className="h-3.5 w-3.5" />
+          )}
+          Trip record (PDF)
+        </button>
+        <span className="text-xs text-white/40">
+          {downloadFailed
+            ? 'Could not produce the record. Please try again.'
+            : 'These times and any photos, as one document to send a customer.'}
+        </span>
+      </div>
     </div>
   )
 }

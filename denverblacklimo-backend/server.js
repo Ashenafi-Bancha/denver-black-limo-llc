@@ -89,6 +89,7 @@ const { pool, runMigrations } = require('./db');
 const driverAuth = require('./driverAuth');
 const flights = require('./flights');
 const crypto = require('crypto');
+const { buildTripRecordPdf } = require('./evidence');
 const { buildAgreementPdf, signatureBuffer, TERMS_VERSION } = require('./agreement');
 
 // Price estimator: calculation engine, route measurement, and the mapping from
@@ -514,6 +515,43 @@ app.get('/api/driver/trips', driverAuth.authenticateDriver, async (req, res) => 
 const TRIP_STATUSES = ['en_route', 'arrived', 'on_board', 'dropped_off', 'no_show'];
 
 /**
+ * The trip, if it is this driver's and still live.
+ *
+ * Returns a reason rather than throwing, because the three answers differ:
+ * a trip that is not theirs must be indistinguishable from one that does not
+ * exist, or this becomes a way to enumerate other drivers' bookings.
+ */
+async function driverTrip(bookingId, driver) {
+  if (!UUID_RE.test(bookingId)) return { error: 404 };
+  const { rows } = await pool.query(
+    `SELECT id, status, driver_email FROM bookings WHERE id = $1;`,
+    [bookingId]
+  );
+  if (!rows.length) return { error: 404 };
+  const booking = rows[0];
+  if ((booking.driver_email || '').toLowerCase() !== (driver.email || '').toLowerCase()) {
+    return { error: 404 };
+  }
+  if (booking.status === 'Cancelled') return { error: 409 };
+  return { booking };
+}
+
+/**
+ * When the device says it happened, unless that is not credible.
+ *
+ * A status pressed or a photo taken with no signal is synced later and must
+ * keep its own time. A clock that is wrong must not rewrite the record, so
+ * anything in the future or absurdly old falls back to now.
+ */
+function claimedTime(raw) {
+  const claimed = Date.parse(raw ?? '');
+  const now = Date.now();
+  return Number.isFinite(claimed) && claimed <= now + 60_000 && claimed > now - 7 * 86400_000
+    ? new Date(claimed)
+    : new Date(now);
+}
+
+/**
  * Records what the chauffeur pressed.
  *
  * Any status may follow any other. A state machine would be tidier and would
@@ -534,31 +572,13 @@ app.post('/api/driver/trips/:id/status', driverAuth.authenticateDriver, async (r
       return res.status(400).json({ error: 'That is not a status this trip can be set to.' });
     }
 
-    const { rows } = await pool.query(
-      `SELECT id, status, driver_email FROM bookings WHERE id = $1;`,
-      [req.params.id]
-    );
-    if (!rows.length) return res.status(404).json({ error: 'Trip not found' });
-
-    const booking = rows[0];
-    if ((booking.driver_email || '').toLowerCase() !== req.driver.email.toLowerCase()) {
-      // Deliberately the same answer as a trip that does not exist, so this
-      // cannot be used to discover other drivers' bookings.
-      return res.status(404).json({ error: 'Trip not found' });
-    }
-    if (booking.status === 'Cancelled') {
+    const { error } = await driverTrip(req.params.id, req.driver);
+    if (error === 404) return res.status(404).json({ error: 'Trip not found' });
+    if (error === 409) {
       return res.status(409).json({ error: 'This trip was cancelled. Please call dispatch.' });
     }
 
-    // The device may say when it happened — a status pressed with no signal
-    // and synced later. Anything in the future, or absurdly old, is ignored
-    // in favour of now: a clock that is wrong must not rewrite the record.
-    const claimed = Date.parse(req.body?.occurredAt ?? '');
-    const now = Date.now();
-    const occurredAt =
-      Number.isFinite(claimed) && claimed <= now + 60_000 && claimed > now - 7 * 86400_000
-        ? new Date(claimed)
-        : new Date(now);
+    const occurredAt = claimedTime(req.body?.occurredAt);
 
     const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
 
@@ -630,6 +650,298 @@ app.get('/api/bookings/:id/events', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Trip events error:', err.message);
     res.status(500).json({ error: 'Could not load the trip history.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// TRIP PHOTOS
+// ─────────────────────────────────────────────
+
+/** What a photo is evidence of. Labels on a timeline, not a taxonomy. */
+const TRIP_PHOTO_KINDS = ['vehicle_before', 'vehicle_after', 'damage', 'no_show', 'other'];
+
+/**
+ * Larger than a CMS image: this comes off a phone camera, and a driver cannot
+ * be asked to retake a photograph of a damaged seat because it was 200KB too
+ * big. The app downscales before sending; this is the ceiling, not the target.
+ */
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_PHOTO_BYTES },
+  fileFilter: (req, file, cb) => {
+    // No HEIC, deliberately. iPhones shoot it, but no browser renders it, so
+    // accepting it would store evidence the office cannot look at. The app
+    // asks the picker for JPEG.
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.mimetype)) {
+      return cb(new Error('Photos must be JPG, PNG or WebP.'));
+    }
+    cb(null, true);
+  },
+});
+
+/**
+ * Either identity, for the one thing both sides read.
+ *
+ * A driver may see photographs from their own trips and an admin may see all
+ * of them. Which one this is decides the query, so the guard only establishes
+ * who is asking — the scoping belongs with the lookup.
+ */
+const authenticateAdminOrDriver = (req, res, next) => {
+  const header = req.headers['authorization'];
+  const token = header && header.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Sign in to continue.' });
+
+  jwt.verify(token, JWT_SECRET, async (err, claims) => {
+    if (err || !claims) {
+      return res.status(403).json({ error: 'Your session has expired. Please sign in again.' });
+    }
+    // Tokens predating roles carry none and were admin by definition.
+    if (!claims.role || claims.role === 'admin') {
+      req.user = claims;
+      return next();
+    }
+    if (claims.role === 'driver' && claims.sub) {
+      try {
+        const { rows } = await pool.query(
+          'SELECT id, name, email, active FROM drivers WHERE id = $1;',
+          [claims.sub]
+        );
+        if (!rows.length || !rows[0].active) {
+          return res.status(403).json({ error: 'This account is no longer active.' });
+        }
+        req.driver = rows[0];
+        return next();
+      } catch {
+        return res.status(500).json({ error: 'Could not verify your account.' });
+      }
+    }
+    return res.status(403).json({ error: 'Not allowed.' });
+  });
+};
+
+/**
+ * A photograph from a trip.
+ *
+ * `clientId` makes a retry idempotent. An upload over a phone connection can
+ * time out after the server has already committed it, and the app will send it
+ * again; without this the office would see the same damaged seat twice and
+ * wonder which one was real.
+ */
+app.post('/api/driver/trips/:id/photos', driverAuth.authenticateDriver, (req, res) => {
+  photoUpload.single('photo')(req, res, async (err) => {
+    try {
+      if (err) {
+        const tooBig = err.code === 'LIMIT_FILE_SIZE';
+        return res.status(400).json({
+          error: tooBig
+            ? 'That photo is too large. Please try again.'
+            : err.message || 'That photo could not be read.',
+        });
+      }
+      if (!req.file) return res.status(400).json({ error: 'No photo was attached.' });
+
+      const { error } = await driverTrip(req.params.id, req.driver);
+      if (error === 404) return res.status(404).json({ error: 'Trip not found' });
+      if (error === 409) {
+        return res.status(409).json({ error: 'This trip was cancelled. Please call dispatch.' });
+      }
+
+      const kind = String(req.body?.kind || 'other').trim();
+      if (!TRIP_PHOTO_KINDS.includes(kind)) {
+        return res.status(400).json({ error: 'That is not a kind of photo this trip accepts.' });
+      }
+
+      const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+      const clientId = String(req.body?.clientId || '').trim().slice(0, 64) || null;
+
+      const { rows } = await pool.query(
+        `INSERT INTO trip_photos
+           (booking_id, driver_id, driver_name, kind, note, taken_at, lat, lng, client_id,
+            mime_type, byte_size, data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         ON CONFLICT (client_id) DO NOTHING
+         RETURNING id, taken_at;`,
+        [
+          req.params.id,
+          req.driver.id,
+          req.driver.name,
+          kind,
+          String(req.body?.note || '').trim().slice(0, 2000) || null,
+          claimedTime(req.body?.takenAt),
+          num(req.body?.lat),
+          num(req.body?.lng),
+          clientId,
+          req.file.mimetype,
+          req.file.size,
+          req.file.buffer,
+        ]
+      );
+
+      // Nothing returned means this clientId is already stored — the retry
+      // case. Answer as though it worked, because for the driver it did.
+      if (!rows.length) {
+        const existing = await pool.query(
+          'SELECT id, taken_at FROM trip_photos WHERE client_id = $1;',
+          [clientId]
+        );
+        return res.json({ ok: true, duplicate: true, id: existing.rows[0] && existing.rows[0].id });
+      }
+
+      console.log(
+        `Trip photo ${bookingRef(req.params.id)} (${kind}, ${Math.round(req.file.size / 1024)}KB) by ${req.driver.name}`
+      );
+      res.status(201).json({ ok: true, id: rows[0].id, takenAt: rows[0].taken_at });
+    } catch (e) {
+      console.error('Trip photo upload error:', e.message);
+      res.status(500).json({ error: 'Could not save that photo. Please try again.' });
+    }
+  });
+});
+
+/** Metadata only — never the blob. The office lists, then opens one. */
+const PHOTO_COLUMNS = `id, kind, note, driver_name, taken_at, recorded_at, lat, lng, mime_type, byte_size`;
+
+/** This trip's photos, for the office. */
+app.get('/api/bookings/:id/photos', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query(
+      `SELECT ${PHOTO_COLUMNS} FROM trip_photos WHERE booking_id = $1 ORDER BY taken_at ASC;`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error('Trip photos error:', e.message);
+    res.status(500).json({ error: 'Could not load the photos.' });
+  }
+});
+
+/** The driver's own list, so the app can show what it has already sent. */
+app.get('/api/driver/trips/:id/photos', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const { error } = await driverTrip(req.params.id, req.driver);
+    if (error) return res.status(error === 409 ? 409 : 404).json({ error: 'Trip not found' });
+    const { rows } = await pool.query(
+      `SELECT ${PHOTO_COLUMNS} FROM trip_photos WHERE booking_id = $1 ORDER BY taken_at ASC;`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (e) {
+    console.error('Driver trip photos error:', e.message);
+    res.status(500).json({ error: 'Could not load the photos.' });
+  }
+});
+
+/**
+ * The picture itself.
+ *
+ * Behind a token, unlike /api/images. These show a damaged interior, a
+ * passenger's luggage, the doorway somebody failed to come out of — none of it
+ * belongs to whoever guesses a URL. A driver only ever gets their own trips'.
+ */
+app.get('/api/trip-photos/:id', authenticateAdminOrDriver, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.sendStatus(404);
+
+    const { rows } = await pool.query(
+      `SELECT p.mime_type, p.data, b.driver_email
+         FROM trip_photos p JOIN bookings b ON b.id = p.booking_id
+        WHERE p.id = $1;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.sendStatus(404);
+
+    if (req.driver) {
+      const owner = (rows[0].driver_email || '').toLowerCase();
+      if (owner !== (req.driver.email || '').toLowerCase()) return res.sendStatus(404);
+    }
+
+    res.set('Content-Type', rows[0].mime_type);
+    // Private, because this is behind a token and must never land in a shared
+    // cache. Immutable because a photo is never edited in place.
+    res.set('Cache-Control', 'private, max-age=86400, immutable');
+    res.send(rows[0].data);
+  } catch (e) {
+    console.error('Trip photo read error:', e.message);
+    res.sendStatus(500);
+  }
+});
+
+/**
+ * Removing one. Admin only, on purpose: the driver who took a photograph is
+ * the last person who should be able to make it disappear, and the office may
+ * still need to remove one taken by mistake.
+ */
+app.delete('/api/trip-photos/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.sendStatus(404);
+    const { rowCount } = await pool.query('DELETE FROM trip_photos WHERE id = $1;', [req.params.id]);
+    if (!rowCount) return res.sendStatus(404);
+    console.log(`Trip photo ${req.params.id} deleted`);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Trip photo delete error:', e.message);
+    res.status(500).json({ error: 'Could not delete that photo.' });
+  }
+});
+
+/**
+ * The trip record, as a PDF the office can send.
+ *
+ * Everything in it is already visible in the admin. The point is that it
+ * leaves: a customer disputing a damage charge or a wait-time line is not
+ * given a login, so the evidence has to become a document.
+ *
+ * Photographs are read with their bytes here, unlike every other photo route,
+ * because they are being embedded rather than listed.
+ */
+app.get('/api/bookings/:id/record.pdf', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+
+    const { rows } = await pool.query(
+      `SELECT id, name, service_type, pickup_date, pickup_time,
+              pickup_location, dropoff_location, vehicle_preference, driver_name
+         FROM bookings WHERE id = $1;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+
+    const [events, photos] = await Promise.all([
+      pool.query(
+        `SELECT status, driver_name, occurred_at, recorded_at, lat, lng, note
+           FROM trip_events WHERE booking_id = $1 ORDER BY occurred_at ASC;`,
+        [req.params.id]
+      ),
+      pool.query(
+        `SELECT id, kind, note, driver_name, taken_at, recorded_at, lat, lng, mime_type, data
+           FROM trip_photos WHERE booking_id = $1 ORDER BY taken_at ASC;`,
+        [req.params.id]
+      ),
+    ]);
+
+    const pdf = await buildTripRecordPdf({
+      // The reference is derived from the id, not stored — see bookingRef.
+      booking: { ...rows[0], reference: bookingRef(rows[0].id) },
+      events: events.rows,
+      photos: photos.rows,
+    });
+
+    const name = `Trip-Record-${bookingRef(rows[0].id)}.pdf`;
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `${req.query.download ? 'attachment' : 'inline'}; filename="${name}"`
+    );
+    // Never cached: a record is regenerated whenever it is asked for, so a
+    // photograph added this morning is in the copy sent this afternoon.
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(pdf);
+  } catch (err) {
+    console.error('Trip record error:', err.message);
+    res.status(500).json({ error: 'Could not produce the trip record.' });
   }
 });
 

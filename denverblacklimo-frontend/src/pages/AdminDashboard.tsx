@@ -20,6 +20,7 @@ import { AdminDrivers } from '../admin/AdminDrivers'
 import { AdminCustomers } from '../admin/AdminCustomers'
 import { AdminAffiliates } from '../admin/AdminAffiliates'
 import { AdminTripHistory } from '../admin/AdminTripHistory'
+import { AdminTripPhotos } from '../admin/AdminTripPhotos'
 import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
 import { AdminBottomNav } from '../admin/AdminBottomNav'
 import { OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
@@ -1313,11 +1314,13 @@ export function AdminDashboard() {
                               </div>
                             </div>
                             {(b.driver_status || b.driver_name) && (
-                              <div className="space-y-3 md:col-span-2 lg:col-span-3">
+                              <div className="min-w-0 space-y-3 md:col-span-2 lg:col-span-3">
                                 <h4 className="flex items-center gap-2 text-xs font-bold tracking-widest text-brand-gold"><Clock className="h-4 w-4" /> TRIP HISTORY</h4>
                                 <div className="rounded border border-white/5 bg-brand-surface p-4">
                                   <AdminTripHistory bookingId={b.id} token={token} serviceType={b.service_type} />
                                 </div>
+                                {/* Renders nothing when the trip has none, which is most of them. */}
+                                <AdminTripPhotos bookingId={b.id} token={token} onToast={pushToast} />
                               </div>
                             )}
                             {b.details && Object.keys(b.details).some((k) => DETAIL_LABELS[k] && b.details![k]) && (
