@@ -99,7 +99,9 @@ const escAttr = (s) => escHtml(s).replace(/"/g, '&quot;')
 
 function buildHtml(route) {
   const meta = getRouteMeta(route)
-  const canonical = SITE + (route === '/' ? '/' : route)
+  // A route may canonicalise to the page that holds its content; og:url
+  // below follows this too, which is what a share preview should resolve to.
+  const canonical = SITE + (meta.canonical ?? (route === '/' ? '/' : route))
   let html = template
     .replace(/<title>[\s\S]*?<\/title>/, `<title>${escHtml(meta.title)}</title>`)
     // \s+ rather than a literal space: the tag is written across three lines in
@@ -199,17 +201,21 @@ function sitemapEntry(route) {
   const priority =
     route === '/' ? '1.0'
     : route === '/book' || route === '/services' ? '0.9'
-    : route.startsWith('/services/') || route.startsWith('/service-areas') || route === '/fleet' ? '0.8'
+    : route.startsWith('/service-areas') || route === '/fleet' ? '0.8'
     : '0.7'
   const changefreq = route === '/' ? 'weekly' : 'monthly'
   return `  <url><loc>${loc}</loc><lastmod>${LASTMOD}</lastmod><changefreq>${changefreq}</changefreq><priority>${priority}</priority></url>`
 }
+// A URL that canonicalises elsewhere has no business here: listing the
+// thirteen /services/<slug> routes asked Google to crawl thirteen redirects
+// into /services and then work out which URL it was meant to rank.
+const SITEMAP_ROUTES = ROUTES.filter((r) => r !== '/admin' && !getRouteMeta(r).canonical)
 const sitemap = [
   '<?xml version="1.0" encoding="UTF-8"?>',
   '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-  ...ROUTES.filter((r) => r !== '/admin').map(sitemapEntry),
+  ...SITEMAP_ROUTES.map(sitemapEntry),
   '</urlset>',
   '',
 ].join('\n')
 fs.writeFileSync(path.join(DIST, 'sitemap.xml'), sitemap)
-console.log(`✔ Generated sitemap.xml (${ROUTES.length - 1} URLs).`)
+console.log(`✔ Generated sitemap.xml (${SITEMAP_ROUTES.length} URLs).`)

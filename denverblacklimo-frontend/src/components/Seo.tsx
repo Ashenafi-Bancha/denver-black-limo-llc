@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { getServiceBySlug } from '../data/services'
+import { getServiceBySlug, services } from '../data/services'
 import { getServiceAreaBySlug } from '../data/serviceAreas'
 import { getPostBySlug } from '../data/posts'
 import { DEFAULT_FAQS } from '../content/defaults'
@@ -9,7 +9,14 @@ import { DEFAULT_FAQS } from '../content/defaults'
 export const SITE_URL = 'https://denverblacklimo.llc'
 const BRAND = 'Denver Black Limo LLC'
 
-type Meta = { title: string; description: string; notFound?: boolean; noindex?: boolean }
+type Meta = {
+  title: string
+  description: string
+  notFound?: boolean
+  noindex?: boolean
+  /** Site-relative path holding this page's content, when it is not this page. */
+  canonical?: string
+}
 
 /**
  * Static hosting answers every unknown URL with this app and a 200, which
@@ -121,7 +128,16 @@ export function metaFor(pathname: string): Meta {
 
   if (path.startsWith('/services/')) {
     const svc = getServiceBySlug(path.split('/')[2])
-    if (svc) return { title: `${svc.title} in Denver | ${BRAND}`, description: svc.shortDescription }
+    // This route does nothing but bounce to the matching section of
+    // /services, which is where every service's content actually is — so
+    // that is the URL to hand a search engine or a link preview.
+    if (svc) {
+      return {
+        title: `${svc.title} in Denver | ${BRAND}`,
+        description: svc.shortDescription,
+        canonical: '/services',
+      }
+    }
   }
   if (path.startsWith('/service-areas/')) {
     const area = getServiceAreaBySlug(path.split('/')[2])
@@ -165,21 +181,25 @@ export function schemaFor(pathname: string): Json[] {
   const out: Json[] = []
   const home = { name: 'Home', path: '/' }
 
-  if (path.startsWith('/services/')) {
-    const svc = getServiceBySlug(path.split('/')[2])
-    if (svc) {
+  if (path === '/services') {
+    // Every service is a section of this one page. These blocks used to be
+    // emitted on /services/<slug> instead, which only redirects here and
+    // prerendered to an empty page — so each one described content that was
+    // nowhere in the document carrying it. Anchors, because that is the part
+    // of the page each one is about.
+    for (const svc of services) {
       out.push({
         '@context': 'https://schema.org',
         '@type': 'Service',
         name: svc.title,
         serviceType: svc.title,
         description: svc.shortDescription,
-        url: SITE_URL + path,
+        url: `${SITE_URL}/services#${svc.slug}`,
         provider: { '@id': BUSINESS_ID },
         areaServed: { '@type': 'State', name: 'Colorado' },
       })
-      out.push(breadcrumbs([home, { name: 'Services', path: '/services' }, { name: svc.title, path }]))
     }
+    out.push(breadcrumbs([home, { name: 'Services', path: '/services' }]))
   } else if (path.startsWith('/service-areas/')) {
     const area = getServiceAreaBySlug(path.split('/')[2])
     if (area) {
@@ -263,8 +283,10 @@ function upsertLink(rel: string, href: string) {
 export function RouteSeo() {
   const { pathname } = useLocation()
   useEffect(() => {
-    const { title, description, notFound, noindex } = metaFor(pathname)
-    const url = SITE_URL + (pathname === '/' ? '' : pathname)
+    const { title, description, notFound, noindex, canonical } = metaFor(pathname)
+    // og:url follows the canonical, so a shared link to a page that only
+    // redirects previews as the page it sends you to.
+    const url = SITE_URL + (canonical ?? (pathname === '/' ? '' : pathname))
     document.title = title
     upsertMeta('name', 'description', description)
     upsertMeta('property', 'og:title', title)
