@@ -83,4 +83,7 @@ async function runMigrations(p = pool) {
   }
 }
 
-module.exports = { pool, runMigrations };
+// MIGRATIONS_DIR is exported so the health endpoint can compare what is on
+// disk with what has been recorded, rather than keeping its own copy of the
+// path that could drift from this one.
+module.exports = { pool, runMigrations, MIGRATIONS_DIR };

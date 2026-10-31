@@ -174,6 +174,15 @@ Each of these was a real bug. They are easy to reintroduce.
 and recorded by filename in `schema_migrations`. Therefore:
 
 - **Numbering gaps are harmless** — production applied 013 before 009 and 012.
+- **Confirm a deploy with `GET /api/health/migrations`.** Failures are logged
+  rather than fatal, and every route checks a token before it touches a table,
+  so a missing table looks exactly like "not signed in" from outside. This
+  compares the .sql files on disk with `schema_migrations` and answers **200
+  when current, 503 when anything is pending** — so a check can rely on the
+  status code alone. Anonymous callers get counts; an admin token adds the
+  filenames. It is deliberately separate from `/api/health`, which is the
+  platform health check and must not gain a database query, or Postgres
+  hiccuping would restart the container.
 - Write them idempotently (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`); they may
   re-run against an existing schema.
 - Failures are logged, not fatal. Check the boot log after deploying one.

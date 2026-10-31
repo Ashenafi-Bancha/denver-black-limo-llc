@@ -84,8 +84,77 @@ app.get('/api/images/:id', async (req, res) => {
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
+/**
+ * Whether the schema is actually current.
+ *
+ * Migration failures are logged, not fatal — a boot that could not apply a
+ * file still serves traffic, and every route guards on a token before it
+ * touches a table, so a missing table is indistinguishable from "not signed
+ * in" to anyone outside. Confirming a deploy therefore meant reading the
+ * runtime log in the DigitalOcean console, which needs a browser and an
+ * account. This answers it with curl.
+ *
+ * Deliberately not folded into /api/health: that is the platform's health
+ * check, and giving it a database query would restart the container every
+ * time Postgres hiccuped.
+ *
+ * Unauthenticated, but counts only — that the schema is current is not a
+ * secret, while the names of the files say what is being built and when. An
+ * admin token adds those.
+ */
+app.get('/api/health/migrations', async (req, res) => {
+  try {
+    const onDisk = (await fs.promises.readdir(MIGRATIONS_DIR))
+      .filter((f) => f.endsWith('.sql'))
+      .sort();
+
+    const { rows } = await pool.query('SELECT name FROM schema_migrations;');
+    const applied = new Set(rows.map((r) => r.name));
+    // On disk but never recorded: either it has not run yet, or it failed and
+    // the boot carried on without it. Both need a human.
+    const pending = onDisk.filter((f) => !applied.has(f));
+
+    const body = {
+      upToDate: pending.length === 0,
+      applied: applied.size,
+      onDisk: onDisk.length,
+      pending: pending.length,
+    };
+
+    if (isAdminRequest(req)) {
+      body.appliedFiles = [...applied].sort();
+      body.pendingFiles = pending;
+    }
+
+    // 503 so a deploy check can rely on the status code alone rather than
+    // having to parse the body.
+    res.status(pending.length === 0 ? 200 : 503).json(body);
+  } catch (err) {
+    console.error('Migration health error:', err.message);
+    res.status(503).json({ upToDate: false, error: 'Could not read migration state.' });
+  }
+});
+
+/**
+ * True when this request carries a valid admin token.
+ *
+ * Unlike authenticateToken this never rejects — the caller decides what to do
+ * with the answer, because the route above serves both signed-in and
+ * anonymous callers.
+ */
+function isAdminRequest(req) {
+  const token = (req.headers['authorization'] || '').split(' ')[1];
+  if (!token) return false;
+  try {
+    const claims = jwt.verify(token, JWT_SECRET);
+    return Boolean(claims) && (!claims.role || claims.role === 'admin');
+  } catch {
+    return false;
+  }
+}
+
 // DB Setup (PostgreSQL) — SSL-aware pool + migration runner live in db.js
-const { pool, runMigrations } = require('./db');
+const { pool, runMigrations, MIGRATIONS_DIR } = require('./db');
 const driverAuth = require('./driverAuth');
 const flights = require('./flights');
 const crypto = require('crypto');
