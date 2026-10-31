@@ -86,6 +86,15 @@ static_sites:
     # NOTE: App Platform does not re-read this file on push — apply it once with
     #   doctl apps update <app-id> --spec .do/app.yaml
     # or change Settings → frontend → Custom Pages in the DO dashboard.
+    #
+    # Do not run that update with this file as it stands. `apps update --spec`
+    # replaces the whole live spec, and the `type: SECRET` values here are
+    # still the REPLACE_WITH_… placeholders — applying it writes those strings
+    # over the real JWT_SECRET, ADMIN_PASSWORD, RESEND_API_KEY and
+    # AERODATABOX_API_KEY. Every admin and driver token stops verifying, no
+    # mail sends and flight lookup fails, with a green build log and nothing
+    # to say why. Take the live spec first — `doctl apps spec get <app-id>` —
+    # change that copy, and apply it.
     error_document: index.html
     routes:
       - path: /
