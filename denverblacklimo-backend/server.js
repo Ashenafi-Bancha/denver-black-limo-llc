@@ -727,7 +727,12 @@ app.get('/api/bookings/:id/events', authenticateToken, async (req, res) => {
 // ─────────────────────────────────────────────
 
 /** What a photo is evidence of. Labels on a timeline, not a taxonomy. */
-const TRIP_PHOTO_KINDS = ['vehicle_before', 'vehicle_after', 'damage', 'no_show', 'other'];
+// 'signature' is a photograph in every respect that matters here: an image
+// attached to a trip, behind the same token, in the same offline queue, shown
+// in the same strip and embedded in the same record. A parallel table would
+// have duplicated all of that to store one more PNG. The signer's name goes in
+// `note`.
+const TRIP_PHOTO_KINDS = ['vehicle_before', 'vehicle_after', 'damage', 'no_show', 'signature', 'other'];
 
 /**
  * Larger than a CMS image: this comes off a phone camera, and a driver cannot

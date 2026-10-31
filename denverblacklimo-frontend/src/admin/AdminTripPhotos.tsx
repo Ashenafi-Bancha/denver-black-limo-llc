@@ -38,6 +38,7 @@ const KIND_LABELS: Record<string, string> = {
   vehicle_after: 'Vehicle after',
   damage: 'Damage',
   no_show: 'No-show',
+  signature: 'Signed for',
   other: 'Other',
 }
 
@@ -46,6 +47,7 @@ const KIND_TONES: Record<string, string> = {
   vehicle_after: 'border-sky-500/40 bg-sky-500/10 text-sky-300',
   damage: 'border-red-500/40 bg-red-500/10 text-red-300',
   no_show: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+  signature: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300',
   other: 'border-white/15 bg-white/5 text-white/60',
 }
 

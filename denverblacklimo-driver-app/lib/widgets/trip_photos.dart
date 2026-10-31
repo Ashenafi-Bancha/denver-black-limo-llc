@@ -27,6 +27,14 @@ const tripPhotoKinds = <String, String>{
   'other': 'Other',
 };
 
+/// Labels for display, which is a wider set than the chips above.
+///
+/// A signature is filed as a photograph of kind 'signature', but it is taken
+/// on the signature pad and never from the camera — so it has to be nameable
+/// in the strip without being offerable as something to point a lens at.
+String tripPhotoLabel(String kind) =>
+    tripPhotoKinds[kind] ?? (kind == 'signature' ? 'Signed for' : kind);
+
 class TripPhotoButton extends StatelessWidget {
   const TripPhotoButton({
     super.key,
@@ -269,13 +277,13 @@ class _Strip extends StatelessWidget {
             children: [
               for (final p in waiting)
                 _Thumb(
-                  label: tripPhotoKinds[p.kind] ?? p.kind,
+                  label: tripPhotoLabel(p.kind),
                   waiting: true,
                   image: FileImage(File(p.filePath)),
                 ),
               for (final p in sent)
                 _Thumb(
-                  label: tripPhotoKinds['${p['kind']}'] ?? '${p['kind']}',
+                  label: tripPhotoLabel('${p['kind']}'),
                   waiting: false,
                   // Behind a token, so the header goes with the request. An
                   // <img> cannot do this, which is why the admin fetches these

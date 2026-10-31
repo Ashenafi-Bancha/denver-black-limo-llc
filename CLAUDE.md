@@ -136,6 +136,12 @@ Each of these was a real bug. They are easy to reintroduce.
   satisfy "no arrival yet". The tests now pick an un-arrived trip and skip with
   a message if there is none — reset with
   `DELETE FROM trip_events; UPDATE bookings SET driver_status=NULL, driver_status_at=NULL, driver_arrived_at=NULL;`
+- **`ui.Image.toByteData(png)` never completes under `flutter test`.** The
+  headless engine has no raster backend to encode with, so it hangs rather
+  than failing — and it hangs inside `runAsync` too, so the usual fix for real
+  async does not help. Test the gating around an encode, not the encode, and
+  verify the bytes against a real engine (`flutter run -d web-server` with a
+  throwaway entrypoint that prints the length to the console).
 - **Flutter web draws to a canvas, not the DOM.** `innerText` is empty and
   there are no `<input>` elements, so the browser pane cannot read or fill the
   driver app, and synthetic typing does not land reliably.
@@ -206,6 +212,19 @@ The app downscales to 1600px at quality 80 before sending, which is roughly
 300KB a photo. Worth watching: the database is the only persistent store this
 app has, so photos accumulate there forever. At a few per trip it is years
 before this matters, but if it does, the move is Spaces, not the filesystem.
+
+### Signatures
+
+Proof of delivery is filed as a trip photo of kind `signature`, not through a
+mechanism of its own: it is an image attached to a trip, so it inherits the
+token guard, the offline queue, the admin strip and the trip record without
+any of them learning a new concept. The signer goes in `note`. The pad draws
+**dark ink on white** — the image is embedded in a PDF next to type, where
+white-on-black would read as a negative and transparent would vanish — and
+renders at a fixed 1000px width so a signature taken on a small handset is not
+a smudge in a document sent to a customer. `signature` is deliberately absent
+from the camera's kind chips in the app: it is captured on the pad, never
+pointed at with a lens.
 
 ### The trip record
 

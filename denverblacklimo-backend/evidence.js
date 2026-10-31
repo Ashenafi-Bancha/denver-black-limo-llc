@@ -49,6 +49,7 @@ const PHOTO_LABELS = {
   vehicle_after: 'Vehicle after',
   damage: 'Damage',
   no_show: 'No-show',
+  signature: 'Signed for on delivery',
   other: 'Other',
 };
 

@@ -10,6 +10,7 @@ import '../api/trip_cache.dart';
 import '../models/trip.dart';
 import '../theme.dart';
 import 'name_board_screen.dart';
+import 'signature_screen.dart';
 import '../widgets/day_summary.dart';
 import '../widgets/trip_photos.dart';
 import '../widgets/trip_status_bar.dart';
@@ -131,6 +132,49 @@ class _TripsScreenState extends State<TripsScreen> {
   /// Statuses or photographs — either is a reason to try the network.
   bool get _anythingWaiting =>
       !widget.api.pending.isEmpty || !widget.api.photos.isEmpty;
+
+  /// Captures a signature and files it against the trip.
+  ///
+  /// Stored as a photograph of kind 'signature' rather than through a
+  /// mechanism of its own: it is an image attached to a trip, and that way it
+  /// inherits the offline queue, the token guard, the admin's strip and the
+  /// trip record without any of them learning a new concept.
+  Future<void> _signature(Trip trip) async {
+    final result = await Navigator.of(context).push<SignatureResult>(
+      MaterialPageRoute(builder: (_) => SignatureScreen(passengerName: trip.passengerName)),
+    );
+    if (result == null || !mounted) return;
+
+    setState(() => _savingTripId = trip.id);
+    try {
+      final delivery = await widget.api.addTripPhoto(
+        tripId: trip.id,
+        kind: 'signature',
+        filePath: result.filePath,
+        note: result.name.isEmpty ? 'Signed on delivery' : 'Signed by ${result.name}',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          duration: Duration(seconds: delivery == StatusDelivery.queued ? 4 : 2),
+          content: Text(
+            delivery == StatusDelivery.queued
+                ? 'Signature saved on this phone — sends when you have signal'
+                : 'Signature sent',
+          ),
+        ),
+      );
+      setState(() {});
+    } on ApiException catch (e) {
+      if (e.needsSignIn && mounted) {
+        widget.onSignedOut();
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _savingTripId = null);
+    }
+  }
 
   /// Sends whatever is waiting. Safe to call often — the API runs one drain
   /// at a time, so overlapping calls cannot post the same press twice.
@@ -294,6 +338,7 @@ class _TripsScreenState extends State<TripsScreen> {
                   onCall: (phone) => _open(Uri.parse('tel:$phone')),
                   onNavigate: (t) => _open(t.mapsUri),
                   onSetStatus: _setStatus,
+                  onSignature: _signature,
                   onPhotosChanged: () {
                     if (mounted) setState(() {});
                   },
@@ -375,6 +420,7 @@ class _TripCard extends StatelessWidget {
     required this.onCall,
     required this.onNavigate,
     required this.onSetStatus,
+    required this.onSignature,
     required this.onPhotosChanged,
   });
 
@@ -389,6 +435,7 @@ class _TripCard extends StatelessWidget {
   final void Function(String phone) onCall;
   final void Function(Trip trip) onNavigate;
   final void Function(Trip trip, String status) onSetStatus;
+  final void Function(Trip trip) onSignature;
 
   /// The card shows how many photographs are still waiting, so it has to be
   /// rebuilt when the sheet adds or sends one.
@@ -597,6 +644,24 @@ class _TripCard extends StatelessWidget {
               tripId: trip.id,
               onChanged: onPhotosChanged,
             ),
+
+            // Only from the moment the passenger is in the car. Before that
+            // there is nobody to sign, and offering it would be one more
+            // control to read past at a kerb. It stays after drop-off, because
+            // a chauffeur who forgot can still go back for it.
+            if (trip.driverStatus == 'on_board' || trip.driverStatus == 'dropped_off') ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: busy ? null : () => onSignature(trip),
+                icon: const Icon(Icons.draw_outlined, size: 18),
+                label: const Text('Passenger signature'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: const BorderSide(color: Brand.line),
+                  minimumSize: const Size.fromHeight(44),
+                ),
+              ),
+            ],
           ],
         ),
       ),
