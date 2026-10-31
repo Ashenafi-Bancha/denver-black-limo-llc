@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<!-- Shown in the iOS permission prompt. Without these keys the app does
+	     not ask, it terminates, the first time a driver taps TAKE PHOTO. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of vehicle damage, a mess, or a pick-up where nobody appeared, so the office has a record.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Attach a photo you have already taken to a trip.</string>
 </dict>
 </plist>

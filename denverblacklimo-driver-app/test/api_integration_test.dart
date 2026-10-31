@@ -1,15 +1,16 @@
 @Tags(['integration'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:dbl_driver/api/api_client.dart';
 import 'package:dbl_driver/api/auth_store.dart';
 import 'package:dbl_driver/api/driver_api.dart';
+import 'package:dbl_driver/api/pending_photo.dart';
 import 'package:dbl_driver/api/pending_status.dart';
 
 /// Exercises the real client against a real backend.
@@ -88,15 +89,36 @@ void main() {
   group('driver app against a live API', () {
     late DriverApi api;
     late AuthStore store;
+    late Directory photoDir;
 
-    setUp(() {
+    setUp(() async {
       store = AuthStore();
+      // The real queue asks path_provider for the documents directory, which
+      // does not exist in a test runner, so it is told where to put files.
+      photoDir = await Directory.systemTemp.createTemp('dbl_integration_photos');
       api = DriverApi(
         client: ApiClient(baseUrl: baseUrl, store: store),
         store: store,
         pending: PendingQueue(),
+        photos: PendingPhotoQueue(directory: photoDir),
       );
     });
+
+    tearDown(() async {
+      if (await photoDir.exists()) await photoDir.delete(recursive: true);
+    });
+
+    /// A real JPEG, because the server checks the type before it checks
+    /// anything else.
+    Future<String> aPhoto() async {
+      const oneByOneJpeg =
+          '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRof'
+          'Hh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAAB'
+          'AAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==';
+      final f = File('${photoDir.path}${Platform.pathSeparator}shot.jpg');
+      await f.writeAsBytes(base64Decode(oneByOneJpeg));
+      return f.path;
+    }
 
     test('signs in, stores the session, and reads back the trips', () async {
       if (!await serverUp()) {
@@ -113,7 +135,7 @@ void main() {
       final me = await api.me();
       expect(me['email'].toString().toLowerCase(), email.toLowerCase());
 
-      final trips = await api.trips();
+      final trips = (await api.trips()).trips;
       // The seed assigns two trips to this driver and none of them is anyone
       // else's — scoping is enforced by the token, not by a parameter.
       expect(trips, isNotEmpty);
@@ -149,7 +171,7 @@ void main() {
       // correctly signed once, and no longer accepted.
       await store.saveTokens(access: 'not.a.valid.token', refresh: firstRefresh!);
 
-      final trips = await api.trips();
+      final trips = (await api.trips()).trips;
       expect(trips, isNotEmpty, reason: 'the call should have succeeded after a refresh');
       expect(store.accessToken, isNot('not.a.valid.token'), reason: 'a new access token was stored');
       expect(store.refreshToken, isNot(firstRefresh), reason: 'refresh tokens rotate on use');
@@ -166,20 +188,20 @@ void main() {
       // so a trip that has already arrived can never satisfy the assertion
       // below. Taking any trip would make this pass once and fail on every
       // re-run against the same scratch database.
-      final before = (await api.trips()).where((t) => t.arrivedAt == null).firstOrNull;
+      final before = ((await api.trips()).trips).where((t) => t.arrivedAt == null).firstOrNull;
       if (before == null) {
         markTestSkipped('Every trip on this server has already arrived — reset the scratch database');
         return;
       }
 
       await api.setTripStatus(tripId: before.id, status: 'en_route');
-      var after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      var after = ((await api.trips()).trips).firstWhere((t) => t.id == before.id);
       expect(after.driverStatus, 'en_route');
       expect(after.statusAt, isNotNull);
       expect(after.arrivedAt, isNull, reason: 'only arriving sets the arrival time');
 
       await api.setTripStatus(tripId: before.id, status: 'arrived');
-      after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      after = ((await api.trips()).trips).firstWhere((t) => t.id == before.id);
       expect(after.driverStatus, 'arrived');
       expect(after.arrivedAt, isNotNull, reason: 'wait time is billed from this');
 
@@ -188,12 +210,12 @@ void main() {
       expect(waiting?.inMinutes, 12);
 
       await api.setTripStatus(tripId: before.id, status: 'on_board');
-      after = (await api.trips()).firstWhere((t) => t.id == before.id);
+      after = ((await api.trips()).trips).firstWhere((t) => t.id == before.id);
       expect(after.waitingFor(DateTime.now()), isNull,
           reason: 'nothing to charge for once the passenger is aboard');
 
       await api.setTripStatus(tripId: before.id, status: 'dropped_off');
-      after = (await api.trips(scope: 'all')).firstWhere((t) => t.id == before.id);
+      after = ((await api.trips(scope: 'all')).trips).firstWhere((t) => t.id == before.id);
       expect(after.isClosed, isTrue);
     });
 
@@ -204,7 +226,7 @@ void main() {
       }
 
       await api.signIn(email: email, password: password);
-      final trip = (await api.trips()).where((t) => t.arrivedAt == null).firstOrNull;
+      final trip = ((await api.trips()).trips).where((t) => t.arrivedAt == null).firstOrNull;
       if (trip == null) {
         markTestSkipped('Every trip on this server has already arrived');
         return;
@@ -236,12 +258,87 @@ void main() {
       expect(out.sent, 1);
       expect(api.pending.isEmpty, isTrue);
 
-      final after = (await api.trips()).firstWhere((t) => t.id == trip.id);
+      final after = ((await api.trips()).trips).firstWhere((t) => t.id == trip.id);
       expect(after.driverStatus, 'arrived');
       expect(
         after.arrivedAt!.toUtc().difference(pressedAt).inSeconds.abs(),
         lessThan(2),
         reason: 'wait time must bill from when the car arrived, not when the phone found a tower',
+      );
+    });
+
+    test('a photograph reaches the office, and a retry does not duplicate it', () async {
+      if (!await serverUp()) {
+        markTestSkipped('No backend at $baseUrl');
+        return;
+      }
+
+      await api.signIn(email: email, password: password);
+      final trip = ((await api.trips()).trips).first;
+      final before = (await api.tripPhotos(trip.id)).length;
+
+      final how = await api.addTripPhoto(
+        tripId: trip.id,
+        kind: 'damage',
+        filePath: await aPhoto(),
+        note: 'Tear in the rear seat',
+      );
+
+      expect(how, StatusDelivery.sent);
+      expect(api.photos.isEmpty, isTrue, reason: 'nothing is left waiting once it is sent');
+
+      final filed = await api.tripPhotos(trip.id);
+      expect(filed.length, before + 1);
+      final mine = filed.last;
+      expect(mine['kind'], 'damage');
+      expect(mine['note'], 'Tear in the rear seat');
+      expect(mine['driver_name'], isNotNull);
+      expect(mine.containsKey('data'), isFalse, reason: 'the list is metadata, never the blob');
+    });
+
+    test('a photograph taken with no signal keeps its own time', () async {
+      if (!await serverUp()) {
+        markTestSkipped('No backend at $baseUrl');
+        return;
+      }
+
+      await api.signIn(email: email, password: password);
+      final trip = ((await api.trips()).trips).first;
+      final before = (await api.tripPhotos(trip.id)).length;
+
+      final offline = DriverApi(
+        client: ApiClient(
+          baseUrl: baseUrl,
+          store: store,
+          httpClient: MockClient((_) async => throw const SocketException('no signal')),
+        ),
+        store: store,
+        pending: PendingQueue(),
+        photos: api.photos,
+      );
+
+      final takenAt = DateTime.now().toUtc().subtract(const Duration(minutes: 40));
+      final how = await offline.addTripPhoto(
+        tripId: trip.id,
+        kind: 'no_show',
+        filePath: await aPhoto(),
+        takenAt: takenAt,
+      );
+      expect(how, StatusDelivery.queued);
+      expect(api.photos.length, 1);
+
+      final out = await api.flushPendingPhotos();
+      expect(out.sent, 1);
+      expect(api.photos.isEmpty, isTrue);
+
+      final filed = await api.tripPhotos(trip.id);
+      expect(filed.length, before + 1);
+      final mine = filed.firstWhere((p) => p['kind'] == 'no_show');
+      final recorded = DateTime.parse('${mine['taken_at']}').toUtc();
+      expect(
+        recorded.difference(takenAt).inSeconds.abs(),
+        lessThan(2),
+        reason: 'the photo is evidence of the car park, not of the hour later',
       );
     });
 
@@ -252,7 +349,7 @@ void main() {
       }
 
       await api.signIn(email: email, password: password);
-      final trip = (await api.trips(scope: 'all')).first;
+      final trip = ((await api.trips(scope: 'all')).trips).first;
       await expectLater(
         api.setTripStatus(tripId: trip.id, status: 'teleported'),
         throwsA(isA<ApiException>()),

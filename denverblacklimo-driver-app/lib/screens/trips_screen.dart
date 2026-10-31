@@ -6,8 +6,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../api/api_client.dart';
 import '../api/driver_api.dart';
 import '../api/pending_status.dart';
+import '../api/trip_cache.dart';
 import '../models/trip.dart';
 import '../theme.dart';
+import 'name_board_screen.dart';
+import '../widgets/day_summary.dart';
+import '../widgets/trip_photos.dart';
 import '../widgets/trip_status_bar.dart';
 
 /// The driver's schedule — the screen the app exists for.
@@ -27,7 +31,7 @@ class TripsScreen extends StatefulWidget {
 }
 
 class _TripsScreenState extends State<TripsScreen> {
-  late Future<List<Trip>> _future;
+  late Future<TripsResult> _future;
   String _scope = 'upcoming';
 
   /// The trip whose status is being saved, so only its button spins.
@@ -49,7 +53,7 @@ class _TripsScreenState extends State<TripsScreen> {
       // No connectivity plugin: the signal is back if a request succeeds, and
       // one request every thirty seconds while something is waiting costs less
       // than another native dependency to find that out.
-      if (!widget.api.pending.isEmpty) _flush();
+      if (_anythingWaiting) _flush();
     });
     // Anything left from a previous run goes as soon as the screen is up.
     _flush();
@@ -71,7 +75,7 @@ class _TripsScreenState extends State<TripsScreen> {
         // recorded, including the timestamp it kept.
         await _refresh();
         // The signal is evidently back, so anything held from earlier goes now.
-        if (!widget.api.pending.isEmpty) await _flush();
+        if (_anythingWaiting) await _flush();
       }
 
       if (mounted) {
@@ -100,7 +104,7 @@ class _TripsScreenState extends State<TripsScreen> {
     }
   }
 
-  Future<List<Trip>> _load() async {
+  Future<TripsResult> _load() async {
     try {
       return await widget.api.trips(scope: _scope);
     } on ApiException catch (e) {
@@ -114,30 +118,45 @@ class _TripsScreenState extends State<TripsScreen> {
   Future<void> _refresh() async {
     final next = _load();
     setState(() => _future = next);
-    await next.catchError((_) => <Trip>[]);
+    await next.catchError((_) => const TripsResult(trips: []));
   }
 
   /// Pull-to-refresh. A driver who has just come back into signal reaches for
   /// this first, so it is the fastest way to drain the queue.
   Future<void> _refreshAndFlush() async {
     await _refresh();
-    if (!widget.api.pending.isEmpty) await _flush();
+    if (_anythingWaiting) await _flush();
   }
+
+  /// Statuses or photographs — either is a reason to try the network.
+  bool get _anythingWaiting =>
+      !widget.api.pending.isEmpty || !widget.api.photos.isEmpty;
 
   /// Sends whatever is waiting. Safe to call often — the API runs one drain
   /// at a time, so overlapping calls cannot post the same press twice.
   Future<void> _flush() async {
     if (!widget.api.store.isSignedIn) return;
-    FlushOutcome out;
+    FlushOutcome statuses;
+    FlushOutcome pictures;
     try {
-      out = await widget.api.flushPending();
+      // Statuses first. They are small, they are what the office is waiting
+      // on, and a photograph stuck behind them on a thin connection would
+      // hold up the timestamp a charge is billed from.
+      statuses = await widget.api.flushPending();
+      pictures = await widget.api.flushPendingPhotos();
     } catch (_) {
       // Nothing here is worth interrupting a driver for; the next tick retries.
       return;
     }
+    final out = FlushOutcome(
+      sent: statuses.sent + pictures.sent,
+      dropped: statuses.dropped + pictures.dropped,
+      expired: statuses.expired + pictures.expired,
+      remaining: statuses.remaining + pictures.remaining,
+    );
     if (!mounted || !out.changedAnything) return;
 
-    if (out.sent > 0) await _refresh();
+    if (statuses.sent > 0) await _refresh();
     if (!mounted) return;
     setState(() {});
 
@@ -151,8 +170,8 @@ class _TripsScreenState extends State<TripsScreen> {
           duration: const Duration(seconds: 8),
           content: Text(
             lost == 1
-                ? 'One saved press could not be recorded. Please tell dispatch what happened.'
-                : '$lost saved presses could not be recorded. Please tell dispatch what happened.',
+                ? 'One saved item could not be recorded. Please tell dispatch what happened.'
+                : '$lost saved items could not be recorded. Please tell dispatch what happened.',
           ),
         ),
       );
@@ -222,7 +241,7 @@ class _TripsScreenState extends State<TripsScreen> {
         color: Brand.gold,
         backgroundColor: Brand.surface,
         onRefresh: _refreshAndFlush,
-        child: FutureBuilder<List<Trip>>(
+        child: FutureBuilder<TripsResult>(
           future: _future,
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
@@ -238,7 +257,13 @@ class _TripsScreenState extends State<TripsScreen> {
                 onRetry: _refresh,
               );
             }
-            final trips = snap.data ?? const <Trip>[];
+            final result = snap.data ?? const TripsResult(trips: []);
+            final trips = result.trips;
+            final today = DaySummary.forToday(trips, _now);
+            final headers = <Widget>[
+              if (result.isStale) _StaleBanner(fetchedAt: result.cachedAt!, now: _now),
+              if (today != null && _scope == 'upcoming') today,
+            ];
             if (trips.isEmpty) {
               return _Message(
                 icon: Icons.event_available,
@@ -253,17 +278,27 @@ class _TripsScreenState extends State<TripsScreen> {
               // Always scrollable, so pull-to-refresh works even with one card.
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 32),
-              itemCount: trips.length,
+              itemCount: trips.length + headers.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
-              itemBuilder: (_, i) => _TripCard(
-                trip: trips[i],
-                now: _now,
-                pending: widget.api.pending.overlayFor(trips[i].id),
-                busy: _savingTripId == trips[i].id,
-                onCall: (phone) => _open(Uri.parse('tel:$phone')),
-                onNavigate: (t) => _open(t.mapsUri),
-                onSetStatus: _setStatus,
-              ),
+              itemBuilder: (_, index) {
+                // Built as a list rather than counted, so adding another
+                // header cannot quietly shift every card by one.
+                if (index < headers.length) return headers[index];
+                final i = index - headers.length;
+                return _TripCard(
+                  api: widget.api,
+                  trip: trips[i],
+                  now: _now,
+                  pending: widget.api.pending.overlayFor(trips[i].id),
+                  busy: _savingTripId == trips[i].id,
+                  onCall: (phone) => _open(Uri.parse('tel:$phone')),
+                  onNavigate: (t) => _open(t.mapsUri),
+                  onSetStatus: _setStatus,
+                  onPhotosChanged: () {
+                    if (mounted) setState(() {});
+                  },
+                );
+              },
             );
           },
         ),
@@ -272,8 +307,67 @@ class _TripsScreenState extends State<TripsScreen> {
   }
 }
 
+/// Says these trips came off the phone, not the server.
+///
+/// Deliberately not an error. The driver has what they need — addresses,
+/// telephone numbers, flight numbers — and the only thing they must know is
+/// how old it is, so they can judge whether dispatch has changed something
+/// since. Rendered unconditionally rather than behind an animation, for the
+/// same reason the admin's offline banner is: a warning that depends on a
+/// transition finishing is a warning that sometimes does not appear.
+class _StaleBanner extends StatelessWidget {
+  const _StaleBanner({required this.fetchedAt, required this.now});
+
+  final DateTime fetchedAt;
+  final DateTime now;
+
+  @override
+  Widget build(BuildContext context) {
+    final age = now.difference(fetchedAt);
+    final when = age.inMinutes < 1
+        ? 'a moment ago'
+        : age.inMinutes < 60
+            ? '${age.inMinutes} min ago'
+            : age.inHours < 24
+                ? '${age.inHours} ${age.inHours == 1 ? 'hour' : 'hours'} ago'
+                : '${age.inDays} ${age.inDays == 1 ? 'day' : 'days'} ago';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Brand.warn.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Brand.warn.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.cloud_off, size: 18, color: Brand.warn),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'No connection',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Brand.warn),
+                ),
+                Text(
+                  'Showing the trips saved on this phone, last updated $when. '
+                  'Pull down to try again.',
+                  style: const TextStyle(fontSize: 11.5, height: 1.35, color: Colors.white70),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TripCard extends StatelessWidget {
   const _TripCard({
+    required this.api,
     required this.trip,
     required this.now,
     required this.busy,
@@ -281,8 +375,10 @@ class _TripCard extends StatelessWidget {
     required this.onCall,
     required this.onNavigate,
     required this.onSetStatus,
+    required this.onPhotosChanged,
   });
 
+  final DriverApi api;
   final Trip trip;
   final DateTime now;
   final bool busy;
@@ -293,6 +389,10 @@ class _TripCard extends StatelessWidget {
   final void Function(String phone) onCall;
   final void Function(Trip trip) onNavigate;
   final void Function(Trip trip, String status) onSetStatus;
+
+  /// The card shows how many photographs are still waiting, so it has to be
+  /// rebuilt when the sheet adds or sends one.
+  final VoidCallback onPhotosChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -420,7 +520,7 @@ class _TripCard extends StatelessWidget {
 
             if (trip.pay.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text('Your pay: ${trip.pay}',
+              Text('Your pay: ${trip.payLabel}',
                   style: const TextStyle(fontSize: 13, color: Brand.ok, fontWeight: FontWeight.w600)),
             ],
 
@@ -452,6 +552,30 @@ class _TripCard extends StatelessWidget {
                     ),
                   ),
                 ),
+                // Gold, unlike its neighbours: calling and navigating are
+                // ordinary, and this one is the company's first impression.
+                // Offered on every live trip rather than airport arrivals
+                // only — chauffeurs hold a sign in hotel lobbies and office
+                // receptions too, and a button that is missing when it is
+                // wanted is worse than one that is occasionally ignored.
+                if (!trip.isClosed) ...[
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    height: 48,
+                    width: 48,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => NameBoardScreen(trip: trip)),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        foregroundColor: Brand.gold,
+                        side: const BorderSide(color: Brand.gold),
+                      ),
+                      child: const Icon(Icons.badge_outlined, size: 20),
+                    ),
+                  ),
+                ],
               ],
             ),
 
@@ -463,6 +587,15 @@ class _TripCard extends StatelessWidget {
               now: now,
               busy: busy,
               onSet: (status) => onSetStatus(trip, status),
+            ),
+            const SizedBox(height: 10),
+            // Below the status control rather than beside it: a photograph is
+            // taken while stopped, and must never be a mis-tap away from the
+            // button that records an arrival.
+            TripPhotoButton(
+              api: api,
+              tripId: trip.id,
+              onChanged: onPhotosChanged,
             ),
           ],
         ),

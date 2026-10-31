@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'api/api_client.dart';
 import 'api/auth_store.dart';
 import 'api/driver_api.dart';
+import 'api/pending_photo.dart';
 import 'api/pending_status.dart';
 import 'screens/sign_in_screen.dart';
 import 'screens/trips_screen.dart';
@@ -27,8 +28,14 @@ void main() async {
   final pending = PendingQueue();
   await pending.load();
 
+  // Photographs from a previous run, including ones whose file the system has
+  // since reclaimed — load() drops those rather than showing a driver a
+  // picture that is no longer there.
+  final photos = PendingPhotoQueue();
+  await photos.load();
+
   final client = ApiClient(baseUrl: ApiClient.defaultBaseUrl, store: store);
-  runApp(DriverApp(api: DriverApi(client: client, store: store, pending: pending)));
+  runApp(DriverApp(api: DriverApi(client: client, store: store, pending: pending, photos: photos)));
 }
 
 class DriverApp extends StatefulWidget {

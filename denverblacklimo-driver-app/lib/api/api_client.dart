@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import 'auth_store.dart';
 
@@ -70,6 +71,47 @@ class ApiClient {
             headers: _headers(authenticated ? store.accessToken : null),
             body: jsonEncode(body ?? const {}),
           ));
+
+  /// Sends a file as multipart.
+  ///
+  /// The request is built inside the closure rather than passed in, because a
+  /// MultipartRequest cannot be sent twice — and the refresh-and-retry path
+  /// above does exactly that. Headers are assembled by hand for the same
+  /// reason the JSON ones are not reused: multipart sets its own Content-Type,
+  /// complete with the boundary, and overwriting it makes the body unreadable.
+  Future<dynamic> postFile(
+    String path, {
+    required String fieldName,
+    required String filePath,
+    Map<String, String> fields = const {},
+  }) =>
+      _send(() async {
+        final token = store.accessToken;
+        final req = http.MultipartRequest('POST', _uri(path))
+          ..fields.addAll(fields)
+          ..files.add(await http.MultipartFile.fromPath(
+            fieldName,
+            filePath,
+            contentType: _typeOf(filePath),
+          ));
+        if (token != null) req.headers['Authorization'] = 'Bearer $token';
+        return http.Response.fromStream(await _http.send(req));
+      });
+
+  /// The type of an upload, stated rather than guessed.
+  ///
+  /// `MultipartFile.fromPath` defaults to application/octet-stream, which the
+  /// server rejects outright — so without this every photograph a driver takes
+  /// comes back "Photos must be JPG, PNG or WebP". Nothing in the app notices,
+  /// because the refusal reads like a problem with the picture.
+  static MediaType _typeOf(String filePath) {
+    final ext = filePath.toLowerCase().split('.').last;
+    return switch (ext) {
+      'png' => MediaType('image', 'png'),
+      'webp' => MediaType('image', 'webp'),
+      _ => MediaType('image', 'jpeg'),
+    };
+  }
 
   /// Runs a request, refreshing once if the token has expired.
   Future<dynamic> _send(Future<http.Response> Function() request) async {

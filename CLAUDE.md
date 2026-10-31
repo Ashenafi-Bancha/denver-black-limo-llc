@@ -48,6 +48,19 @@ refuse as somebody else's trip and the app would then discard. Refusals that
 retrying cannot fix (400, 404, 409) are dropped so they cannot jam the queue;
 everything else is kept and retried on the next tick.
 
+Trips are cached on the device (`lib/api/trip_cache.dart`). Everything else
+the app does offline assumed the driver could still *read* the trip; `trips()`
+was network-only, so a chauffeur in the DIA parking structure got an error
+instead of the drop-off address. The last good answer is now shown, banner-
+marked with its age. Only a network failure falls back — an expired session or
+a server error is still raised, because those need acting on. The cache is
+per-driver and cleared on sign-out: it holds passengers' names, numbers and
+addresses, and must not outlive the session or reach the next shift.
+
+The name board (`lib/screens/name_board_screen.dart`) is the one screen a
+paying customer sees. It keeps the screen awake, allows landscape, and restores
+both on the way out.
+
 The app reads its API address from `--dart-define=API_BASE_URL`, defaulting to
 production. On an Android emulator use `http://10.0.2.2:3001/api` — `localhost`
 there is the emulated device, not the machine running the server.
@@ -90,6 +103,29 @@ Each of these was a real bug. They are easy to reintroduce.
   that returns 400 for everything, so any test that genuinely needs a server
   fails with a misleading message. Set `HttpOverrides.global = null` in the
   test's `main` — see `test/api_integration_test.dart`.
+- **A pdfkit footer below the bottom margin appends a blank page.** pdfkit
+  treats anything past the margin as overflow, so a footer drawn at
+  `page.height - margins.bottom + n` silently doubles the page count. Lift
+  `doc.page.margins.bottom` to 0 around the write and pass `lineBreak: false`.
+  `agreement.js` carries a comment about this; `evidence.js` reintroduced it
+  anyway.
+- **`pkill` does not exist in this shell.** Git Bash on Windows has no pkill,
+  and `pkill ... 2>/dev/null` fails silently — leaving the old server running
+  while you believe you killed it, which is how port 3001 got poisoned. Stop
+  node from PowerShell: `Get-CimInstance Win32_Process -Filter "Name='node.exe'"`
+  filtered on the command line, then `Stop-Process`.
+- **`bookings.reference` is not a column.** It is derived from the id by
+  `bookingRef()`. Selecting it throws.
+- **`MultipartFile.fromPath` sends `application/octet-stream`.** Dart does not
+  infer a type from the extension, so every photo upload came back "Photos
+  must be JPG, PNG or WebP" — a refusal that reads like a problem with the
+  picture. `ApiClient._typeOf` states it explicitly. curl does infer it, so
+  testing the endpoint by hand hides this completely.
+- **A fixed-width strip inside a grid widens the whole panel.** Grid and flex
+  items are `min-width: auto`, so `overflow-x-auto` does nothing until the item
+  is allowed to shrink. Without `min-w-0` the admin photo strip pushed the
+  booking panel past the width of a phone and clipped it, with no page-level
+  scroll to reveal what was lost.
 - **Re-running the integration suite trips the login rate limit.** Each pass
   signs in several times and `/api/driver/login` allows 20 per window, so the
   third or fourth run fails everywhere at once and looks like a broken client.
@@ -102,9 +138,15 @@ Each of these was a real bug. They are easy to reintroduce.
   `DELETE FROM trip_events; UPDATE bookings SET driver_status=NULL, driver_status_at=NULL, driver_arrived_at=NULL;`
 - **Flutter web draws to a canvas, not the DOM.** `innerText` is empty and
   there are no `<input>` elements, so the browser pane cannot read or fill the
-  driver app. Screenshots work; synthetic typing does not land reliably. Verify
-  the app's behaviour through `flutter test` instead, and use screenshots only
-  to check how it looks.
+  driver app, and synthetic typing does not land reliably.
+- **And its screenshots lie under viewport emulation.** The pane captured the
+  name board clipped, then tiled side by side, against a layout that was
+  correct — Flutter sizes its canvas from the real window, so the capture and
+  the app disagree about how wide the screen is. Two "bugs" were chased this
+  way and neither existed. **Verify Flutter layout with `testWidgets`**, which
+  measures the real render tree at a size you set: see
+  `test/name_board_test.dart`, which asserts a 38-character name stays inside
+  a 400px board in both orientations.
 
 ## Backend
 
@@ -135,6 +177,43 @@ and recorded by filename in `schema_migrations`. Therefore:
 - Write them idempotently (`IF NOT EXISTS`, `ON CONFLICT DO NOTHING`); they may
   re-run against an existing schema.
 - Failures are logged, not fatal. Check the boot log after deploying one.
+
+### Trip photos
+
+Evidence for the damage and no-show charges the agreement allows. Bytes go in
+Postgres as `bytea`, like `site_images` and for the same reason — App Platform
+disks are ephemeral — but unlike `site_images` **every read is behind a token**:
+these show damaged interiors, luggage and the doorway nobody came out of. A
+driver only ever gets their own trips' photos, and a request for someone
+else's answers 404 rather than 403, so the set cannot be enumerated. Deleting
+one is admin-only: the person who took it is the last who should be able to
+remove it.
+
+Uploads carry a `clientId` and the insert is `ON CONFLICT DO NOTHING`, because
+a phone upload can time out after the server has committed it and the app will
+retry.
+
+The app downscales to 1600px at quality 80 before sending, which is roughly
+300KB a photo. Worth watching: the database is the only persistent store this
+app has, so photos accumulate there forever. At a few per trip it is years
+before this matters, but if it does, the move is Spaces, not the filesystem.
+
+### The trip record
+
+`GET /api/bookings/:id/record.pdf` (admin) builds the booking, its
+`trip_events` and its `trip_photos` into one PDF — `evidence.js`, pdfkit, same
+house style as the agreement. It exists because the evidence has to leave: a
+customer disputing a damage or wait-time charge is not given a login.
+
+It prints the wait as a **measured gap and stops there**, naming the
+arithmetic the office still has to do. The agreement bills from the scheduled
+pick-up and, for airports, from 30 minutes after gate arrival — neither of
+which this system knows — and `pickup_time` is wall-clock text while events are
+absolute timestamps. A derived figure would be wrong by hours for a reader in
+another zone, in writing, to a customer.
+
+pdfkit embeds JPEG and PNG only. A WebP photo is still stored and still listed;
+the record prints a box naming its id instead of a silent gap.
 
 ### Deliberate data decisions
 

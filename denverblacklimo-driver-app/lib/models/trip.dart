@@ -130,6 +130,22 @@ class Trip {
   /// The server's own [arrivedAt] wins when it has one: an arrival is only
   /// ever set, never moved, so the recorded time is the earlier and the true
   /// one.
+  /// The fee as a number, or null when there is none.
+  ///
+  /// node-pg serialises NUMERIC(10,2) as the string "95.00", never 95.00, so
+  /// this parses rather than casts — `as double` throws on every trip.
+  double? get payAmount {
+    final v = double.tryParse(pay.replaceAll(RegExp(r'[^0-9.\-]'), ''));
+    return v == null || v == 0 ? null : v;
+  }
+
+  /// What a driver should see. The raw column reads "95.00", which on a card
+  /// about money looks like a bug.
+  String get payLabel {
+    final v = payAmount;
+    return v == null ? '' : '\$${v.toStringAsFixed(2)}';
+  }
+
   Duration? waitingFor(
     DateTime now, {
     DateTime? queuedArrivedAt,
