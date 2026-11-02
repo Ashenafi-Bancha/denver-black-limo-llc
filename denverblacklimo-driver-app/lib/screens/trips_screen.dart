@@ -12,6 +12,7 @@ import '../theme.dart';
 import 'name_board_screen.dart';
 import 'signature_screen.dart';
 import '../widgets/day_summary.dart';
+import '../widgets/flight_strip.dart';
 import '../widgets/trip_photos.dart';
 import '../widgets/trip_status_bar.dart';
 
@@ -505,6 +506,19 @@ class _TripCard extends StatelessWidget {
                   if (trip.airportDirection.isNotEmpty) trip.airportDirection,
                 ].join(' · '),
               ),
+              // The same flight as it is running today, under the booking's own
+              // details rather than replacing them: the row above is what
+              // dispatch agreed, and this is what the airline now says.
+              //
+              // Keyed by trip, because this one holds state. Without a key a
+              // reordered list would hand one trip's flight to another card and
+              // a driver would read a delay against the wrong pick-up.
+              if (!trip.isClosed)
+                TripFlightStrip(
+                  key: ValueKey('flight-${trip.id}'),
+                  api: api,
+                  tripId: trip.id,
+                ),
             ],
 
             const SizedBox(height: 12),

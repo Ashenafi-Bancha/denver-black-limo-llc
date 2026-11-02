@@ -1195,6 +1195,96 @@ app.get('/api/flights/lookup', rateLimit({
   }
 });
 
+/**
+ * How the flight is actually running, for the chauffeur meeting it.
+ *
+ * The flight time on a booking is the schedule as it was published when the
+ * booking was taken, which can be months before the trip. On the day the plane
+ * is early, late or diverted, and the driver has been finding that out by
+ * standing in the terminal.
+ *
+ * The flight number and date come off the booking, never from the client: this
+ * is a metered provider, and a parameter would let a signed-in driver spend the
+ * month's quota on any flight they liked.
+ */
+
+/**
+ * The quota is the constraint, not the traffic. The free plan allows 600 units
+ * a month and a lookup costs 2, so roughly 300 a month across the whole site,
+ * shared with the public booking form. Three things keep this route inside it:
+ * an answer at most ten minutes old is reused, so one flight costs at most six
+ * lookups an hour however many drivers are watching it; only a trip that is
+ * nearly due is looked up at all; and the app asks once per card rather than
+ * polling.
+ */
+const FLIGHT_MAX_AGE_MS = 10 * 60 * 1000;
+
+// Interpolated into an interval literal, so they are numbers written here and
+// never anything that arrived in a request.
+const FLIGHT_WINDOW_BEFORE_HOURS = 6;
+const FLIGHT_WINDOW_AFTER_HOURS = 3;
+
+app.get(
+  '/api/driver/trips/:id/flight',
+  rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 30,
+    message: 'Checking that flight too often. Please try again shortly.',
+  }),
+  driverAuth.authenticateDriver,
+  async (req, res) => {
+    try {
+      const { error } = await driverTrip(req.params.id, req.driver);
+      if (error === 404) return res.status(404).json({ error: 'Trip not found' });
+      if (error === 409) {
+        return res.status(409).json({ error: 'This trip was cancelled. Please call dispatch.' });
+      }
+
+      // The window is tested in SQL, not here. `pickup_date` is text and
+      // TRIP_AT casts it to a zoneless timestamp, so comparing it to now() in
+      // JavaScript would be out by the server's UTC offset — six or seven
+      // hours in Denver, which is most of the window. In SQL it is the same
+      // comparison the trips list already makes.
+      const { rows } = await pool.query(
+        `SELECT flight_number, airport_direction, pickup_date,
+                ${TRIP_AT} IS NOT NULL AS has_time,
+                (${TRIP_AT} BETWEEN now() - interval '${FLIGHT_WINDOW_AFTER_HOURS} hours'
+                                AND now() + interval '${FLIGHT_WINDOW_BEFORE_HOURS} hours')
+                  AS in_window
+           FROM bookings WHERE id = $1;`,
+        [req.params.id]
+      );
+      const booking = rows[0] || {};
+      if (!String(booking.flight_number || '').trim()) {
+        return res.json({ found: false, reason: 'no_flight' });
+      }
+
+      // Outside it the published time on the card is all anyone needs, and a
+      // lookup would be quota spent on a flight that has not been scheduled
+      // into an aircraft yet. A booking with no usable time is looked up
+      // anyway — there is nothing to place it by, and it is one call.
+      if (booking.has_time && !booking.in_window) {
+        return res.json({ found: false, reason: 'too_early' });
+      }
+
+      const result = await flights.lookupFlight({
+        flight: booking.flight_number,
+        // The pick-up date, which is what the booking form has always sent.
+        // It is the arrival date for a red-eye that took off the day before,
+        // and the provider is forgiving about that; a flight it cannot place
+        // comes back not_found rather than wrong.
+        date: String(booking.pickup_date || ''),
+        direction: /depart/i.test(String(booking.airport_direction || '')) ? 'departure' : 'arrival',
+        maxAgeMs: FLIGHT_MAX_AGE_MS,
+      });
+      res.json(result);
+    } catch (err) {
+      console.error('Driver flight lookup error:', err.message);
+      res.json({ found: false, reason: 'unavailable' });
+    }
+  }
+);
+
 app.post('/api/bookings', rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 5,

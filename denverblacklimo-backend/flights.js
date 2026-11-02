@@ -26,7 +26,10 @@ const cache = new Map();
 
 function remember(key, value, ttl) {
   if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-  cache.set(key, { value, expires: Date.now() + ttl });
+  // `at` as well as `expires`: the booking form is happy with a schedule six
+  // hours old, but a driver asking whether the flight is late is not, and it
+  // asks for a maximum age rather than being handed whatever is still unexpired.
+  cache.set(key, { value, expires: Date.now() + ttl, at: Date.now() });
 }
 
 function isConfigured() {
@@ -88,9 +91,43 @@ function splitLocal(scheduled) {
   return m ? { date: m[1], time: m[2] } : { date: '', time: '' };
 }
 
+/** The same, but null rather than blanks when the provider has no such time yet. */
+function localOrNull(t) {
+  const when = splitLocal(t);
+  return when.time ? when : null;
+}
+
+/**
+ * "2026-08-25 20:05Z" → epoch ms, or null.
+ *
+ * A delay is computed from these rather than from the local strings: the two
+ * times being compared can straddle midnight or a DST change, and minutes of
+ * difference is the whole point of the number.
+ */
+function utcMs(t) {
+  const s = t && t.utc;
+  const m = s && String(s).match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/);
+  return m ? Date.parse(`${m[1]}T${m[2]}:00Z`) : null;
+}
+
 function side(x) {
   const a = (x && x.airport) || {};
   const when = splitLocal(x && x.scheduledTime);
+
+  // What the airline now says, against what it published. `revisedTime` is the
+  // estimate and then the actual; `runwayTime` is wheels on or off the tarmac.
+  //
+  // They are not interchangeable and the caller is told which one this is. On
+  // an arrival, touchdown is several minutes before the door opens, so a wait
+  // billed from `runway` as though it were gate arrival would overcharge a
+  // customer — which is the same reason the trip record refuses to compute the
+  // airport wait at all.
+  const scheduledAt = utcMs(x && x.scheduledTime);
+  const revisedAt = utcMs(x && x.revisedTime);
+  const runwayAt = utcMs(x && x.runwayTime);
+  const liveAt = revisedAt ?? runwayAt;
+  const liveFrom = revisedAt != null ? 'revised' : runwayAt != null ? 'runway' : null;
+
   return {
     iata: a.iata || '',
     city: a.municipalityName || a.shortName || '',
@@ -98,15 +135,31 @@ function side(x) {
     date: when.date,
     time: when.time,
     terminal: (x && x.terminal) || '',
+    gate: (x && x.gate) || '',
+    baggageBelt: (x && x.baggageBelt) || '',
+    revised: localOrNull(x && x.revisedTime),
+    runway: localOrNull(x && x.runwayTime),
+    /** Minutes against the published schedule: positive is late, negative early. */
+    delayMinutes:
+      scheduledAt != null && liveAt != null ? Math.round((liveAt - scheduledAt) / 60000) : null,
+    /** Which time the delay was measured from, so nothing reads it as gate arrival. */
+    delayFrom: scheduledAt != null && liveAt != null ? liveFrom : null,
   };
 }
 
 /**
  * Resolves to one of:
- *   { found: true, number, airline, status, departure, arrival, servesDenver, kind }
+ *   { found: true, number, airline, status, departure, arrival, servesDenver,
+ *     kind, fetchedAt, cached?, stale? }
  *   { found: false, reason: 'invalid' | 'not_found' | 'unavailable' }
+ *
+ * `maxAgeMs` is how old an answer the caller will accept from the cache. The
+ * booking form omits it and takes anything unexpired, because a published
+ * schedule does not move. A driver asking whether the flight is late must pass
+ * one — otherwise the six-hour entry that made the quota survivable would hand
+ * back this morning's answer as today's news.
  */
-async function lookupFlight({ flight, date, direction }) {
+async function lookupFlight({ flight, date, direction, maxAgeMs }) {
   if (!isConfigured()) return { found: false, reason: 'unavailable' };
   const number = normalizeFlight(flight);
   const day = normalizeDate(date);
@@ -115,15 +168,31 @@ async function lookupFlight({ flight, date, direction }) {
 
   const key = `${number}|${day}`;
   const hit = cache.get(key);
-  if (hit && hit.expires > Date.now()) return { ...finish(hit.value, dir), cached: true };
+  const unexpired = Boolean(hit && hit.expires > Date.now());
+  if (unexpired && (maxAgeMs == null || Date.now() - hit.at <= maxAgeMs)) {
+    return { ...finish(hit.value, dir), cached: true, fetchedAt: new Date(hit.at).toISOString() };
+  }
 
   let legs = await scheduled(() => fetchLegs(number, day));
   // A burst from several visitors can still hit the per-second limit; one
   // retry after the spacing interval clears it.
   if (legs === 'rate_limited') legs = await scheduled(() => fetchLegs(number, day));
-  if (legs === null || legs === 'rate_limited') return { found: false, reason: 'unavailable' };
+  if (legs === null || legs === 'rate_limited') {
+    // An answer from twenty minutes ago, labelled as such, beats no answer at
+    // all for someone driving to the airport now — the same judgement the
+    // app's trip cache makes about a lost signal.
+    if (unexpired) {
+      return {
+        ...finish(hit.value, dir),
+        cached: true,
+        stale: true,
+        fetchedAt: new Date(hit.at).toISOString(),
+      };
+    }
+    return { found: false, reason: 'unavailable' };
+  }
   remember(key, legs, legs.length ? TTL_FOUND_MS : TTL_MISS_MS);
-  return finish(legs, dir);
+  return { ...finish(legs, dir), fetchedAt: new Date().toISOString() };
 }
 
 function finish(legs, dir) {

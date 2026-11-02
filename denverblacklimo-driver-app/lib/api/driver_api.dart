@@ -1,3 +1,4 @@
+import '../models/flight_status.dart';
 import '../models/trip.dart';
 import 'api_client.dart';
 import 'auth_store.dart';
@@ -344,6 +345,23 @@ class DriverApi {
   Future<List<Map<String, dynamic>>> tripPhotos(String tripId) async {
     final rows = await client.get('/driver/trips/$tripId/photos') as List;
     return rows.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList(growable: false);
+  }
+
+  /// How the trip's flight is actually running.
+  ///
+  /// Takes no flight number: the server reads it off the booking. The provider
+  /// behind this is metered for the whole company, so there is nothing here a
+  /// client could point at a flight of its own choosing.
+  ///
+  /// Not cached on the device and not queued, unlike trips and status presses.
+  /// A flight status from the last time there was signal is worse than none —
+  /// it is exactly the figure that will have changed — and the server already
+  /// refuses to answer with anything older than ten minutes.
+  Future<FlightStatus> tripFlight(String tripId) async {
+    final body = await client.get('/driver/trips/$tripId/flight');
+    return FlightStatus.fromJson(
+      body is Map ? Map<String, dynamic>.from(body) : const {'found': false},
+    );
   }
 
   Future<void> changePassword({required String current, required String next}) async {

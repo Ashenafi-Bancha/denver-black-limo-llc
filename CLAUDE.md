@@ -243,6 +243,59 @@ another zone, in writing, to a customer.
 pdfkit embeds JPEG and PNG only. A WebP photo is still stored and still listed;
 the record prints a box naming its id instead of a silent gap.
 
+### Flight status
+
+The flight time on a booking is the schedule as published when the booking was
+taken, which can be months earlier. On the day the plane is early, late or
+diverted, and the chauffeur was finding that out by standing in the terminal.
+`GET /api/driver/trips/:id/flight` answers how it is actually running, and the
+strip under the flight row on the trip card shows it.
+
+**The quota is the whole design.** The free AeroDataBox plan is 600 units a
+month and a lookup costs 2 — about 300 a month for the whole site, shared with
+the public booking form. Three things keep the app inside it, and none of them
+should be loosened without redoing the arithmetic:
+
+- `lookupFlight` takes a **`maxAgeMs`**. The booking form omits it and takes
+  any unexpired entry, because a published schedule does not move; the driver
+  route passes ten minutes. One flight therefore costs at most six lookups an
+  hour however many drivers are watching it.
+- The route **only looks up a trip that is nearly due** — pick-up within six
+  hours ahead or three behind. Outside that the published time is all anyone
+  needs. The window is tested **in SQL**, because `pickup_date` is text and
+  `TRIP_AT` casts it to a *zoneless* timestamp: comparing it to `now()` in
+  JavaScript is out by the server's UTC offset, which in Denver is most of the
+  window.
+- The app **asks once per card and never polls**. The strip is deliberately not
+  on the thirty-second tick the rest of the screen runs on.
+
+The flight number and date come off the **booking, never the request** — a
+parameter would let any signed-in driver spend the month's quota on any flight.
+
+`kind` says which end of the flight is Denver's, and both the model and the
+strip read that side. Reading the arrival side of a departure would show a
+driver in Denver the clock in Frankfurt.
+
+**A delay is never presented as gate arrival.** The provider gives
+`revisedTime` (the airline's estimate, then the actual) and `runwayTime`
+(wheels on the tarmac); `delayFrom` says which one a figure came from, and the
+strip prints "wheels down" when it is the latter. Touchdown is several minutes
+before the door opens, and the agreement bills airport waiting from thirty
+minutes after the **gate** — so a wait derived from touchdown would overcharge
+a customer in writing. This is the same reason the trip record prints the wait
+as a measured gap and refuses to compute the charge.
+
+When the provider cannot be reached, a recent answer is returned labelled
+`stale` with its `fetchedAt`, and the strip says it could not reach the airline
+and how old what it is showing is — the judgement the trip cache already makes
+about a lost signal. Nothing about the flight is cached on the device: a status
+from the last time there was signal is precisely the figure that will have
+changed.
+
+With no `AERODATABOX_API_KEY` every lookup answers `unavailable` and the card
+falls back to the booking's own time, so a missing key breaks nothing and is
+easy not to notice. It is set in `.do/app.yaml`.
+
 ### Deliberate data decisions
 
 - **Drivers are retired, never deleted** — a booking must keep the driver that
