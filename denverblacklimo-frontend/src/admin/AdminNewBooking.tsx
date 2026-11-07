@@ -278,7 +278,7 @@ export function NewBookingModal({
               className="inline-flex items-center justify-center gap-2 rounded bg-gold-gradient px-6 py-3 text-sm font-bold uppercase tracking-widest text-brand-black transition disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-              Save &amp; price it
+              Next
             </button>
           </div>
         </div>
