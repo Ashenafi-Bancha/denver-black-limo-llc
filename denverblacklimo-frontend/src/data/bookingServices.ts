@@ -70,6 +70,21 @@ export const SERVICE_CONFIGS: ServiceConfig[] = [
   { name: SERVICE_TYPES[10], slug: 'brewery-winery-whiskey', number: 11, layout: 'hourly', defaultVehicle: 'Sprinter Van', summaryImage: IMG.brewery },
   { name: SERVICE_TYPES[11], slug: 'group-transportation', number: 12, layout: 'pointToPoint', defaultVehicle: 'Sprinter Van', summaryImage: IMG.group, showCompany: true },
   { name: SERVICE_TYPES[12], slug: 'vip-special-events', number: 13, layout: 'pointToPoint', defaultVehicle: 'Cadillac Escalade ESV', summaryImage: IMG.aviation, showCompany: true },
+  // Both are an evening held by the hour with the car waiting between stops,
+  // which is the nightlife layout — the same shape as bachelor parties, not a
+  // point-to-point transfer.
+  { name: SERVICE_TYPES[13], slug: 'birthday-transportation', number: 14, layout: 'nightlife', defaultVehicle: 'Stretch Limousine', summaryImage: IMG.bachelor },
+  { name: SERVICE_TYPES[14], slug: 'prom-transportation', number: 15, layout: 'nightlife', defaultVehicle: 'Party Bus', summaryImage: IMG.bachelor },
+  // service-banner-14/15/16.jpeg are copies of the nightlife and VIP banners.
+  // The sidebar loads /images/services/service-banner-<number> first and only
+  // falls back to summaryImage, which is a stock Unsplash URL — so without a
+  // banner these three services would be the only ones showing stock
+  // photography instead of the company's own. Replace the three files when
+  // there are real photographs of a birthday, a prom and a general charter.
+  // Deliberately the plainest layout: "Other" means the office does not yet
+  // know what it is, so the form asks for a pick-up, a drop-off and the
+  // special-requests box rather than guessing at fields to demand.
+  { name: SERVICE_TYPES[15], slug: 'other', number: 16, layout: 'pointToPoint', defaultVehicle: 'Luxury SUV', summaryImage: IMG.city },
 ]
 
 export function getServiceConfig(name: string): ServiceConfig {
