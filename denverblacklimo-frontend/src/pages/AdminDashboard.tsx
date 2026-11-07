@@ -309,6 +309,28 @@ export function AdminDashboard() {
    */
   const [quotingBookingId, setQuotingBookingId] = useState<string | null>(quoteIdFromHash)
 
+  /**
+   * Opens the quote page when a #quote/<id> link arrives at a tab that is
+   * already running.
+   *
+   * Reading the hash during the first render covers a cold start. It does not
+   * cover the ordinary case: the office leaves the admin open all day, taps
+   * "Send Price Quote" in a booking alert, and the browser hands the URL to
+   * that existing tab — the hash changes, React does not remount, and nothing
+   * happens. Which is exactly how it failed the first time it was tried.
+   */
+  useEffect(() => {
+    const onHash = () => {
+      const id = quoteIdFromHash()
+      if (id) {
+        setQuotingBookingId(id)
+        setActiveTab('bookings')
+      }
+    }
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastSeq = useRef(0)
   const pushToast = useCallback((text: string, kind: 'ok' | 'err' = 'ok') => {
