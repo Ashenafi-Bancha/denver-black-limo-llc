@@ -9,7 +9,19 @@
 const { Resend } = require('resend');
 
 const SITE = (process.env.SITE_URL || 'https://denverblacklimo.llc').replace(/\/$/, '');
-const ADMIN_URL = (process.env.ALLOWED_ORIGIN || SITE).replace(/\/$/, '');
+/**
+ * Where a link into the admin should point.
+ *
+ * ALLOWED_ORIGIN is a comma-separated list — the site, the admin and the
+ * driver app's web target in development — so using it whole would build
+ * "https://a.com,https://b.com/admin" and every admin link in every email
+ * would be dead. It happens to hold one value in production today, which is
+ * exactly why this would have gone unnoticed until someone added a second.
+ */
+const ADMIN_URL = (process.env.ALLOWED_ORIGIN || SITE)
+  .split(',')[0]
+  .trim()
+  .replace(/\/$/, '');
 
 const SENDER_EMAIL = process.env.SENDER_EMAIL || 'onboarding@resend.dev';
 /**
