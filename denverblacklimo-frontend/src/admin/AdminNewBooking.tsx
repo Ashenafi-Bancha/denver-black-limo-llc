@@ -273,7 +273,12 @@ export function NewBookingModal({
               Save booking
             </button>
             <button
-              onClick={() => onSave(f, true)}
+              // Next means the quote email is about to go out, and that
+              // email already carries the confirmation, the terms and the
+              // agreement PDF. Sending a separate confirmation as well would
+              // put two emails in the customer's inbox describing the same
+              // booking, so this path never does.
+              onClick={() => onSave({ ...f, sendConfirmation: false }, true)}
               disabled={!valid || !emailOk || busy}
               className="inline-flex items-center justify-center gap-2 rounded bg-gold-gradient px-6 py-3 text-sm font-bold uppercase tracking-widest text-brand-black transition disabled:cursor-not-allowed disabled:opacity-40"
             >

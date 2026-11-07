@@ -1480,6 +1480,22 @@ function buildQuoteEmail(booking, quote) {
         </p>`)}
     </div>
 
+    ${
+      /*
+       * One email, not three. A booking the office enters by hand is priced
+       * on the spot, so the customer should receive the reservation, the
+       * price and the agreement together rather than three messages over an
+       * afternoon — which is what the client asked for.
+       *
+       * Only when there is something to sign. Nagging a customer who has
+       * already signed to sign again is how people learn to ignore the
+       * button, and the box says "action required".
+       */
+      booking.agreement_token && !booking.agreement_signed_at
+        ? `<div class="pad" style="padding:20px 24px 0;">${agreementNoticeHtml(booking)}</div>`
+        : ''
+    }
+
     <div class="pad" style="padding:22px 24px 30px;">
       <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
         This quote is personal to your reservation. If the button does not work, open this address:<br>
@@ -1587,11 +1603,35 @@ function buildQuoteResponseAdminEmail(booking, quote, accepted) {
 
 /** Sends the quote to the customer. */
 async function sendQuoteEmail(booking, quote) {
+  // The agreement block above tells the customer the document is attached,
+  // so attaching it is not optional — an email that promises a paperclip and
+  // has none is worse than one that never mentioned it.
+  let attachments;
+  if (booking.agreement_token && !booking.agreement_signed_at) {
+    try {
+      const { buildAgreementPdf } = require('./agreement');
+      const pdf = await buildAgreementPdf({ booking });
+      attachments = [
+        {
+          filename: `Reservation-Agreement-${booking.reference || 'Denver-Black-Limo'}.pdf`,
+          content: pdf.toString('base64'),
+        },
+      ];
+    } catch (err) {
+      // The price is the point of this email; a missing attachment must not
+      // stop it going out. The signing button still works.
+      console.error(`Agreement PDF not attached to quote (${err.message})`);
+    }
+  }
+
   return deliver({
     to: booking.email,
-    subject: `Your Price Quote${booking.reference ? ` ${booking.reference}` : ''} — Denver Black Limo LLC`,
+    subject: booking.agreement_token && !booking.agreement_signed_at
+      ? `Your Reservation & Price Quote${booking.reference ? ` ${booking.reference}` : ''} — Denver Black Limo LLC`
+      : `Your Price Quote${booking.reference ? ` ${booking.reference}` : ''} — Denver Black Limo LLC`,
     html: buildQuoteEmail(booking, quote),
     label: 'price quote',
+    attachments,
   });
 }
 

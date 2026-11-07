@@ -252,6 +252,30 @@ Deleting one is admin-only, like a photograph: it is what a driver is owed.
 than evidence with a time on it, and is almost always entered at a booth with
 signal. If drivers start losing them, copy `pending_status.dart`.
 
+### One email, not three
+
+A booking the office enters by hand is priced on the spot, so the client asked
+for the customer to receive **one** message: the reservation, the price, the
+terms and the agreement to sign. The quote email carries all of it —
+`agreementNoticeHtml` is included when the booking has an unsigned agreement,
+and `sendQuoteEmail` attaches the PDF, because that block tells the customer
+the document is attached and an email promising a paperclip with none is worse
+than one that never mentioned it. The subject becomes "Your Reservation &
+Price Quote" in that case.
+
+Nothing is shown once the agreement is signed: nagging someone to sign again
+is how people learn to ignore a button that says "action required".
+
+**The customer-side flow is deliberately not combined.** When somebody books
+on the website there is no price yet — the office has not quoted it — so they
+get the confirmation, terms and agreement immediately, and the quote follows
+when it is ready. Holding the acknowledgement back until a human has priced
+the job would be worse service, not better.
+
+`sendConfirmation` defaults to false on a manual booking, and the **Next**
+button forces it false: that path is about to send the quote, which already
+contains the confirmation.
+
 ### The trip record
 
 `GET /api/bookings/:id/record.pdf` (admin) builds the booking, its
