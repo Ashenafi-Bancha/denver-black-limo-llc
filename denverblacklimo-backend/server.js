@@ -159,6 +159,7 @@ const driverAuth = require('./driverAuth');
 const flights = require('./flights');
 const crypto = require('crypto');
 const { buildTripRecordPdf } = require('./evidence');
+const { priceQuote, CHARGE_KINDS, CHARGE_LABELS } = require('./quoting');
 const { buildAgreementPdf, signatureBuffer, TERMS_VERSION } = require('./agreement');
 
 // Price estimator: calculation engine, route measurement, and the mapping from
@@ -179,6 +180,7 @@ const {
   ADMIN_NOTIFY_EMAIL,
   getResend,
   sendBookingEmails,
+  sendUpdatedConfirmation,
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
   sendAffiliateFarmoutEmail,
@@ -983,7 +985,7 @@ app.get('/api/bookings/:id/record.pdf', authenticateToken, async (req, res) => {
     );
     if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
 
-    const [events, photos] = await Promise.all([
+    const [events, photos, costs] = await Promise.all([
       pool.query(
         `SELECT status, driver_name, occurred_at, recorded_at, lat, lng, note
            FROM trip_events WHERE booking_id = $1 ORDER BY occurred_at ASC;`,
@@ -994,6 +996,11 @@ app.get('/api/bookings/:id/record.pdf', authenticateToken, async (req, res) => {
            FROM trip_photos WHERE booking_id = $1 ORDER BY taken_at ASC;`,
         [req.params.id]
       ),
+      pool.query(
+        `SELECT kind, amount, note, driver_name, incurred_at
+           FROM trip_expenses WHERE booking_id = $1 ORDER BY incurred_at ASC;`,
+        [req.params.id]
+      ),
     ]);
 
     const pdf = await buildTripRecordPdf({
@@ -1001,6 +1008,7 @@ app.get('/api/bookings/:id/record.pdf', authenticateToken, async (req, res) => {
       booking: { ...rows[0], reference: bookingRef(rows[0].id) },
       events: events.rows,
       photos: photos.rows,
+      costs: costs.rows,
     });
 
     const name = `Trip-Record-${bookingRef(rows[0].id)}.pdf`;
@@ -1016,6 +1024,398 @@ app.get('/api/bookings/:id/record.pdf', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Trip record error:', err.message);
     res.status(500).json({ error: 'Could not produce the trip record.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// QUOTING
+// ─────────────────────────────────────────────
+
+/**
+ * The percentages a quote is worked out with.
+ *
+ * Read from the same settings row as the rest of the rate card, so the office
+ * changes them in the admin rather than waiting for a deploy. The card fee in
+ * particular is still unconfirmed by the client — he said 4%, his mock-up
+ * shows 5% — and this is why that does not block the build.
+ */
+async function quotingConfig() {
+  const settings = await loadAllSettings();
+  const rates = settings.pricing_rates || {};
+  const num = (v, fallback) => {
+    const n = Number(v);
+    return Number.isFinite(n) && String(v).trim() !== '' ? n : fallback;
+  };
+  return {
+    // 20% is the figure on the client's mock-up; it is a default, not a rule.
+    gratuityPercent: num(rates.gratuityPercent, 20),
+    cardFeePercent: num(rates.cardFeePercent, 5),
+    taxPercent: num(rates.taxPercent, 0),
+    minimumHours: num(rates.minimumHours, 0),
+  };
+}
+
+/**
+ * Saves the office's own working, without telling the customer anything.
+ *
+ * "Save Changes" on the quote page. Deliberately separate from sending a
+ * quote: an admin adjusting a deposit figure or jotting an internal note at
+ * four in the afternoon must not cause an email to arrive in a customer's
+ * inbox. Nothing here is customer-facing except the notes field they already
+ * see on their booking.
+ */
+app.patch('/api/bookings/:id/payment', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const body = req.body || {};
+
+    const money2 = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : null;
+    };
+    const oneOf = (v, allowed) => (allowed.includes(String(v)) ? String(v) : null);
+    const date = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+
+    const { rowCount } = await pool.query(
+      `UPDATE bookings
+          SET status           = COALESCE($1, status),
+              payment_status   = COALESCE($2, payment_status),
+              payment_method   = COALESCE($3, payment_method),
+              payment_option   = COALESCE($4, payment_option),
+              deposit_required = COALESCE($5, deposit_required),
+              balance_due_date = COALESCE($6, balance_due_date),
+              internal_notes   = COALESCE($7, internal_notes),
+              special_requests = COALESCE($8, special_requests),
+              updated_at       = now()
+        WHERE id = $9;`,
+      [
+        oneOf(body.status, ['Pending', 'Reviewed', 'Quoted', 'Confirmed', 'Completed', 'Cancelled']),
+        oneOf(body.paymentStatus, [
+          'Pending Quote', 'Quote Sent', 'Deposit Requested', 'Deposit Paid',
+          'Balance Due', 'Balance Payment Requested', 'Fully Paid',
+        ]),
+        oneOf(body.paymentMethod, ['payment_link', 'venmo', 'zelle', 'cash', 'credit_card']),
+        oneOf(body.paymentOption, ['full', 'deposit']),
+        money2(body.depositRequired),
+        date(body.balanceDueDate),
+        body.internalNotes === undefined ? null : String(body.internalNotes).slice(0, 4000),
+        body.customerNotes === undefined ? null : String(body.customerNotes).slice(0, 4000),
+        req.params.id,
+      ]
+    );
+    if (!rowCount) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Payment save error:', err.message);
+    res.status(500).json({ error: 'Could not save those changes.' });
+  }
+});
+
+/**
+ * Sends the customer their confirmation again, with whatever has changed.
+ */
+app.post('/api/bookings/:id/confirmation', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query('SELECT * FROM bookings WHERE id = $1;', [req.params.id]);
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+
+    const booking = { ...rows[0], reference: bookingRef(rows[0].id) };
+    const sent = await sendUpdatedConfirmation(booking);
+    if (!sent.ok) {
+      return res.status(502).json({ error: sent.error || 'The confirmation could not be sent.' });
+    }
+
+    console.log(`Updated confirmation sent: ${booking.reference} to ${booking.email}`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Confirmation resend error:', err.message);
+    res.status(500).json({ error: 'Could not send that confirmation.' });
+  }
+});
+
+/**
+ * Records money actually received.
+ *
+ * Each payment is its own row — the client was explicit that a deposit and
+ * the balance that follows it are two separate events. The booking's payment
+ * status is derived from the ledger rather than set by hand, so it cannot
+ * disagree with the money.
+ */
+app.post('/api/bookings/:id/payments', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const body = req.body || {};
+
+    const amount = Number(body.amount);
+    if (!Number.isFinite(amount) || amount === 0) {
+      return res.status(400).json({ error: 'Enter the amount received.' });
+    }
+    const kind = ['deposit', 'balance', 'full', 'refund'].includes(String(body.kind))
+      ? String(body.kind)
+      : 'deposit';
+    // Only a refund may be negative; anything else is a typo heading for a
+    // customer's statement.
+    if (amount < 0 && kind !== 'refund') {
+      return res.status(400).json({ error: 'Only a refund can be a negative amount.' });
+    }
+
+    await pool.query(
+      `INSERT INTO booking_payments (booking_id, kind, amount, method, reference, received_at, recorded_by, note)
+       VALUES ($1, $2, $3, $4, $5, COALESCE($6, now()), $7, $8);`,
+      [
+        req.params.id,
+        kind,
+        Math.round(amount * 100) / 100,
+        String(body.method || '').slice(0, 32) || null,
+        String(body.reference || '').slice(0, 500) || null,
+        /^\d{4}-\d{2}-\d{2}/.test(String(body.receivedAt || '')) ? body.receivedAt : null,
+        'admin',
+        String(body.note || '').slice(0, 1000) || null,
+      ]
+    );
+
+    const { rows } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS paid,
+              (SELECT quote_total FROM bookings WHERE id = $1) AS total
+         FROM booking_payments WHERE booking_id = $1;`,
+      [req.params.id]
+    );
+    const paid = Number(rows[0].paid);
+    const total = Number(rows[0].total) || 0;
+
+    // Derived, never typed: the status and the ledger are the same fact.
+    const status = total > 0 && paid >= total ? 'Fully Paid' : paid > 0 ? 'Deposit Paid' : 'Quote Sent';
+    await pool.query(
+      'UPDATE bookings SET payment_status = $1, updated_at = now() WHERE id = $2;',
+      [status, req.params.id]
+    );
+
+    console.log(`Payment ${bookingRef(req.params.id)} ${kind} ${money(amount)} (paid ${money(paid)} of ${money(total)})`);
+    res.status(201).json({ ok: true, paid, total, balanceDue: Math.max(0, Math.round((total - paid) * 100) / 100), paymentStatus: status });
+  } catch (err) {
+    console.error('Payment record error:', err.message);
+    res.status(500).json({ error: 'Could not record that payment.' });
+  }
+});
+
+/** What has been paid on a booking, and what is left. */
+app.get('/api/bookings/:id/payments', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query(
+      `SELECT id, kind, amount, method, reference, received_at, recorded_by, note
+         FROM booking_payments WHERE booking_id = $1 ORDER BY received_at ASC;`,
+      [req.params.id]
+    );
+    const { rows: sum } = await pool.query(
+      `SELECT COALESCE(SUM(amount), 0) AS paid,
+              (SELECT quote_total FROM bookings WHERE id = $1) AS total
+         FROM booking_payments WHERE booking_id = $1;`,
+      [req.params.id]
+    );
+    const paid = Number(sum[0].paid);
+    const total = Number(sum[0].total) || 0;
+    res.json({ payments: rows, paid, total, balanceDue: Math.max(0, Math.round((total - paid) * 100) / 100) });
+  } catch (err) {
+    console.error('Payments read error:', err.message);
+    res.status(500).json({ error: 'Could not load the payments.' });
+  }
+});
+
+/**
+ * A price as it appears on a quote line.
+ *
+ * emails.js has its own money() for the templates; this is deliberately a
+ * separate two-line helper rather than an import, because the two format for
+ * different places and coupling them would mean a change to an email changing
+ * what is written into the database.
+ */
+const money = (n) => `\$${(Number(n) || 0).toFixed(2)}`;
+
+/** The charge catalogue, so the admin does not keep its own copy. */
+app.get('/api/quotes/charge-kinds', authenticateToken, async (req, res) => {
+  try {
+    const config = await quotingConfig();
+    const rates = (await loadAllSettings()).pricing_rates || {};
+    // Suggested unit rates come from the rate card where it has one, so the
+    // office is not retyping $20 for a stop on every quote.
+    const suggested = {
+      additional_stop: rates.extraStop,
+      child_seat: rates.childSeat,
+      meet_greet: rates.meetAndGreet,
+      airport_fee: rates.airportAccessFee,
+      late_night: rates.lateNightAmount,
+    };
+    res.json({
+      kinds: CHARGE_KINDS.map((kind) => ({
+        kind,
+        label: CHARGE_LABELS[kind],
+        suggestedRate: suggested[kind] === undefined || suggested[kind] === '' ? null : Number(suggested[kind]),
+      })),
+      config,
+    });
+  } catch (err) {
+    console.error('Charge kinds error:', err.message);
+    res.status(500).json({ error: 'Could not load the charge list.' });
+  }
+});
+
+/**
+ * What a quote would come to, without saving anything.
+ *
+ * The quote page calls this on every change rather than doing the arithmetic
+ * itself. One calculation, in one place: a second copy in TypeScript would
+ * drift from this one, and the first anybody would know is a customer being
+ * emailed a total the admin never saw. The client was explicit that the
+ * figures must be right.
+ */
+app.post('/api/quotes/preview', authenticateToken, async (req, res) => {
+  try {
+    const config = await quotingConfig();
+    res.json(priceQuote({ ...(req.body || {}), config }));
+  } catch (err) {
+    console.error('Quote preview error:', err.message);
+    res.status(500).json({ error: 'Could not work out that price.' });
+  }
+});
+
+// ─────────────────────────────────────────────
+// TRIP EXPENSES
+// ─────────────────────────────────────────────
+
+const TRIP_EXPENSE_KINDS = ['toll', 'parking', 'fuel', 'cleaning', 'other'];
+
+/**
+ * A single sum is capped well above any real toll or airport structure, so a
+ * fat-fingered 12500 instead of 125.00 is refused rather than invoiced.
+ */
+const MAX_EXPENSE = 2000;
+
+/**
+ * Something the chauffeur paid for on this trip.
+ *
+ * Scoped to the signed-in driver like every other driver route, and
+ * idempotent on clientId for the same reason photographs are: a submission
+ * can time out after the server has already committed it.
+ */
+app.post('/api/driver/trips/:id/expenses', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const { error } = await driverTrip(req.params.id, req.driver);
+    if (error === 404) return res.status(404).json({ error: 'Trip not found' });
+    if (error === 409) {
+      return res.status(409).json({ error: 'This trip was cancelled. Please call dispatch.' });
+    }
+
+    const kind = String(req.body?.kind || 'other').trim();
+    if (!TRIP_EXPENSE_KINDS.includes(kind)) {
+      return res.status(400).json({ error: 'That is not an expense this trip accepts.' });
+    }
+
+    // Number(), not parseFloat: "12.50abc" should be refused outright rather
+    // than quietly becoming 12.50 on somebody's invoice.
+    const amount = Number(req.body?.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return res.status(400).json({ error: 'Enter the amount you paid.' });
+    }
+    if (amount > MAX_EXPENSE) {
+      return res.status(400).json({ error: `That is over the $${MAX_EXPENSE} limit. Call dispatch.` });
+    }
+
+    const clientId = String(req.body?.clientId || '').trim().slice(0, 64) || null;
+    const photoId = UUID_RE.test(String(req.body?.photoId || '')) ? req.body.photoId : null;
+
+    const { rows } = await pool.query(
+      `INSERT INTO trip_expenses
+         (booking_id, driver_id, driver_name, kind, amount, note, incurred_at, photo_id, client_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (client_id) DO NOTHING
+       RETURNING id, amount, incurred_at;`,
+      [
+        req.params.id,
+        req.driver.id,
+        req.driver.name,
+        kind,
+        amount.toFixed(2),
+        String(req.body?.note || '').trim().slice(0, 500) || null,
+        claimedTime(req.body?.incurredAt),
+        photoId,
+        clientId,
+      ]
+    );
+
+    if (!rows.length) {
+      const existing = await pool.query(
+        'SELECT id FROM trip_expenses WHERE client_id = $1;',
+        [clientId]
+      );
+      return res.json({ ok: true, duplicate: true, id: existing.rows[0] && existing.rows[0].id });
+    }
+
+    console.log(
+      `Trip expense ${bookingRef(req.params.id)} ${kind} $${amount.toFixed(2)} by ${req.driver.name}`
+    );
+    res.status(201).json({ ok: true, id: rows[0].id });
+  } catch (err) {
+    console.error('Trip expense error:', err.message);
+    res.status(500).json({ error: 'Could not save that. Please try again.' });
+  }
+});
+
+const EXPENSE_COLUMNS =
+  'id, kind, amount, note, driver_name, incurred_at, recorded_at, photo_id';
+
+/** What this trip cost, for the office. Totalled in SQL so nothing re-adds it. */
+app.get('/api/bookings/:id/expenses', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query(
+      `SELECT ${EXPENSE_COLUMNS} FROM trip_expenses WHERE booking_id = $1 ORDER BY incurred_at ASC;`,
+      [req.params.id]
+    );
+    const { rows: sum } = await pool.query(
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM trip_expenses WHERE booking_id = $1;',
+      [req.params.id]
+    );
+    // Coerced here rather than left as the string node-pg returns, so the
+    // admin is not the place that has to remember.
+    res.json({ expenses: rows, total: Number(sum[0].total) });
+  } catch (err) {
+    console.error('Trip expenses read error:', err.message);
+    res.status(500).json({ error: 'Could not load the expenses.' });
+  }
+});
+
+/** The driver's own, so the app can show what it has already sent. */
+app.get('/api/driver/trips/:id/expenses', driverAuth.authenticateDriver, async (req, res) => {
+  try {
+    const { error } = await driverTrip(req.params.id, req.driver);
+    if (error) return res.status(error === 409 ? 409 : 404).json({ error: 'Trip not found' });
+    const { rows } = await pool.query(
+      `SELECT ${EXPENSE_COLUMNS} FROM trip_expenses WHERE booking_id = $1 ORDER BY incurred_at ASC;`,
+      [req.params.id]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('Driver expenses read error:', err.message);
+    res.status(500).json({ error: 'Could not load the expenses.' });
+  }
+});
+
+/**
+ * Removing one. Admin only, like deleting a photograph: this is what a driver
+ * is owed, and they should not be able to make it disappear either way.
+ */
+app.delete('/api/expenses/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.sendStatus(404);
+    const { rowCount } = await pool.query('DELETE FROM trip_expenses WHERE id = $1;', [req.params.id]);
+    if (!rowCount) return res.sendStatus(404);
+    console.log(`Trip expense ${req.params.id} deleted`);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Trip expense delete error:', err.message);
+    res.status(500).json({ error: 'Could not delete that.' });
   }
 });
 
@@ -2483,20 +2883,51 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
     }
 
     const body = req.body || {};
-    const items = Array.isArray(body.lineItems) ? body.lineItems : [];
-    const cleaned = items
-      .map((l) => ({ label: String((l && l.label) || '').trim().slice(0, 120), amount: toAmount(l && l.amount) }))
-      .filter((l) => l.label && l.amount !== null);
-    if (!cleaned.length) {
-      return res.status(400).json({ error: 'Add at least one priced line before sending.' });
+
+    // Priced here, never from the client. The page shows a preview from the
+    // same function, but a total that arrives in a request body is a number a
+    // browser could have edited, and this one goes on an invoice.
+    const config = await quotingConfig();
+    const priced = priceQuote({ ...body, config });
+
+    if (priced.total <= 0) {
+      return res.status(400).json({ error: 'Enter a fare before sending the quote.' });
     }
 
-    // The total is the sum of what the customer can see. A total that does not
-    // match its own lines is the one thing a quote must never do.
-    const total = Math.round(cleaned.reduce((sum, l) => sum + l.amount, 0) * 100) / 100;
-    if (total <= 0) return res.status(400).json({ error: 'The total must be more than zero.' });
+    // The breakdown, rendered as the line items the quote email and the
+    // customer's accept page already know how to display. Deriving them keeps
+    // one description of the price: the structured columns are the record,
+    // these are how it reads.
+    const cleaned = [
+      {
+        label:
+          priced.rateType === 'hourly'
+            ? `Chauffeured service — ${priced.billedHours} hours at ${money(priced.hourlyRate)}`
+            : 'Chauffeured transportation',
+        amount: priced.baseFare,
+      },
+      ...priced.charges
+        .filter((c) => c.amount > 0)
+        .map((c) => ({
+          label: c.quantity === 1 ? c.label : `${c.label} — ${c.quantity} × ${money(c.unitRate)}`,
+          amount: c.amount,
+        })),
+      ...(priced.gratuity > 0
+        ? [{ label: `Gratuity (${priced.gratuityPercent}%)`, amount: priced.gratuity }]
+        : []),
+      ...(priced.cardFee > 0
+        ? [{ label: `Card processing (${priced.cardFeePercent}%)`, amount: priced.cardFee }]
+        : []),
+      ...(priced.discount > 0 ? [{ label: 'Discount', amount: -priced.discount }] : []),
+      ...(priced.tax > 0 ? [{ label: `Tax (${priced.taxPercent}%)`, amount: priced.tax }] : []),
+    ];
 
+    const total = priced.total;
     const validUntil = /^\d{4}-\d{2}-\d{2}$/.test(String(body.validUntil || '')) ? body.validUntil : null;
+    const paymentLink = /^https?:\/\//i.test(String(body.paymentLink || '').trim())
+      ? String(body.paymentLink).trim().slice(0, 500)
+      : null;
+
     const quote = {
       token: crypto.randomBytes(32).toString('hex'),
       currency: String(body.currency || 'USD').slice(0, 8),
@@ -2505,6 +2936,12 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
       note: String(body.note || '').trim().slice(0, 2000) || null,
       valid_until: validUntil,
       suggested_total: toAmount(body.suggestedTotal),
+      payment_link: paymentLink,
+      // What the customer is being asked for now, which is not always the
+      // total: a deposit booking asks for part of it.
+      due_now: priced.paymentOption === 'deposit' ? priced.depositRequired : priced.total,
+      deposit: priced.paymentOption === 'deposit',
+      breakdown: priced,
     };
 
     const sent = await sendQuoteEmail(booking, quote);
@@ -2513,12 +2950,24 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
     }
 
     const saved = await pool.query(
-      `INSERT INTO quotes (booking_id, token, currency, line_items, total, note, valid_until, suggested_total)
-       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8)
+      `INSERT INTO quotes (
+         booking_id, token, currency, line_items, total, note, valid_until, suggested_total,
+         rate_type, base_fare, billed_hours, hourly_rate, charges, charges_total,
+         gratuity_percent, gratuity, card_fee_percent, card_fee,
+         discount, subtotal, tax_percent, tax, payment_link
+       )
+       VALUES ($1, $2, $3, $4::jsonb, $5, $6, $7, $8,
+               $9, $10, $11, $12, $13::jsonb, $14,
+               $15, $16, $17, $18,
+               $19, $20, $21, $22, $23)
        RETURNING id, sent_at;`,
       [
         booking.id, quote.token, quote.currency, JSON.stringify(quote.line_items),
         quote.total, quote.note, quote.valid_until, quote.suggested_total,
+        priced.rateType, priced.baseFare, priced.billedHours, priced.hourlyRate,
+        JSON.stringify(priced.charges), priced.chargesTotal,
+        priced.gratuityPercent, priced.gratuity, priced.cardFeePercent, priced.cardFee,
+        priced.discount, priced.subtotal, priced.taxPercent, priced.tax, quote.payment_link,
       ]
     );
 
@@ -2528,9 +2977,35 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
       `UPDATE bookings
           SET quote_status = 'Sent', quote_total = $1, quote_sent_at = now(),
               status = CASE WHEN status IN ('Pending', 'Reviewed') THEN 'Quoted' ELSE status END,
+              payment_status = CASE
+                -- Only moved forward. A quote re-sent to a customer who has
+                -- already paid a deposit must not drag them back to "Quote
+                -- Sent" and have the office chase money it already has.
+                WHEN payment_status IN ('Deposit Paid', 'Balance Due',
+                                        'Balance Payment Requested', 'Fully Paid')
+                  THEN payment_status
+                WHEN $2::boolean THEN 'Deposit Requested'
+                ELSE 'Quote Sent'
+              END,
+              payment_option = $3,
+              payment_method = COALESCE($4, payment_method),
+              deposit_required = $5,
+              balance_due_date = $6,
+              internal_notes = COALESCE($7, internal_notes),
+              special_requests = COALESCE($8, special_requests),
               updated_at = now()
-        WHERE id = $2;`,
-      [quote.total, booking.id]
+        WHERE id = $9;`,
+      [
+        quote.total,
+        quote.deposit,
+        priced.paymentOption,
+        String(body.paymentMethod || '').trim() || null,
+        quote.deposit ? priced.depositRequired : null,
+        /^\d{4}-\d{2}-\d{2}$/.test(String(body.balanceDueDate || '')) ? body.balanceDueDate : null,
+        body.internalNotes === undefined ? null : String(body.internalNotes).slice(0, 4000),
+        body.customerNotes === undefined ? null : String(body.customerNotes).slice(0, 4000),
+        booking.id,
+      ]
     );
 
     console.log(`Quote sent: ${booking.reference} ${quote.currency} ${quote.total} to ${booking.email}`);
@@ -2666,6 +3141,37 @@ app.post('/api/quote/:token/respond', rateLimit({
 });
 
 // Get all bookings (Protected)
+/**
+ * One booking, for a screen that works on a single trip.
+ *
+ * The list route returns every booking the office has; the quote page needs
+ * one of them and nothing else. Declared after all the /:id/<thing> routes
+ * above so it cannot shadow them — Express matches in the order routes are
+ * registered, and a bare /:id defined first would swallow /:id/photos.
+ */
+app.get('/api/bookings/:id', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+    const { rows } = await pool.query(
+      `SELECT id, status, name, email, phone, company, service_type, trip_type,
+              pickup_date, pickup_time, pickup_location, dropoff_location,
+              additional_stops, passengers, luggage, vehicle_preference,
+              airline_name, flight_number, terminal, airport_direction,
+              special_requests, internal_notes, details,
+              payment_status, payment_method, payment_option,
+              deposit_required, balance_due_date,
+              driver_name, created_at
+         FROM bookings WHERE id = $1;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+    res.json({ ...rows[0], reference: bookingRef(rows[0].id) });
+  } catch (err) {
+    console.error('Booking read error:', err.message);
+    res.status(500).json({ error: 'Could not load that booking.' });
+  }
+});
+
 app.get('/api/bookings', authenticateToken, async (req, res) => {
   try {
     // The affiliate is joined rather than copied onto the booking, so a company

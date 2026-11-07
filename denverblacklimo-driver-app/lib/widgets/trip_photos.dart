@@ -135,7 +135,10 @@ class _TripPhotoSheetState extends State<TripPhotoSheet> {
       );
 
       if (!mounted) return;
-      setState(() => _filed = _loadFiled());
+      // Block body, not an arrow — see the note in trip_expenses.dart.
+      setState(() {
+        _filed = _loadFiled();
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           duration: Duration(seconds: delivery == StatusDelivery.queued ? 4 : 2),

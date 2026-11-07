@@ -53,6 +53,14 @@ const PHOTO_LABELS = {
   other: 'Other',
 };
 
+const EXPENSE_LABELS = {
+  toll: 'Toll',
+  parking: 'Parking',
+  fuel: 'Fuel',
+  cleaning: 'Cleaning',
+  other: 'Other',
+};
+
 const CONTENT_WIDTH = (doc) => doc.page.width - doc.page.margins.left - doc.page.margins.right;
 
 /**
@@ -195,6 +203,53 @@ function waiting(doc, booking, events) {
   doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(note, x, doc.y, { width });
 }
 
+/**
+ * What the chauffeur paid out on the trip.
+ *
+ * Unlike the wait, this one does carry a total: these are sums actually paid,
+ * recorded at the time, and the agreement already says tolls and parking may
+ * be charged on. There is no policy to apply on top, so printing the figure is
+ * stating a fact rather than asserting a charge.
+ */
+function expenses(doc, rows) {
+  if (!rows.length) return;
+
+  const x = doc.page.margins.left;
+  const width = CONTENT_WIDTH(doc);
+
+  heading(doc, 'Costs paid by the chauffeur');
+
+  let total = 0;
+  for (const e of rows) {
+    if (doc.y > doc.page.height - doc.page.margins.bottom - 40) doc.addPage();
+    // NUMERIC arrives from node-pg as a string; adding it unconverted would
+    // concatenate rather than sum.
+    const amount = Number(e.amount) || 0;
+    total += amount;
+
+    const top = doc.y;
+    doc.font('Helvetica').fontSize(9).fillColor(INK)
+      .text(EXPENSE_LABELS[e.kind] || e.kind, x, top, { width: width - 90 });
+    doc.font('Helvetica').fontSize(9).fillColor(INK)
+      .text(`$${amount.toFixed(2)}`, x + width - 90, top, { width: 90, align: 'right' });
+
+    const detail = [at(e.incurred_at, true), e.note, e.driver_name && `Paid by ${e.driver_name}`]
+      .filter(Boolean)
+      .join(' · ');
+    doc.font('Helvetica').fontSize(8).fillColor(MUTED)
+      .text(detail, x, doc.y + 1, { width: width - 90 });
+    doc.moveDown(0.4);
+  }
+
+  doc.moveDown(0.2);
+  rule(doc);
+  const top = doc.y;
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(INK)
+    .text('Total paid out', x, top, { width: width - 90 });
+  doc.font('Helvetica-Bold').fontSize(10).fillColor(INK)
+    .text(`$${total.toFixed(2)}`, x + width - 90, top, { width: 90, align: 'right' });
+}
+
 /** One photograph, with what is known about it. */
 function renderPhoto(doc, photo, index) {
   const x = doc.page.margins.left;
@@ -282,7 +337,7 @@ function decorate(doc, booking) {
  *
  * `photos` must carry `data` for anything that should appear as a picture.
  */
-function buildTripRecordPdf({ booking, events = [], photos = [] } = {}) {
+function buildTripRecordPdf({ booking, events = [], photos = [], costs = [] } = {}) {
   const b = booking || {};
   return new Promise((resolve, reject) => {
     const doc = new PDFDocument({
@@ -345,6 +400,8 @@ function buildTripRecordPdf({ booking, events = [], photos = [] } = {}) {
       timeline(doc, events);
 
       waiting(doc, b, events);
+
+      expenses(doc, costs);
 
       if (photos.length) {
         heading(doc, `Photographs (${photos.length})`);

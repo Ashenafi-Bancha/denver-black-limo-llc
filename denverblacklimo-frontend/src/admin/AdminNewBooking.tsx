@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Loader2, Phone, Plus, X } from 'lucide-react'
+import { Loader2, Phone, Plus, X, ArrowRight } from 'lucide-react'
 import { SERVICE_TYPES, VEHICLE_CATEGORIES } from '../constants'
 import { BOOKING_STATUSES } from './adminUtils'
 import { OPTION_CLASS } from '../lib/formStyles'
@@ -59,7 +59,13 @@ export function NewBookingModal({
   busy: boolean
   error: string
   onClose: () => void
-  onSave: (payload: NewBookingPayload) => void
+  /**
+   * `thenQuote` sends the office straight on to the price. The client's flow
+   * is that a booking entered by hand is priced immediately — but not every
+   * one is, so saving on its own stays available rather than forcing a
+   * detour through a quote nobody wanted.
+   */
+  onSave: (payload: NewBookingPayload, thenQuote: boolean) => void
 }) {
   const [f, setF] = useState<NewBookingPayload>({
     name: '', phone: '', email: '', company: '',
@@ -259,12 +265,20 @@ export function NewBookingModal({
               Cancel
             </button>
             <button
-              onClick={() => onSave(f)}
+              onClick={() => onSave(f, false)}
               disabled={!valid || !emailOk || busy}
-              className="inline-flex items-center justify-center gap-2 rounded bg-gold-gradient px-6 py-3 text-sm font-bold uppercase tracking-widest text-brand-black transition disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex items-center justify-center gap-2 rounded border border-white/20 px-5 py-3 text-sm font-semibold text-white/80 transition hover:border-white/40 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               Save booking
+            </button>
+            <button
+              onClick={() => onSave(f, true)}
+              disabled={!valid || !emailOk || busy}
+              className="inline-flex items-center justify-center gap-2 rounded bg-gold-gradient px-6 py-3 text-sm font-bold uppercase tracking-widest text-brand-black transition disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+              Save &amp; price it
             </button>
           </div>
         </div>

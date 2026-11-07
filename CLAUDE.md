@@ -142,6 +142,11 @@ Each of these was a real bug. They are easy to reintroduce.
   async does not help. Test the gating around an encode, not the encode, and
   verify the bytes against a real engine (`flutter run -d web-server` with a
   throwaway entrypoint that prints the length to the console).
+- **`setState(() => x = f())` asserts when f returns a Future.** An arrow body
+  returns the assignment's value, and setState refuses a closure that returns
+  anything. It reads perfectly and throws only at runtime, in debug. Use a
+  block body when assigning a Future to a field. Both the photo sheet and the
+  expense sheet had it.
 - **Flutter web draws to a canvas, not the DOM.** `innerText` is empty and
   there are no `<input>` elements, so the browser pane cannot read or fill the
   driver app, and synthetic typing does not land reliably.
@@ -225,6 +230,27 @@ renders at a fixed 1000px width so a signature taken on a small handset is not
 a smudge in a document sent to a customer. `signature` is deliberately absent
 from the camera's kind chips in the app: it is captured on the pad, never
 pointed at with a lens.
+
+### Trip expenses
+
+What the chauffeur paid out — tolls, parking, fuel, cleaning. The agreement
+already allows these to be charged on, but nothing recorded them, so a driver
+paid the E-470 toll and the DIA structure themselves and the company billed
+neither the client nor them.
+
+Its own table rather than another kind of trip photo, because it has an
+**amount**: money in a free-text note cannot be summed, and the office needs a
+total per booking. The total is coerced to a number by the API — node-pg hands
+NUMERIC back as the string "13.50", and every reader that forgets concatenates
+instead of adding. A single expense is capped at $2000, so a fat-fingered
+12500 is refused rather than invoiced, and a non-numeric amount is rejected
+outright rather than silently parsed.
+
+Deleting one is admin-only, like a photograph: it is what a driver is owed.
+
+**Not queued offline**, unlike statuses and photographs — it is money rather
+than evidence with a time on it, and is almost always entered at a booth with
+signal. If drivers start losing them, copy `pending_status.dart`.
 
 ### The trip record
 

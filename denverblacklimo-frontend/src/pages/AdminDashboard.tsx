@@ -21,6 +21,8 @@ import { AdminCustomers } from '../admin/AdminCustomers'
 import { AdminAffiliates } from '../admin/AdminAffiliates'
 import { AdminTripHistory } from '../admin/AdminTripHistory'
 import { AdminTripPhotos } from '../admin/AdminTripPhotos'
+import { AdminTripExpenses } from '../admin/AdminTripExpenses'
+import { AdminQuotePage } from '../admin/AdminQuotePage'
 import { AssignAffiliateModal, type AffiliateTarget } from '../admin/AdminAssignAffiliate'
 import { AdminBottomNav } from '../admin/AdminBottomNav'
 import { OfflineBanner, UpdateToast, useOnline, usePwaMeta, useServiceWorker } from '../admin/AdminPwa'
@@ -159,6 +161,19 @@ function ServiceTick({ x, y, payload }: { x?: number; y?: number; payload?: { va
   )
 }
 
+/**
+ * The booking id in a /admin#quote/<id> link, if there is one.
+ *
+ * Read during render rather than in an effect: the tab-sync effect replaces
+ * the hash with #<tab> as soon as it runs, so by the time any effect looks
+ * the id is already gone.
+ */
+function quoteIdFromHash(): string | null {
+  if (typeof window === 'undefined') return null
+  const m = /^#quote\/([0-9a-f-]{36})$/i.exec(window.location.hash)
+  return m ? m[1] : null
+}
+
 export function AdminDashboard() {
   const [token, setToken] = useState<string | null>(() =>
     typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null
@@ -170,7 +185,10 @@ export function AdminDashboard() {
   const TABS: Tab[] = ['overview', 'bookings', 'drivers', 'affiliates', 'customers', 'inbox', 'content', 'analytics']
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const fromHash = typeof window !== 'undefined' ? window.location.hash.replace('#', '') : ''
-    return (TABS as string[]).includes(fromHash) ? (fromHash as Tab) : 'overview'
+    if ((TABS as string[]).includes(fromHash)) return fromHash as Tab
+    // Arriving on a quote link: Bookings is what should be behind the quote
+    // page, so closing it lands somewhere sensible rather than on Overview.
+    return quoteIdFromHash() ? ('bookings' as Tab) : 'overview'
   })
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -276,6 +294,20 @@ export function AdminDashboard() {
   const [quoteError, setQuoteError] = useState('')
   /** Outcome card shown in the middle of the screen after a delete or a save. */
   const [actionResult, setActionResult] = useState<{ ok: boolean; title: string; message?: string } | null>(null)
+
+  /**
+   * The booking being priced, if any.
+   *
+   * The quote is a page rather than a dialog over the list — the client asked
+   * for the trip details and the price to be read together, and a modal on a
+   * phone shows one or the other.
+   *
+   * Kept in the URL hash so the "Send price quote" button in the booking
+   * alert email can link straight here, which is the whole point of that
+   * button: the office opens the email on a phone and is one tap from pricing
+   * the job.
+   */
+  const [quotingBookingId, setQuotingBookingId] = useState<string | null>(quoteIdFromHash)
 
   const [toasts, setToasts] = useState<Toast[]>([])
   const toastSeq = useRef(0)
@@ -567,7 +599,7 @@ export function AdminDashboard() {
   }
 
   /** Saves a booking taken over the phone. */
-  const saveManualBooking = async (payload: NewBookingPayload) => {
+  const saveManualBooking = async (payload: NewBookingPayload, thenQuote = false) => {
     setNewBookingBusy(true)
     setNewBookingError('')
     try {
@@ -585,6 +617,9 @@ export function AdminDashboard() {
       setNewBookingOpen(false)
       pushToast(`${body.reference} added${body.emailed ? ' — confirmation emailed.' : '.'}`)
       loadData('auto')
+      // Straight on to the price, which is the client's flow for a booking
+      // the office entered itself.
+      if (thenQuote && body.id) setQuotingBookingId(body.id)
     } catch {
       setNewBookingError('Could not reach the server. Please try again.')
     } finally {
@@ -855,10 +890,22 @@ export function AdminDashboard() {
           className="relative z-10 mx-auto max-w-7xl p-4 pb-24 sm:p-6 sm:pb-24 lg:p-8 lg:pb-8"
           style={{ paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))' }}
         >
-          {!installApp.installed && <InstallStrip platform={installApp.platform} onInstall={installApp.install} />}
+          {!installApp.installed && !quotingBookingId && (
+            <InstallStrip platform={installApp.platform} onInstall={installApp.install} />
+          )}
+
+          {/* The quote page takes over the whole area: pricing a trip is a
+              task of its own, not something done beside a list of bookings. */}
+          {quotingBookingId && (
+            <AdminQuotePage
+              bookingId={quotingBookingId}
+              token={token}
+              onBack={() => setQuotingBookingId(null)}
+            />
+          )}
 
           {/* OVERVIEW */}
-          {activeTab === 'overview' && (
+          {!quotingBookingId && activeTab === 'overview' && (
             <div>
               <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <div>
@@ -941,7 +988,7 @@ export function AdminDashboard() {
           )}
 
           {/* BOOKINGS */}
-          {activeTab === 'bookings' && (
+          {!quotingBookingId && activeTab === 'bookings' && (
             <div>
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div><h1 className="font-display text-3xl text-brand-gold">Booking Requests</h1><p className="text-sm text-white/60 mt-1">Manage and respond to all incoming transportation requests.</p></div>
@@ -1064,22 +1111,11 @@ export function AdminDashboard() {
                             onClick={(e) => {
                               e.stopPropagation()
                               setQuoteError('')
-                              setQuoteTarget({
-                                id: b.id,
-                                reference: bookingRef(b.id),
-                                customer: b.name,
-                                email: b.email,
-                                serviceType: b.service_type,
-                                pickupDate: b.pickup_date,
-                                pickupTime: b.pickup_time,
-                                pickupLocation: b.pickup_location,
-                                dropoffLocation: b.dropoff_location,
-                                vehicle: b.vehicle_preference,
-                                passengers: b.passengers,
-                                estimateShown: b.estimate_shown == null ? null : Number(b.estimate_shown),
-                                quoteStatus: b.quote_status,
-                                quoteTotal: b.quote_total == null ? null : Number(b.quote_total),
-                              })
+                              // Opens the quote page rather than the old
+                              // modal: the client asked for the trip details
+                              // and the price to be read together, which a
+                              // dialog over the list cannot do on a phone.
+                              setQuotingBookingId(b.id)
                             }}
                             title={
                               b.quote_status === 'Accepted'
@@ -1319,8 +1355,9 @@ export function AdminDashboard() {
                                 <div className="rounded border border-white/5 bg-brand-surface p-4">
                                   <AdminTripHistory bookingId={b.id} token={token} serviceType={b.service_type} />
                                 </div>
-                                {/* Renders nothing when the trip has none, which is most of them. */}
+                                {/* Both render nothing when the trip has none, which is most of them. */}
                                 <AdminTripPhotos bookingId={b.id} token={token} onToast={pushToast} />
+                                <AdminTripExpenses bookingId={b.id} token={token} onToast={pushToast} />
                               </div>
                             )}
                             {b.details && Object.keys(b.details).some((k) => DETAIL_LABELS[k] && b.details![k]) && (
@@ -1343,7 +1380,7 @@ export function AdminDashboard() {
           )}
 
           {/* INBOX */}
-          {activeTab === 'inbox' && (
+          {!quotingBookingId && activeTab === 'inbox' && (
             <div>
               <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div><h1 className="font-display text-3xl text-brand-gold">Inbox</h1><p className="text-sm text-white/60 mt-1">Contact messages and quote requests from your website.</p></div>
@@ -1419,16 +1456,16 @@ export function AdminDashboard() {
           )}
 
           {/* CONTENT (CMS) */}
-          {activeTab === 'drivers' && <AdminDrivers token={token} onResult={pushToast} />}
+          {!quotingBookingId && activeTab === 'drivers' && <AdminDrivers token={token} onResult={pushToast} />}
 
-          {activeTab === 'affiliates' && <AdminAffiliates token={token} onResult={pushToast} />}
+          {!quotingBookingId && activeTab === 'affiliates' && <AdminAffiliates token={token} onResult={pushToast} />}
 
-          {activeTab === 'customers' && <AdminCustomers token={token} onResult={pushToast} />}
+          {!quotingBookingId && activeTab === 'customers' && <AdminCustomers token={token} onResult={pushToast} />}
 
-          {activeTab === 'content' && <CmsManager token={token} settings={cmsSettings} refresh={refreshAll} onResult={setActionResult} />}
+          {!quotingBookingId && activeTab === 'content' && <CmsManager token={token} settings={cmsSettings} refresh={refreshAll} onResult={setActionResult} />}
 
           {/* ANALYTICS */}
-          {activeTab === 'analytics' && (
+          {!quotingBookingId && activeTab === 'analytics' && (
             <div>
               <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
                 <div><h1 className="font-display text-3xl text-brand-gold">Dashboard Analytics</h1><p className="text-sm text-white/60 mt-1">Overview of booking statistics and popular services.</p></div>

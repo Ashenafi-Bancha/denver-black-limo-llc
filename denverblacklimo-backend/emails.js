@@ -35,6 +35,9 @@ const BRAND = {
   black: '#0a0a0a',
   gold: '#c9a227',
   goldLight: '#d4af37',
+  // Matches --color-brand-cream on the site, so the deposit panel in a quote
+  // email is the same colour as the one in the admin.
+  cream: '#f5f0e6',
   text: '#1f2328',
   muted: '#6b7280',
   line: '#e8e8e8',
@@ -848,6 +851,11 @@ function buildAdminAlertEmail(data, bookingId) {
     <div class="pad" style="padding:18px 24px 30px;">
       <p style="margin:0 0 2px; font-size:13px; color:${BRAND.muted};">Booking ID</p>
       <p style="margin:0; font-size:13px; color:${INK}; font-family:'Courier New',monospace;">${esc(bookingId)}</p>
+      ${/* Straight to the quote page for this booking, not the dashboard.
+            The office reads this alert on a phone, and the whole point of the
+            button is to be one tap from pricing the job rather than finding
+            it again in a list. */ ''}
+      ${button('Send Price Quote', `${ADMIN_URL}/admin#quote/${bookingId}`)}
       ${button('Open Admin Dashboard', `${ADMIN_URL}/admin`)}
     </div>`;
 
@@ -985,6 +993,42 @@ async function deliver({ to, subject, html, label, attachments }) {
  * email still goes — the signing link in the body is what actually matters,
  * and a missing attachment is better than a missing confirmation.
  */
+/**
+ * Re-sends the customer their confirmation, and nobody else.
+ *
+ * "Send Updated Confirmation" on the quote page, for when a detail changed
+ * after the booking was made. Deliberately not sendBookingEmails: that also
+ * alerts the office, and the office is the one who just made the change —
+ * being emailed about your own edit teaches you to ignore the alerts that
+ * matter.
+ */
+async function sendUpdatedConfirmation(bookingData) {
+  if (!bookingData.email) return { ok: false, error: 'This booking has no email address.' };
+
+  let attachments;
+  try {
+    const { buildAgreementPdf } = require('./agreement');
+    const pdf = await buildAgreementPdf({ booking: bookingData });
+    attachments = [
+      {
+        filename: `Reservation-Agreement-${bookingData.reference || 'Denver-Black-Limo'}.pdf`,
+        content: pdf.toString('base64'),
+      },
+    ];
+  } catch (err) {
+    // A missing agreement must not stop the customer hearing about the change.
+    console.error(`Agreement PDF not attached (${err.message})`);
+  }
+
+  return deliver({
+    to: bookingData.email,
+    subject: `Updated Reservation ${bookingData.reference ? `${bookingData.reference} ` : ''}— Denver Black Limo LLC`,
+    html: buildCustomerConfirmationEmail(bookingData),
+    label: 'updated confirmation',
+    attachments,
+  });
+}
+
 async function sendBookingEmails(bookingData, bookingId) {
   if (bookingData.email) {
     let attachments;
@@ -1366,11 +1410,35 @@ function buildQuoteEmail(booking, quote) {
         </td></tr>
       </table>
 
+      ${
+        quote.deposit && quote.due_now
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:18px 0 0;">
+               <tr><td style="background:${BRAND.cream}; border:1px solid ${BRAND.gold}; border-radius:6px; padding:14px 18px;">
+                 <p style="margin:0; font-size:13px; color:${BRAND.muted};">To secure this reservation</p>
+                 <p style="margin:4px 0 0; font-size:22px; font-weight:700; color:${INK};">${money(quote.due_now, currency)} deposit</p>
+                 <p style="margin:4px 0 0; font-size:12px; color:${BRAND.muted};">
+                   The remaining ${money(Math.round((quote.total - quote.due_now) * 100) / 100, currency)} is due before your journey.
+                 </p>
+               </td></tr>
+             </table>`
+          : ''
+      }
+
       <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 0;">
         <tr><td style="background:${BRAND.gold}; border-radius:6px;">
           <a href="${url}" style="display:inline-block; padding:16px 40px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Accept this quote</a>
         </td></tr>
       </table>
+
+      ${
+        quote.payment_link
+          ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0 0;">
+               <tr><td style="border:2px solid ${BRAND.gold}; border-radius:6px;">
+                 <a href="${esc(quote.payment_link)}" style="display:inline-block; padding:14px 36px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.gold}; text-decoration:none;">Pay ${money(quote.due_now || quote.total, currency)} now</a>
+               </td></tr>
+             </table>`
+          : ''
+      }
       <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
         Prefer to talk it through? Call or text
         <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>,
@@ -1727,6 +1795,7 @@ module.exports = {
   ADMIN_NOTIFY_EMAIL,
   getResend,
   sendBookingEmails,
+  sendUpdatedConfirmation,
   sendSignedAgreementEmails,
   sendDriverDispatchEmail,
   buildDriverDispatchEmail,

@@ -341,6 +341,38 @@ class DriverApi {
     );
   }
 
+  /// Records something the chauffeur paid for on this trip.
+  ///
+  /// Not queued offline, unlike a status press or a photograph. A toll or a
+  /// parking fee is money the driver is owed rather than evidence with a time
+  /// on it, and it is almost always entered at a booth or a barrier where
+  /// there is signal. Adding a third queue for it would be machinery carrying
+  /// very little — but if drivers do start losing them, the pattern to copy
+  /// is pending_status.dart.
+  Future<void> addExpense({
+    required String tripId,
+    required String kind,
+    required double amount,
+    String? note,
+    String? clientId,
+    DateTime? incurredAt,
+  }) =>
+      client.post('/driver/trips/$tripId/expenses', body: {
+        'kind': kind,
+        // Sent as a number, not a formatted string: the server refuses
+        // anything it cannot read as one, deliberately.
+        'amount': amount,
+        'note': ?note,
+        'clientId': clientId ?? '${DateTime.now().microsecondsSinceEpoch}',
+        'incurredAt': (incurredAt ?? DateTime.now()).toUtc().toIso8601String(),
+      });
+
+  /// What this trip has already cost, as the server has it.
+  Future<List<Map<String, dynamic>>> tripExpenses(String tripId) async {
+    final rows = await client.get('/driver/trips/$tripId/expenses') as List;
+    return rows.whereType<Map>().map((r) => Map<String, dynamic>.from(r)).toList(growable: false);
+  }
+
   /// The photographs the server already holds for a trip.
   Future<List<Map<String, dynamic>>> tripPhotos(String tripId) async {
     final rows = await client.get('/driver/trips/$tripId/photos') as List;

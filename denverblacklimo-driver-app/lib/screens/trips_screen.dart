@@ -13,6 +13,7 @@ import 'name_board_screen.dart';
 import 'signature_screen.dart';
 import '../widgets/day_summary.dart';
 import '../widgets/flight_strip.dart';
+import '../widgets/trip_expenses.dart';
 import '../widgets/trip_photos.dart';
 import '../widgets/trip_status_bar.dart';
 
@@ -658,6 +659,17 @@ class _TripCard extends StatelessWidget {
               tripId: trip.id,
               onChanged: onPhotosChanged,
             ),
+
+            // Money the driver has fronted. Offered on every live trip: a toll
+            // is paid on the way to the pick-up as often as after it.
+            if (!trip.isClosed) ...[
+              const SizedBox(height: 10),
+              TripExpenseButton(
+                api: api,
+                tripId: trip.id,
+                onChanged: onPhotosChanged,
+              ),
+            ],
 
             // Only from the moment the passenger is in the car. Before that
             // there is nobody to sign, and offering it would be one more
