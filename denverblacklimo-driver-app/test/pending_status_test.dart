@@ -189,7 +189,10 @@ void main() {
     });
 
     test('the original time is sent, not the time it synced', () async {
-      final pressedAt = DateTime.utc(2026, 10, 30, 14, 23);
+      // Relative to now, not a fixed date. The queue drops anything older
+      // than seven days, so a hardcoded timestamp makes this pass on the day
+      // it is written and fail a week later for no visible reason.
+      final pressedAt = DateTime.now().toUtc().subtract(const Duration(minutes: 30));
       var body = <String, dynamic>{};
 
       final api = await apiThat((_) async => throw const SocketException('offline'));
