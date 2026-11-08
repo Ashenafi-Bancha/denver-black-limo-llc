@@ -329,7 +329,9 @@ export function QuoteAcceptPage() {
               </h1>
               <p className="mt-2 text-sm text-neutral-600">
                 {accepted
-                  ? 'Thank you. One step is left — the payment below.'
+                  ? agreementToken && !quote.agreementSigned
+                    ? 'Thank you. Two steps are left — sign the agreement, then pay.'
+                    : 'Thank you. One step is left — the payment below.'
                   : status === 'Declined'
                     ? 'No problem at all. If your plans change, we would be glad to quote again.'
                     : `Hello ${(quote.name || '').split(' ')[0]}, here is the price for your trip.`}
@@ -511,11 +513,42 @@ export function QuoteAcceptPage() {
           {settled ? (
             accepted ? (
               <>
-                <Bar>Payment</Bar>
+                {/*
+                  * Signing comes before the money, matching the order the
+                  * quote email sets out: the agreement is what confirms the
+                  * reservation and states what may be charged, so asking for
+                  * payment against terms nobody has agreed to is backwards.
+                  * It disappears once signed rather than nagging.
+                  */}
+                {agreementToken && !quote.agreementSigned && (
+                  <>
+                    <Bar>Step 2 — Sign your agreement</Bar>
+                    <div className="px-5 py-5 md:px-8 md:py-6">
+                      <p className="flex items-center gap-2 font-semibold text-emerald-700">
+                        <CheckCircle2 className="h-5 w-5" /> Quote accepted
+                      </p>
+                      <p className="mt-3 flex items-start gap-2 text-sm leading-relaxed text-neutral-700">
+                        <FileSignature className="mt-0.5 h-4 w-4 shrink-0 text-brand-gold-dark" />
+                        This is what confirms the booking. It takes about a minute, and the signed copy is emailed
+                        to you.
+                      </p>
+                      <Link
+                        to={`/agreement/${agreementToken}`}
+                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-4 text-sm font-bold uppercase tracking-[0.16em] text-brand-gold-light transition hover:brightness-125"
+                      >
+                        Read &amp; Sign the Agreement
+                      </Link>
+                    </div>
+                  </>
+                )}
+
+                <Bar>{agreementToken && !quote.agreementSigned ? 'Step 3 — Payment' : 'Payment'}</Bar>
                 <div className="px-5 py-5 md:px-8 md:py-6">
-                  <p className="flex items-center gap-2 font-semibold text-emerald-700">
-                    <CheckCircle2 className="h-5 w-5" /> Quote accepted
-                  </p>
+                  {!(agreementToken && !quote.agreementSigned) && (
+                    <p className="flex items-center gap-2 font-semibold text-emerald-700">
+                      <CheckCircle2 className="h-5 w-5" /> Quote accepted
+                    </p>
+                  )}
 
                   <div className="mt-4 rounded border border-neutral-200 bg-neutral-50 p-4">
                     <div className="flex items-baseline justify-between gap-4">
@@ -708,23 +741,6 @@ export function QuoteAcceptPage() {
             </>
           )}
         </section>
-
-        {/* Signing follows acceptance, not the other way round. */}
-        {accepted && agreementToken && !quote.agreementSigned && (
-          <div className="mt-5 rounded-lg border-2 border-brand-gold/50 bg-white p-6 text-center md:p-7">
-            <FileSignature className="mx-auto h-7 w-7 text-brand-gold-dark" />
-            <h2 className="mt-3 font-display text-2xl text-neutral-900">Please sign the agreement</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm text-neutral-600">
-              It takes about a minute, and the signed copy is emailed to you.
-            </p>
-            <Link
-              to={`/agreement/${agreementToken}`}
-              className="mt-5 inline-flex items-center gap-2 rounded-full border-2 border-brand-black px-7 py-3 text-xs font-bold uppercase tracking-[0.16em] text-brand-black transition hover:bg-brand-black hover:text-brand-gold-light"
-            >
-              Read &amp; Sign the Agreement
-            </Link>
-          </div>
-        )}
 
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm">
           <p className="max-w-md text-neutral-600">

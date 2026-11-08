@@ -93,12 +93,34 @@ function shell({ title, preheader = '', contentHtml }) {
   a { color:${BRAND.gold}; }
   @media only screen and (max-width:600px) {
     .wrap { padding:10px 6px !important; }
-    .pad { padding-left:12px !important; padding-right:12px !important; }
+    .pad { padding-left:14px !important; padding-right:14px !important; }
     .h1 { font-size:21px !important; }
-    .brand1 { font-size:24px !important; }
-    .brand2 { font-size:17px !important; }
+    /*
+     * The header lockup sets the email's minimum width: a 118px logo beside
+     * tracked capitals needs more than a 375px phone has once the wrapper
+     * and header padding are taken off, and the whole table stretched to fit
+     * — which is where the horizontal scroll came from. Shrink the lockup
+     * and the table fits the screen.
+     */
+    .hdr { padding:14px 16px !important; }
+    .logo { width:64px !important; height:64px !important; }
+    .logoCell { padding-right:12px !important; }
+    .brand1 { font-size:22px !important; letter-spacing:2px !important; }
+    .brand2 { font-size:14px !important; letter-spacing:1px !important; }
     .stackLabel { display:block !important; width:100% !important; padding-bottom:2px !important; }
     .stackValue { display:block !important; width:100% !important; padding-bottom:10px !important; }
+    /* Long fallback URLs must wrap rather than widen the page. */
+    .url { font-size:11px !important; word-break:break-all !important; }
+    /*
+     * The reservation sheet's paired blocks — routing beside payment status,
+     * bill-to beside passenger — need about 370px side by side, which is
+     * more than a phone has, so the whole email was scrolling sideways.
+     * They stack here. The three-up strip above them holds short values and
+     * still reads across, so it keeps its columns, which is the look the
+     * client's reference document has.
+     */
+    .col { display:block !important; width:100% !important; padding-right:0 !important; padding-left:0 !important; }
+    .col + .col { padding-top:10px !important; }
   }
 </style>
 </head>
@@ -112,11 +134,11 @@ function shell({ title, preheader = '', contentHtml }) {
           <!-- Header: full logo artwork beside the brand lockup, gold rule underneath -->
           <tr>
             <!-- #000 exactly: the logo artwork is on pure black, so any other shade shows its square edge -->
-            <td style="background:#000000; padding:18px 28px; border-bottom:4px solid ${BRAND.gold};">
+            <td class="hdr" style="background:#000000; padding:18px 28px; border-bottom:4px solid ${BRAND.gold};">
               <table role="presentation" cellpadding="0" cellspacing="0">
                 <tr>
-                  <td style="padding-right:18px; vertical-align:middle;">
-                    <img src="${SITE}/images/logo-512.png" width="118" height="118" alt="Denver Black Limo LLC"
+                  <td class="logoCell" style="padding-right:18px; vertical-align:middle;">
+                    <img class="logo" src="${SITE}/images/logo-512.png" width="118" height="118" alt="Denver Black Limo LLC"
                          style="display:block; width:118px; height:118px;">
                   </td>
                   <td style="vertical-align:middle;">
@@ -450,7 +472,7 @@ const gapCell = (px = 8) => `<td style="width:${px}px; font-size:0; line-height:
  */
 function headedCell(title, value, opts = {}) {
   const align = opts.align || 'center';
-  return `<td class="col" style="width:${opts.width || 'auto'}; border:1px solid ${RULE}; padding:0; vertical-align:top;">
+  return `<td class="cell3" style="width:${opts.width || 'auto'}; border:1px solid ${RULE}; padding:0; vertical-align:top;">
     <div style="padding:6px 9px; border-bottom:1px solid ${RULE}; text-align:${align}; font-size:12px; font-weight:700; color:${INK}; line-height:1.35;">${esc(title)}</div>
     <div style="padding:8px 9px; text-align:${align}; font-size:12px; color:${INK}; line-height:1.45;">${esc(value || '—')}</div>
   </td>`;
@@ -1549,6 +1571,64 @@ function quoteTripRows(d) {
 }
 
 /**
+ * One numbered step in the customer's sequence.
+ *
+ * The quote email used to put four links and two bare URLs on the page with
+ * no order between them — and "Pay now" sat above "Accept this quote", which
+ * asks somebody to pay a price they have not agreed to. Each step now owns
+ * exactly one action, numbered, in the order the business actually works:
+ * agree the price, agree the terms, then pay.
+ *
+ * `cta` is the button; `fallback` the plain address for a client that strips
+ * buttons. Kept with its own step rather than pooled at the foot of the
+ * email, where two unlabelled URLs told the reader nothing about which was
+ * which.
+ */
+function step({ n, title, body, cta, fallback, muted = false }) {
+  const button = cta
+    ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:12px 0 0;">
+         <tr><td style="${
+           muted
+             ? `border:2px solid ${BRAND.gold}; border-radius:6px;`
+             : `background:${BRAND.gold}; border-radius:6px;`
+         } text-align:center;">
+           <a href="${cta.href}" style="display:block; padding:${muted ? '13px' : '15px'} 20px; font-size:14px; font-weight:700; letter-spacing:1.4px; text-transform:uppercase; color:${
+             muted ? BRAND.gold : BRAND.black
+           }; text-decoration:none;">${esc(cta.label)}</a>
+         </td></tr>
+       </table>`
+    : '';
+
+  // Grey, not gold. This is what to do when the button does not render, not
+  // another thing to click — in gold it read as a third call to action and
+  // the step stopped having one obvious move.
+  const alt = fallback
+    ? `<p class="url" style="margin:8px 0 0; font-size:11px; line-height:1.5; color:${BRAND.muted}; word-break:break-all;">
+         If the button does not work: ${esc(fallback)}
+       </p>`
+    : '';
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:10px 0 0; border:1px solid ${BRAND.line}; border-radius:8px;">
+    <tr><td style="padding:16px 18px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
+        <tr>
+          <td style="width:30px; vertical-align:top; padding-right:12px;">
+            <div style="width:26px; height:26px; background:${BRAND.black}; border-radius:50%; text-align:center;">
+              <span style="display:inline-block; line-height:26px; font-size:13px; font-weight:700; color:${BRAND.goldLight};">${n}</span>
+            </div>
+          </td>
+          <td style="vertical-align:top;">
+            <p style="margin:0 0 4px; font-size:14px; font-weight:700; color:${INK};">${esc(title)}</p>
+            <p style="margin:0; font-size:13px; line-height:1.6; color:${BRAND.muted};">${body}</p>
+          </td>
+        </tr>
+      </table>
+      ${button}${alt}
+    </td></tr>
+  </table>`;
+}
+
+/**
  * The quote, and — when the price was worked out from the charge sheet — the
  * whole reservation with it.
  *
@@ -1567,6 +1647,10 @@ function buildQuoteEmail(booking, quote) {
   // Quotes sent before the charge sheet existed have line items and nothing
   // else; those must still print the figures the customer was given.
   const priced = quote.breakdown || null;
+  const needsSignature = Boolean(booking.agreement_token) && !booking.agreement_signed_at;
+  const agreementUrl = booking.agreement_token
+    ? `${SITE}/agreement/${encodeURIComponent(booking.agreement_token)}`
+    : '';
 
   const content = `
     <div class="pad" style="padding:30px 24px 0;">
@@ -1575,9 +1659,9 @@ function buildQuoteEmail(booking, quote) {
         ${esc(firstName)}, here is your price
       </h1>
       <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
-        Thank you for choosing Denver Black Limo. Below is the price for your trip
+        Thank you for choosing Denver Black Limo. Here is the price for your trip
         ${booking.reference ? `(reservation <b style="color:${INK};">${esc(booking.reference)}</b>)` : ''}.
-        Tap accept and your reservation is confirmed &mdash; no forms to fill in.
+        Everything you need is in this one email.
       </p>
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:2px solid ${BRAND.gold}; border-radius:8px;">
@@ -1599,39 +1683,67 @@ function buildQuoteEmail(booking, quote) {
         </td></tr>
       </table>
 
+      <!-- The deposit used to be announced here as well; step 3 below
+           names the same figure, and saying it twice made the reader hunt
+           for the difference between them. -->
+
+      <!-- ── the sequence ──────────────────────────────────────────── -->
+      <p style="margin:26px 0 2px; font-size:11px; font-weight:700; letter-spacing:2px; color:${BRAND.gold}; text-transform:uppercase;">
+        ${needsSignature ? 'Three steps to confirm' : 'Two steps to confirm'}
+      </p>
+      <p style="margin:0 0 4px; font-size:13px; line-height:1.6; color:${BRAND.muted};">
+        In this order, and each one takes under a minute.
+      </p>
+
+      ${step({
+        n: 1,
+        title: 'Accept your price',
+        body: 'Check the reservation below, then confirm the price. Nothing is charged at this point.',
+        cta: { href: url, label: 'Accept this quote' },
+        fallback: url,
+      })}
+
       ${
-        quote.deposit && quote.due_now
-          ? `<table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="margin:18px 0 0;">
-               <tr><td style="background:${BRAND.cream}; border:1px solid ${BRAND.gold}; border-radius:6px; padding:14px 18px;">
-                 <p style="margin:0; font-size:13px; color:${BRAND.muted};">To secure this reservation</p>
-                 <p style="margin:4px 0 0; font-size:22px; font-weight:700; color:${INK};">${money(quote.due_now, currency)} deposit</p>
-                 <p style="margin:4px 0 0; font-size:12px; color:${BRAND.muted};">
-                   The remaining ${money(Math.round((quote.total - quote.due_now) * 100) / 100, currency)} is due before your journey.
-                 </p>
-               </td></tr>
-             </table>`
+        /*
+         * Signing comes before paying because the agreement is what confirms
+         * the reservation and sets out what may be charged — a payment taken
+         * against terms nobody has agreed to is the wrong way round. Omitted
+         * entirely once it is signed: nagging someone to sign again is how
+         * people learn to ignore a box that says action required.
+         */
+        needsSignature
+          ? step({
+              n: 2,
+              title: 'Sign your reservation agreement',
+              body: 'This is what confirms the booking. Read it, sign with your finger, and the signed copy is emailed back to you. The same document is attached to this email as a PDF.',
+              // step() escapes the label, so this is a plain ampersand.
+              cta: { href: agreementUrl, label: 'Read & sign the agreement' },
+              fallback: agreementUrl,
+              muted: true,
+            })
           : ''
       }
 
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:22px 0 0;">
-        <tr><td style="background:${BRAND.gold}; border-radius:6px; text-align:center;">
-          <a href="${url}" style="display:block; padding:16px 24px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Accept this quote</a>
-        </td></tr>
-      </table>
+      ${step({
+        n: needsSignature ? 3 : 2,
+        title: quote.deposit && quote.due_now ? `Pay your ${money(quote.due_now, currency)} deposit` : 'Pay',
+        body: quote.payment_link
+          ? `Secure card checkout through Square.${
+              quote.deposit && quote.due_now
+                ? ` The remaining ${money(Math.round((quote.total - quote.due_now) * 100) / 100, currency)} is due before your journey.`
+                : ''
+            }`
+          : 'We will send you a secure payment link once you have accepted. Nothing is needed from you yet.',
+        cta: quote.payment_link
+          ? { href: quote.payment_link, label: `Pay ${money(quote.due_now || quote.total, currency)} now` }
+          : null,
+        muted: true,
+      })}
 
-      ${
-        quote.payment_link
-          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:10px 0 0;">
-               <tr><td style="border:2px solid ${BRAND.gold}; border-radius:6px; text-align:center;">
-                 <a href="${esc(quote.payment_link)}" style="display:block; padding:14px 24px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.gold}; text-decoration:none;">Pay ${money(quote.due_now || quote.total, currency)} now</a>
-               </td></tr>
-             </table>`
-          : ''
-      }
-      <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+      <p style="margin:18px 0 0; font-size:13px; line-height:1.6; color:${BRAND.muted};">
         Prefer to talk it through? Call or text
         <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>,
-        any time. You can also decline on that page if your plans have changed.
+        any time. You can also decline on the first page above if your plans have changed.
       </p>
     </div>
 
@@ -1675,26 +1787,15 @@ function buildQuoteEmail(booking, quote) {
         </p>`)}
     </div>
 
-    ${
-      /*
-       * One email, not three. A booking the office enters by hand is priced
-       * on the spot, so the customer should receive the reservation, the
-       * price and the agreement together rather than three messages over an
-       * afternoon — which is what the client asked for.
-       *
-       * Only when there is something to sign. Nagging a customer who has
-       * already signed to sign again is how people learn to ignore the
-       * button, and the box says "action required".
-       */
-      booking.agreement_token && !booking.agreement_signed_at
-        ? `<div class="pad" style="padding:20px 24px 0;">${agreementNoticeHtml(booking)}</div>`
-        : ''
-    }
+    <!-- The agreement had its own block down here and the quote URL was
+         repeated again below it, so the email ended with two more calls to
+         action after the reservation the reader had just finished. Both now
+         live with their numbered step near the top, where the sequence is. -->
 
     <div class="pad" style="padding:22px 24px 30px;">
       <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
-        This quote is personal to your reservation. If the button does not work, open this address:<br>
-        <span style="color:${BRAND.gold}; word-break:break-all;">${url}</span>
+        The links above are personal to reservation
+        <b style="color:${INK};">${esc(booking.reference || '')}</b>. Please do not forward them.
       </p>
     </div>`;
 
