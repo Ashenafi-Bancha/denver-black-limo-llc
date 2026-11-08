@@ -27,6 +27,24 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 type Charge = { kind: string; label: string; quantity: string; unitRate: string }
 
+/** One entry in the booking's payment ledger. */
+interface Payment {
+  id: string
+  kind: string
+  amount: number | string
+  method: string | null
+  reference: string | null
+  received_at: string
+  note: string | null
+}
+
+const PAYMENT_KINDS: { value: 'deposit' | 'balance' | 'full' | 'refund'; label: string }[] = [
+  { value: 'deposit', label: 'Deposit' },
+  { value: 'balance', label: 'Balance' },
+  { value: 'full', label: 'Paid in full' },
+  { value: 'refund', label: 'Refund' },
+]
+
 interface ChargeKind {
   kind: string
   label: string
@@ -206,7 +224,22 @@ export function AdminQuotePage({
   const [gratuityOverride, setGratuityOverride] = useState('')
   const [paymentOption, setPaymentOption] = useState<'full' | 'deposit'>('full')
   const [depositRequired, setDepositRequired] = useState('')
-  const [depositReceived, setDepositReceived] = useState('')
+  /**
+   * What the ledger says has been received — summed by the server, never
+   * typed here. This used to be a free-text box that fed only the on-screen
+   * preview: the office could enter "deposit received 150", watch the
+   * balance fall, send the quote, and nothing was recorded anywhere. The
+   * money moved and the system did not know.
+   */
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [paidTotal, setPaidTotal] = useState(0)
+  const depositReceived = paidTotal ? String(paidTotal) : ''
+  const [payAmount, setPayAmount] = useState('')
+  const [payKind, setPayKind] = useState<'deposit' | 'balance' | 'full' | 'refund'>('deposit')
+  const [payMethod, setPayMethod] = useState('payment_link')
+  const [payReference, setPayReference] = useState('')
+  const [payBusy, setPayBusy] = useState(false)
+  const [payError, setPayError] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('payment_link')
   const [paymentLink, setPaymentLink] = useState('')
   const [balanceDueDate, setBalanceDueDate] = useState('')
@@ -227,10 +260,19 @@ export function AdminQuotePage({
   useEffect(() => {
     ;(async () => {
       try {
-        const [b, k] = await Promise.all([
+        const [b, k, sent] = await Promise.all([
           fetch(`${API_URL}/bookings/${bookingId}`, { headers }).then((r) => r.json()),
           fetch(`${API_URL}/quotes/charge-kinds`, { headers }).then((r) => r.json()),
+          // Newest first. Only read for the Square link, which lives on the
+          // quote rather than the booking and would otherwise have to be
+          // pasted again every time a price is revised.
+          fetch(`${API_URL}/bookings/${bookingId}/quotes`, { headers })
+            .then((r) => (r.ok ? r.json() : []))
+            .catch(() => []),
         ])
+        const previous = Array.isArray(sent) ? sent.find((q) => q && q.payment_link) : null
+        if (previous) setPaymentLink(previous.payment_link)
+        await loadPayments()
         setBooking(b)
         setKinds(k.kinds || [])
         setCustomerNotes(b.special_requests || '')
@@ -238,11 +280,67 @@ export function AdminQuotePage({
         if (b.status) setBookingStatus(b.status)
         if (b.payment_status) setPaymentStatus(b.payment_status)
         if (b.payment_method) setPaymentMethod(b.payment_method)
+        // The terms already agreed with this customer. Sending a quote
+        // writes all three unconditionally, so a blank form here does not
+        // merely forget the deposit — re-opening the page to change a price
+        // would clear the $150 the office already asked for.
+        if (b.payment_option === 'deposit' || b.payment_option === 'full') setPaymentOption(b.payment_option)
+        if (b.deposit_required != null) setDepositRequired(String(b.deposit_required))
+        // Already 'YYYY-MM-DD' from the API, which is what a date input
+        // wants; a serialized timestamp would be rejected outright.
+        if (b.balance_due_date) setBalanceDueDate(b.balance_due_date)
       } catch {
         setLoadError('Could not load this booking.')
       }
     })()
   }, [bookingId, headers])
+
+  /** The ledger, which is the only thing that decides what has been paid. */
+  const loadPayments = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/bookings/${bookingId}/payments`, { headers })
+      if (!res.ok) return
+      const j = await res.json()
+      setPayments(Array.isArray(j.payments) ? j.payments : [])
+      setPaidTotal(Number(j.paid) || 0)
+    } catch {
+      /* The sheet is still usable without it; the office sees no payments. */
+    }
+  }, [bookingId, headers])
+
+  const recordPayment = async () => {
+    const amount = Number(payAmount)
+    if (!Number.isFinite(amount) || amount === 0) {
+      setPayError('Enter the amount received.')
+      return
+    }
+    setPayBusy(true)
+    setPayError('')
+    try {
+      const res = await fetch(`${API_URL}/bookings/${bookingId}/payments`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          amount: payKind === 'refund' ? -Math.abs(amount) : Math.abs(amount),
+          kind: payKind,
+          method: payMethod,
+          reference: payReference.trim() || undefined,
+        }),
+      })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error || 'Could not record that payment.')
+      // The server derives the status from the ledger, so take its word for
+      // it rather than working it out again here and risking two answers.
+      if (j.paymentStatus) setPaymentStatus(j.paymentStatus)
+      setPayAmount('')
+      setPayReference('')
+      await loadPayments()
+    } catch (e) {
+      setPayError(e instanceof Error ? e.message : 'Could not record that payment.')
+    } finally {
+      setPayBusy(false)
+    }
+  }
 
   const timer = useRef<number | undefined>(undefined)
   const priceIt = useCallback(async () => {
@@ -494,24 +592,6 @@ export function AdminQuotePage({
             </>
           )}
 
-          <Field label={`Gratuity (${quote?.gratuityPercent ?? 20}%)`}>
-            <MoneyInput
-              value={gratuityOverride !== '' ? gratuityOverride : String(quote?.gratuity ?? '')}
-              onChange={setGratuityOverride}
-            />
-          </Field>
-
-          <Field label="Service Charge">
-            <div className="flex items-center gap-2">
-              <span className="flex-1 rounded border border-neutral-200 bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-700">
-                {usd(quote?.cardFee ?? 0)}
-              </span>
-              <span className="text-xs text-neutral-500">
-                {cardFeeApplies ? `${quote?.cardFeePercent ?? 0}% card processing` : 'not charged'}
-              </span>
-            </div>
-          </Field>
-
           {/* optional charges */}
           <div className="mt-4 rounded border border-neutral-300 p-3">
             <p className="mb-2 text-sm font-semibold text-neutral-700">Optional Charges</p>
@@ -590,6 +670,29 @@ export function AdminQuotePage({
             </Field>
           </div>
 
+          {/* Gratuity and the service charge sit here, immediately above the
+              total, because that is where they are worked out: gratuity on
+              the fare plus the extras above, and the card fee on top of that.
+              Printed under the Base Fare they read as a percentage of the
+              fare alone, which is not what the customer is charged. */}
+          <Field label={`Gratuity (${quote?.gratuityPercent ?? 20}%)`}>
+            <MoneyInput
+              value={gratuityOverride !== '' ? gratuityOverride : String(quote?.gratuity ?? '')}
+              onChange={setGratuityOverride}
+            />
+          </Field>
+
+          <Field label="Service Charge">
+            <div className="flex items-center gap-2">
+              <span className="flex-1 rounded border border-neutral-200 bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-700">
+                {usd(quote?.cardFee ?? 0)}
+              </span>
+              <span className="text-xs text-neutral-500">
+                {cardFeeApplies ? `${quote?.cardFeePercent ?? 0}% card processing` : 'not charged'}
+              </span>
+            </div>
+          </Field>
+
           {/* ── the summary table ────────────────────────────────────── */}
           <div className="mt-4 overflow-hidden rounded border border-neutral-300">
             <SumRow label="Subtotal" value={quote?.subtotal ?? 0} />
@@ -630,8 +733,10 @@ export function AdminQuotePage({
                   <Field label="Deposit Required">
                     <MoneyInput value={depositRequired} onChange={setDepositRequired} />
                   </Field>
-                  <Field label="Deposit Received">
-                    <MoneyInput value={depositReceived} onChange={setDepositReceived} />
+                  <Field label="Received So Far">
+                    <span className="block rounded border border-neutral-200 bg-neutral-100 px-3 py-2 text-sm font-medium text-neutral-700">
+                      {usd(paidTotal)}
+                    </span>
                   </Field>
                   <Field label="Balance Due Date">
                     <input
@@ -653,6 +758,81 @@ export function AdminQuotePage({
                 </p>
               </div>
             )}
+          </div>
+
+          {/*
+            * The ledger. Every payment is its own row rather than a running
+            * total on the booking, because an argument about money turns on
+            * when it arrived and how, not just how much — and the status is
+            * derived from these rows by the server, so the two can never
+            * disagree.
+            */}
+          <div className="mt-4 rounded border border-neutral-300">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-200 bg-neutral-50 px-4 py-2.5">
+              <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-neutral-700">Payments Received</h3>
+              <span className="text-sm font-semibold text-neutral-900">{usd(paidTotal)} recorded</span>
+            </div>
+
+            {payments.length > 0 && (
+              <ul className="divide-y divide-neutral-200">
+                {payments.map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-baseline justify-between gap-2 px-4 py-2 text-sm">
+                    <span className="text-neutral-700">
+                      <span className="font-medium capitalize text-neutral-900">{p.kind}</span>
+                      {p.method ? ` · ${p.method.replace(/_/g, ' ')}` : ''}
+                      {p.reference ? ` · ${p.reference}` : ''}
+                      {' · '}
+                      <span className="text-xs text-neutral-500">
+                        {String(p.received_at || '').slice(0, 10)}
+                      </span>
+                    </span>
+                    <span className="tabular-nums font-medium text-neutral-900">{usd(Number(p.amount))}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="flex flex-wrap items-end gap-2 px-4 py-3">
+              <div className="w-28">
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Amount</label>
+                <MoneyInput value={payAmount} onChange={setPayAmount} />
+              </div>
+              <div className="w-32">
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Kind</label>
+                <select value={payKind} onChange={(e) => setPayKind(e.target.value as typeof payKind)} className={selectClass}>
+                  {PAYMENT_KINDS.map((k) => (
+                    <option key={k.value} value={k.value}>{k.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="w-36">
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Method</label>
+                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className={selectClass}>
+                  {PAYMENT_METHODS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="min-w-0 flex-1">
+                <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Reference</label>
+                <input
+                  value={payReference}
+                  onChange={(e) => setPayReference(e.target.value)}
+                  placeholder="Square receipt, Zelle confirmation…"
+                  className={selectClass}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={recordPayment}
+                disabled={payBusy}
+                className="rounded bg-brand-black px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-gold-light transition hover:brightness-125 disabled:opacity-40"
+              >
+                {payBusy ? 'Saving…' : 'Record'}
+              </button>
+            </div>
+
+            {payError && <p className="px-4 pb-3 text-sm font-medium text-red-600">{payError}</p>}
           </div>
 
           <label className="mt-3 flex items-start gap-2.5 text-sm text-neutral-700">

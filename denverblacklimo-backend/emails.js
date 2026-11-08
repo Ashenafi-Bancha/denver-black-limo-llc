@@ -499,6 +499,88 @@ function routingHtml(d) {
 }
 
 /**
+ * The priced sheet for the receipt's Charges & Fees box.
+ *
+ * The order is the order the arithmetic happens in, and gratuity and the
+ * service charge sit immediately above the total because that is where they
+ * are worked out — gratuity on the fare plus the extras, the card fee on top
+ * of that. Printed under the base fare they read as a percentage of the fare
+ * alone, which is not what the customer is charged. The client asked for this
+ * position explicitly.
+ */
+function chargeSheetHtml(b, currency = 'USD') {
+  const row = (label, value, opts = {}) => `<tr>
+    <td style="padding:${opts.gap ? '6px' : '0'} 0 4px; font-size:12px; line-height:1.45; ${
+      opts.bold ? 'font-weight:700;' : ''
+    } color:${INK};${opts.rule ? ` border-top:1px solid ${RULE}; padding-top:6px;` : ''}">${esc(label)}</td>
+    <td style="padding:${opts.gap ? '6px' : '0'} 0 4px; font-size:${opts.big ? '14px' : '12px'}; line-height:1.45; ${
+      opts.bold ? 'font-weight:700;' : ''
+    } color:${INK}; text-align:right; white-space:nowrap;${
+      opts.rule ? ` border-top:1px solid ${RULE}; padding-top:6px;` : ''
+    }">${esc(value)}</td>
+  </tr>`;
+
+  const fare =
+    b.rateType === 'hourly'
+      ? row(`Base Fare — ${b.billedHours} hrs x ${money(b.hourlyRate, currency)}`, money(b.baseFare, currency))
+      : row('Base Fare', money(b.baseFare, currency));
+
+  const extras = (b.charges || [])
+    .filter((c) => Number(c.amount) > 0)
+    .map((c) =>
+      row(
+        Number(c.quantity) === 1 ? c.label : `${c.label} — ${c.quantity} x ${money(c.unitRate, currency)}`,
+        money(c.amount, currency)
+      )
+    )
+    .join('');
+
+  const discount = Number(b.discount) > 0 ? row('Discount', money(-Math.abs(b.discount), currency)) : '';
+  const gratuity =
+    Number(b.gratuity) > 0
+      ? row(`Gratuity (${b.gratuityPercent}%)`, money(b.gratuity, currency))
+      : '';
+  const cardFee =
+    Number(b.cardFee) > 0
+      ? row(`Service Charge (${b.cardFeePercent}%)`, money(b.cardFee, currency))
+      : '';
+
+  // Subtotal only earns its line when tax follows it. With no tax it is the
+  // total again, one row higher.
+  const taxed =
+    Number(b.tax) > 0
+      ? row('Subtotal', money(b.subtotal, currency)) + row(`Tax (${b.taxPercent}%)`, money(b.tax, currency))
+      : '';
+
+  const paid = Number(b.amountPaid) > 0 ? row('Amount Paid', money(-Math.abs(b.amountPaid), currency)) : '';
+  const balance =
+    Number(b.amountPaid) > 0
+      ? row('Balance Due', money(b.balanceDue, currency), { bold: true })
+      : '';
+
+  const badge = b.fullyPaid
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px auto 0;">
+         <tr><td style="background:#0f7a3d; border-radius:3px; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:1.2px; color:#ffffff;">PAID IN FULL</td></tr>
+       </table>`
+    : '';
+
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%; text-align:left;">
+    ${fare}${extras}${discount}${gratuity}${cardFee}${taxed}
+    ${row('TOTAL', money(b.total, currency), { bold: true, big: true, rule: true })}
+    ${paid}${balance}
+  </table>${badge}`;
+}
+
+/** What the "Pmt Type" box says, from the column the office sets. */
+const PAYMENT_METHODS = {
+  payment_link: 'Card (Link)',
+  credit_card: 'Credit Card',
+  venmo: 'Venmo',
+  zelle: 'Zelle',
+  cash: 'Cash',
+};
+
+/**
  * The receipt, laid out to the client's reference document: service type and
  * the booked-on box across the top, the logo beside the pick-up details,
  * bill-to and passenger side by side, then the boxed strips. Columns stay
@@ -507,8 +589,16 @@ function routingHtml(d) {
  *
  * `forAdmin` adds the company name under the billing contact so corporate
  * bookings are obvious at a glance; everything else is identical.
+ *
+ * `quote` turns the same sheet into a priced one. Without it the charge box
+ * says the price follows separately, which is the website flow: a customer
+ * who books online has not been quoted yet. With it the box carries the real
+ * figures and the closing line stops promising a second email — the client
+ * asked that a booking the office enters be finished in one message.
  */
-function reservationReceipt(d, { forAdmin = false } = {}) {
+function reservationReceipt(d, { forAdmin = false, quote = null } = {}) {
+  const priced = quote && quote.breakdown ? quote.breakdown : null;
+  const currency = (quote && quote.currency) || 'USD';
   const pax = d.passengers ? String(d.passengers) : '';
   const paxWord = pax ? `${pax} passenger${pax === '1' ? '' : 's'}` : '';
   const vehicle = d.vehicle_preference || d.vehicle_category || '';
@@ -545,7 +635,7 @@ function reservationReceipt(d, { forAdmin = false } = {}) {
             pairRows([
               { label: 'Booked On', value: bookedOn() },
               { label: 'Arr. By', value: arrBy },
-              { label: 'Client Ref', value: 'Website Booking' },
+              { label: 'Client Ref', value: `${d.source || 'Website'} Booking` },
             ])
           )}
         </td>
@@ -612,15 +702,29 @@ function reservationReceipt(d, { forAdmin = false } = {}) {
         <td class="col" style="vertical-align:top; width:44%;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
             <tr>
-              ${headedCell('Pmt Type', 'Pending', { width: '48%' })}
+              ${headedCell(
+                'Pmt Type',
+                priced
+                  ? PAYMENT_METHODS[d.payment_method] ||
+                    (priced.paymentOption === 'deposit' ? 'Deposit' : 'Card')
+                  : 'Pending',
+                { width: '48%' }
+              )}
               ${gapCell()}
-              ${headedCell('Status', 'Request Received', { width: '52%' })}
+              ${headedCell(
+                'Status',
+                priced ? d.payment_status || 'Quote Sent' : 'Request Received',
+                { width: '52%' }
+              )}
             </tr>
           </table>
-          <div style="height:10px; line-height:10px;">&nbsp;</div>
-          ${headedBox(
-            'Charges & Fees',
-            `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
+          ${
+            priced
+              ? ''
+              : `<div style="height:10px; line-height:10px;">&nbsp;</div>` +
+                headedBox(
+                  'Charges & Fees',
+                  `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">
               <tr>
                 <td style="padding:0 0 5px; font-size:12px; font-weight:700; color:${INK};">Rate</td>
                 <td style="padding:0 0 5px; font-size:12px; color:${INK}; text-align:right;">Sent separately</td>
@@ -630,11 +734,25 @@ function reservationReceipt(d, { forAdmin = false } = {}) {
                 <td style="padding:0; font-size:12px; color:${INK}; text-align:right;">Sent separately</td>
               </tr>
             </table>`,
-            { align: 'center' }
-          )}
+                  { align: 'center' }
+                )
+          }
         </td>
       </tr>
     </table>
+
+    ${
+      /*
+       * The priced sheet gets the full width rather than the 44% column the
+       * "sent separately" placeholder sat in. Columns stay columns on a
+       * phone here by design, and at 375px that column is about 55px of text
+       * — enough for "Rate", but it broke "Service Charge (5%)" across three
+       * lines. A charge sheet nobody can read is not a charge sheet.
+       */
+      priced
+        ? `<div style="margin:10px 0 0;">${headedBox('Charges & Fees', chargeSheetHtml(priced, currency))}</div>`
+        : ''
+    }
 
     <!-- Notes -->
     <div style="margin:12px 0 0;">
@@ -645,7 +763,11 @@ function reservationReceipt(d, { forAdmin = false } = {}) {
     </div>
 
     <p style="margin:12px 0 0; font-size:12px; line-height:1.6; color:${INK};">
-      <b>Important:</b> This is a reservation request receipt, not a final confirmation. Your price and payment details are sent separately.
+      ${
+        priced
+          ? `<b>Important:</b> Everything for this reservation is in this one email — the details above, the price, the terms, and the agreement to sign. Accepting the quote holds the price; it is not a payment.`
+          : `<b>Important:</b> This is a reservation request receipt, not a final confirmation. Your price and payment details are sent separately.`
+      }
     </p>`;
 }
 
@@ -1392,10 +1514,25 @@ function quoteTripRows(d) {
   ]);
 }
 
+/**
+ * The quote, and — when the price was worked out from the charge sheet — the
+ * whole reservation with it.
+ *
+ * The client asked that a booking the office enters be finished in one
+ * email: the reservation, the price, the terms and the agreement to sign.
+ * The price therefore appears once as a figure to decide on, above the fold,
+ * and once as a document underneath, which is the receipt every other email
+ * already uses. Repeating the itemised sheet in both places would be noise,
+ * so the top shows the total alone whenever the document below can show the
+ * working.
+ */
 function buildQuoteEmail(booking, quote) {
   const firstName = booking.name ? String(booking.name).split(' ')[0] : 'there';
   const url = `${SITE}/quote/${encodeURIComponent(quote.token)}`;
   const currency = quote.currency || 'USD';
+  // Quotes sent before the charge sheet existed have line items and nothing
+  // else; those must still print the figures the customer was given.
+  const priced = quote.breakdown || null;
 
   const content = `
     <div class="pad" style="padding:30px 24px 0;">
@@ -1411,7 +1548,13 @@ function buildQuoteEmail(booking, quote) {
 
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:2px solid ${BRAND.gold}; border-radius:8px;">
         <tr><td style="padding:20px 22px;">
-          ${quoteTable(quote.line_items, quote.total, currency)}
+          ${
+            priced
+              ? `<p style="margin:0 0 2px; font-size:12px; letter-spacing:0.6px; text-transform:uppercase; color:${BRAND.muted};">Total balance</p>
+                 <p style="margin:0; font-size:30px; line-height:1.15; font-weight:700; color:${INK};">${esc(money(quote.total, currency))}</p>
+                 <p style="margin:6px 0 0; font-size:12px; color:${BRAND.muted};">The full breakdown is in the reservation sheet below.</p>`
+              : quoteTable(quote.line_items, quote.total, currency)
+          }
           ${
             quote.valid_until
               ? `<p style="margin:14px 0 0; padding-top:12px; border-top:1px solid ${BRAND.line}; font-size:12px; color:${BRAND.muted};">
@@ -1467,14 +1610,30 @@ function buildQuoteEmail(booking, quote) {
     }
 
     <div class="pad" style="padding:20px 24px 0;">
-      ${panel(`${heading('The trip this covers')}${quoteTripRows(booking)}`)}
+      ${
+        priced
+          ? reservationReceipt(booking, { quote })
+          : panel(`${heading('The trip this covers')}${quoteTripRows(booking)}`)
+      }
     </div>
 
     <div class="pad" style="padding:20px 24px 0;">
       ${panel(`${heading("What's included")}
         <p style="margin:0; font-size:13px; line-height:1.8; color:${INK};">
           A professional chauffeur, a clean and inspected vehicle, all taxes and standard fees, and flight tracking on
-          airport trips. Gratuity is not included and is always your choice. Additional time, extra stops, tolls and
+          airport trips.
+          ${
+            /*
+             * Said from the sheet, not from habit. The charge box now bills a
+             * gratuity line, and a paragraph underneath insisting gratuity is
+             * not included contradicts the figure the customer is agreeing
+             * to — in writing, which is where a dispute starts.
+             */
+            priced && Number(priced.gratuity) > 0
+              ? `A ${priced.gratuityPercent}% gratuity is already included in the total above, so nothing further is expected on the day.`
+              : 'Gratuity is not included and is always your choice.'
+          }
+          Additional time, extra stops, tolls and
           parking are billed as used, exactly as set out in our
           <a href="${SITE}/terms" style="color:${BRAND.gold}; text-decoration:none;">terms and conditions</a>.
         </p>`)}

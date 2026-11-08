@@ -33,6 +33,13 @@ export interface NewBookingPayload {
   pickupLocation: string
   dropoffLocation: string
   additionalStops: string
+  returnDate: string
+  returnTime: string
+  returnPickupLocation: string
+  returnDropoffLocation: string
+  returnAdditionalStops: string
+  returnAirline: string
+  returnFlightNumber: string
   passengers: string
   luggage: string
   vehiclePreference: string
@@ -72,7 +79,11 @@ export function NewBookingModal({
     serviceType: SERVICE_TYPES[0], tripType: 'One Way',
     airportDirection: 'Arrival', airline: '', flightNumber: '',
     pickupDate: today(), pickupTime: '', pickupLocation: '', dropoffLocation: '',
-    additionalStops: '', passengers: '2', luggage: '2',
+    additionalStops: '',
+    returnDate: '', returnTime: '', returnPickupLocation: '',
+    returnDropoffLocation: '', returnAdditionalStops: '',
+    returnAirline: '', returnFlightNumber: '',
+    passengers: '2', luggage: '2',
     vehiclePreference: VEHICLE_CATEGORIES[0].name, specialRequests: '',
     status: 'Confirmed', source: 'Phone', sendConfirmation: false,
   })
@@ -80,6 +91,7 @@ export function NewBookingModal({
     setF((prev) => ({ ...prev, [k]: v }))
 
   const isAirport = /airport|aviation|fbo/i.test(f.serviceType)
+  const isRoundTrip = /round/i.test(f.tripType)
   const valid = f.name.trim().length > 1 && f.phone.trim().length > 5 && /^\d{4}-\d{2}-\d{2}$/.test(f.pickupDate)
   const emailOk = !f.email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.email.trim())
 
@@ -171,6 +183,63 @@ export function NewBookingModal({
               </div>
             </div>
           </section>
+
+          {/*
+            * The return leg. Only shown for a round trip, and nothing here is
+            * required: the office often takes the outbound on the phone and
+            * the return later. But a round trip recorded with no return at
+            * all is what used to happen, and the chauffeur, the quote and
+            * the customer's own copy each lost it.
+            */}
+          {isRoundTrip && (
+            <section>
+              <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.2em] text-white/40">Return leg</h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className={LABEL}>Return date</label>
+                  <input type="date" value={f.returnDate} onChange={(e) => set('returnDate', e.target.value)} className={FIELD} />
+                </div>
+                <div>
+                  <label className={LABEL}>Return time</label>
+                  <input type="time" value={f.returnTime} onChange={(e) => set('returnTime', e.target.value)} className={FIELD} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Return pick-up</label>
+                  <input
+                    value={f.returnPickupLocation}
+                    onChange={(e) => set('returnPickupLocation', e.target.value)}
+                    className={FIELD}
+                    placeholder={f.dropoffLocation || 'Where the return starts'}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Return drop-off</label>
+                  <input
+                    value={f.returnDropoffLocation}
+                    onChange={(e) => set('returnDropoffLocation', e.target.value)}
+                    className={FIELD}
+                    placeholder={f.pickupLocation || 'Where the return ends'}
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className={LABEL}>Return extra stops</label>
+                  <input value={f.returnAdditionalStops} onChange={(e) => set('returnAdditionalStops', e.target.value)} className={FIELD} placeholder="Separate several stops with ||" />
+                </div>
+                {isAirport && (
+                  <>
+                    <div>
+                      <label className={LABEL}>Return airline</label>
+                      <input value={f.returnAirline} onChange={(e) => set('returnAirline', e.target.value)} className={FIELD} placeholder="United Airlines" />
+                    </div>
+                    <div>
+                      <label className={LABEL}>Return flight number</label>
+                      <input value={f.returnFlightNumber} onChange={(e) => set('returnFlightNumber', e.target.value)} className={FIELD} placeholder="UA 1427" />
+                    </div>
+                  </>
+                )}
+              </div>
+            </section>
+          )}
 
           {isAirport && (
             <section>

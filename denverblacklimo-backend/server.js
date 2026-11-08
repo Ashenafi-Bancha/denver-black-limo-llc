@@ -1262,6 +1262,22 @@ app.get('/api/quotes/charge-kinds', authenticateToken, async (req, res) => {
 });
 
 /**
+ * Methods that cost the company nothing to collect.
+ *
+ * The card fee arrives from the client as a flag while the payment method
+ * arrives as its own field, so the two can disagree — and a processing fee
+ * charged on cash is indefensible on an invoice. The flag is honoured for
+ * anything else, including a method the office has not chosen yet, so this
+ * can only ever remove a fee, never add one.
+ */
+const FEE_FREE_METHODS = new Set(['cash', 'zelle', 'venmo']);
+
+function pricingInput(body = {}) {
+  const method = String(body.paymentMethod || '').trim().toLowerCase();
+  return FEE_FREE_METHODS.has(method) ? { ...body, cardFeeApplies: false } : body;
+}
+
+/**
  * What a quote would come to, without saving anything.
  *
  * The quote page calls this on every change rather than doing the arithmetic
@@ -1273,7 +1289,7 @@ app.get('/api/quotes/charge-kinds', authenticateToken, async (req, res) => {
 app.post('/api/quotes/preview', authenticateToken, async (req, res) => {
   try {
     const config = await quotingConfig();
-    res.json(priceQuote({ ...(req.body || {}), config }));
+    res.json(priceQuote({ ...pricingInput(req.body || {}), config }));
   } catch (err) {
     console.error('Quote preview error:', err.message);
     res.status(500).json({ error: 'Could not work out that price.' });
@@ -2640,9 +2656,12 @@ app.post('/api/bookings/manual', authenticateToken, async (req, res) => {
          status, source, name, phone, email, company, service_type, trip_type,
          airport_direction, airline_name, flight_number, pickup_date, pickup_time,
          pickup_location, dropoff_location, additional_stops, passengers, luggage,
-         vehicle_preference, special_requests, details, agreement_token
+         vehicle_preference, special_requests, details, agreement_token,
+         return_date, return_time, return_pickup_location, return_dropoff_location,
+         return_additional_stops, return_airline_name, return_flight_number
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+         $23, $24, $25, $26, $27, $28, $29
        ) RETURNING id, created_at;`,
       [
         status,
@@ -2664,6 +2683,15 @@ app.post('/api/bookings/manual', authenticateToken, async (req, res) => {
         String(d.specialRequests || '').trim() || null,
         d.details ? JSON.stringify(d.details) : null,
         agreementToken,
+        // A calendar day, so an empty string must become null rather than be
+        // handed to Postgres as a date it cannot parse.
+        /^\d{4}-\d{2}-\d{2}$/.test(String(d.returnDate || '')) ? d.returnDate : null,
+        String(d.returnTime || '').trim() || null,
+        String(d.returnPickupLocation || '').trim() || null,
+        String(d.returnDropoffLocation || '').trim() || null,
+        String(d.returnAdditionalStops || '').trim() || null,
+        String(d.returnAirline || '').trim() || null,
+        String(d.returnFlightNumber || '').trim() || null,
       ]
     );
 
@@ -2833,13 +2861,27 @@ function toAmount(value) {
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : null;
 }
 
+/**
+ * A NUMERIC column as a number, keeping null as null. node-pg hands these
+ * back as strings ("95.00"), and a reader that forgets concatenates.
+ */
+function numOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Loads a booking with its most recent quote, by public quote token. */
 async function loadQuote(token) {
   if (typeof token !== 'string' || !/^[a-f0-9]{32,64}$/i.test(token)) return null;
   const { rows } = await pool.query(
-    `SELECT q.*, b.name, b.email, b.phone, b.service_type, b.pickup_date, b.pickup_time,
+    `SELECT q.*, to_char(q.valid_until, 'YYYY-MM-DD') AS valid_until_text,
+            b.name, b.email, b.phone, b.service_type, b.pickup_date, b.pickup_time,
             b.pickup_location, b.dropoff_location, b.additional_stops, b.passengers,
             b.vehicle_preference, b.agreement_token, b.agreement_signed_at, b.status AS booking_status,
+            b.trip_type, b.return_date, b.return_time, b.return_pickup_location,
+            b.airline_name, b.flight_number, b.airport_direction, b.special_requests,
+            b.deposit_required, b.payment_option, b.payment_method, b.payment_status,
             b.id AS booking_id
        FROM quotes q
        JOIN bookings b ON b.id = q.booking_id
@@ -2857,12 +2899,34 @@ async function loadQuote(token) {
       line_items: r.line_items,
       total: Number(r.total),
       note: r.note,
-      valid_until: r.valid_until,
+      valid_until: r.valid_until_text,
       suggested_total: r.suggested_total === null ? null : Number(r.suggested_total),
       status: r.status,
       sent_at: r.sent_at,
       responded_at: r.responded_at,
       decline_reason: r.decline_reason,
+
+      // Where the customer pays. Absent from this object until now, so the
+      // pay button on the accept page would have pointed at "undefined".
+      payment_link: r.payment_link || null,
+
+      // The charge sheet as it was sent. Null on the quotes 012 deliberately
+      // left alone — those have line_items and nothing else, and both shapes
+      // have to render.
+      rate_type: r.rate_type,
+      base_fare: numOrNull(r.base_fare),
+      billed_hours: numOrNull(r.billed_hours),
+      hourly_rate: numOrNull(r.hourly_rate),
+      charges: Array.isArray(r.charges) ? r.charges : [],
+      charges_total: numOrNull(r.charges_total),
+      gratuity_percent: numOrNull(r.gratuity_percent),
+      gratuity: numOrNull(r.gratuity),
+      card_fee_percent: numOrNull(r.card_fee_percent),
+      card_fee: numOrNull(r.card_fee),
+      discount: numOrNull(r.discount),
+      subtotal: numOrNull(r.subtotal),
+      tax_percent: numOrNull(r.tax_percent),
+      tax: numOrNull(r.tax),
     },
     booking: { ...r, id: r.booking_id, reference: bookingRef(r.booking_id) },
   };
@@ -2888,7 +2952,7 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
     // same function, but a total that arrives in a request body is a number a
     // browser could have edited, and this one goes on an invoice.
     const config = await quotingConfig();
-    const priced = priceQuote({ ...body, config });
+    const priced = priceQuote({ ...pricingInput(body), config });
 
     if (priced.total <= 0) {
       return res.status(400).json({ error: 'Enter a fare before sending the quote.' });
@@ -3020,7 +3084,8 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
 app.get('/api/bookings/:id/quotes', authenticateToken, async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT id, token, currency, line_items, total, note, valid_until, suggested_total,
+      `SELECT id, token, currency, line_items, total, note, suggested_total, payment_link,
+              to_char(valid_until, 'YYYY-MM-DD') AS valid_until,
               status, sent_at, responded_at, decline_reason
          FROM quotes WHERE booking_id = $1 ORDER BY sent_at DESC;`,
       [req.params.id]
@@ -3053,14 +3118,56 @@ app.get('/api/quote/:token', async (req, res) => {
       dropoffLocation: booking.dropoff_location,
       vehicle: booking.vehicle_preference,
       passengers: booking.passengers,
+      // The return leg, so a round trip reads as one reservation rather
+      // than half of one.
+      tripType: booking.trip_type,
+      returnDate: booking.return_date,
+      returnTime: booking.return_time,
+      returnPickupLocation: booking.return_pickup_location,
+      airlineName: booking.airline_name,
+      flightNumber: booking.flight_number,
+      airportDirection: booking.airport_direction,
+
       currency: quote.currency,
+      // Both shapes travel. `charges` is the structured sheet 019 added and
+      // is what the page renders when it is there; `lineItems` is how quotes
+      // sent before it were written, and those must still show the figures
+      // the customer was actually given.
       lineItems: quote.line_items,
+      charges: {
+        rateType: quote.rate_type,
+        baseFare: quote.base_fare,
+        billedHours: quote.billed_hours,
+        hourlyRate: quote.hourly_rate,
+        items: quote.charges,
+        extras: quote.charges_total,
+        discount: quote.discount,
+        // Gratuity and the service charge are sent after the extras and the
+        // discount, in the order they are worked out, so the page can print
+        // them immediately above the total the way the office's sheet does.
+        gratuityPercent: quote.gratuity_percent,
+        gratuity: quote.gratuity,
+        cardFeePercent: quote.card_fee_percent,
+        cardFee: quote.card_fee,
+        subtotal: quote.subtotal,
+        taxPercent: quote.tax_percent,
+        tax: quote.tax,
+      },
       total: quote.total,
       note: quote.note,
+      specialRequests: booking.special_requests || null,
       validUntil: quote.valid_until,
       status: quote.status,
       expired,
       respondedAt: quote.responded_at,
+
+      // Where the customer pays, and how much is being asked for now. The
+      // link is one the office pasted in from Square — nothing here creates
+      // it, and nothing here learns when it has been paid.
+      paymentLink: quote.payment_link || null,
+      depositRequired:
+        booking.deposit_required == null ? null : Number(booking.deposit_required),
+      paymentOption: booking.payment_option || 'full',
       // Offered so an accepted quote can lead straight into signing.
       agreementToken: quote.status === 'Accepted' && !booking.agreement_signed_at ? booking.agreement_token : null,
       agreementSigned: Boolean(booking.agreement_signed_at),
@@ -3097,6 +3204,11 @@ app.post('/api/quote/:token/respond', rateLimit({
     }
 
     const accepted = req.body && req.body.accept === true;
+    // The customer may choose to pay a deposit rather than the lot, when the
+    // office offered one. Only honoured on acceptance: a declined quote has
+    // no payment to make.
+    const chosenOption =
+      accepted && req.body && req.body.paymentOption === 'deposit' ? 'deposit' : null;
     const reason = String((req.body && req.body.reason) || '').trim().slice(0, 500) || null;
     const ip = String(req.ip || '').slice(0, 64);
     const agent = String(req.get('user-agent') || '').slice(0, 400);
@@ -3118,17 +3230,41 @@ app.post('/api/quote/:token/respond', rateLimit({
       `UPDATE bookings
           SET quote_status = $1,
               status = CASE WHEN $2 THEN 'Confirmed' ELSE status END,
+              payment_option = COALESCE($4, payment_option),
+              -- Accepting is not paying. The office still has to see the
+              -- money arrive in Square and record it, so the furthest this
+              -- can move the booking is "we have asked for it".
+              payment_status = CASE
+                WHEN NOT $2 THEN payment_status
+                WHEN payment_status IN ('Deposit Paid', 'Fully Paid') THEN payment_status
+                WHEN COALESCE($4, payment_option) = 'deposit' THEN 'Deposit Requested'
+                ELSE 'Quote Sent'
+              END,
               updated_at = now()
         WHERE id = $3;`,
-      [accepted ? 'Accepted' : 'Declined', accepted, booking.id]
+      [accepted ? 'Accepted' : 'Declined', accepted, booking.id, chosenOption]
     );
 
     console.log(`Quote ${accepted ? 'ACCEPTED' : 'declined'}: ${booking.reference} by ${booking.name} (${ip})`);
+    // What the customer owes now, so the page can send them to the right
+    // amount. A deposit they chose, otherwise the lot.
+    const option = chosenOption || booking.payment_option || 'full';
+    const dueNow =
+      option === 'deposit' && booking.deposit_required != null
+        ? Number(booking.deposit_required)
+        : Number(quote.total);
+
     res.json({
       ok: true,
       status: accepted ? 'Accepted' : 'Declined',
       respondedAt,
       agreementToken: accepted && !booking.agreement_signed_at ? booking.agreement_token : null,
+      // Where to send them next. Null when the office has not pasted a
+      // Square link in, in which case the page says the office will be in
+      // touch rather than dead-ending on a button that goes nowhere.
+      paymentLink: accepted ? quote.payment_link || null : null,
+      paymentOption: option,
+      dueNow: accepted ? dueNow : null,
     });
 
     // The customer is not kept waiting on two emails.
@@ -3159,13 +3295,23 @@ app.get('/api/bookings/:id', authenticateToken, async (req, res) => {
               airline_name, flight_number, terminal, airport_direction,
               special_requests, internal_notes, details,
               payment_status, payment_method, payment_option,
-              deposit_required, balance_due_date,
+              deposit_required,
+              -- A calendar day, formatted here rather than serialized as a
+              -- Date: node-pg reads a DATE at the server's local midnight,
+              -- which lands a day out for any server that is not on UTC.
+              to_char(balance_due_date, 'YYYY-MM-DD') AS balance_due_date,
               driver_name, created_at
          FROM bookings WHERE id = $1;`,
       [req.params.id]
     );
     if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
-    res.json({ ...rows[0], reference: bookingRef(rows[0].id) });
+    res.json({
+      ...rows[0],
+      // NUMERIC arrives as the string "150.00"; the quote page does
+      // arithmetic with it.
+      deposit_required: numOrNull(rows[0].deposit_required),
+      reference: bookingRef(rows[0].id),
+    });
   } catch (err) {
     console.error('Booking read error:', err.message);
     res.status(500).json({ error: 'Could not load that booking.' });
