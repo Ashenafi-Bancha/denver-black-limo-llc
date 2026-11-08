@@ -509,66 +509,100 @@ function routingHtml(d) {
  * position explicitly.
  */
 function chargeSheetHtml(b, currency = 'USD') {
-  const row = (label, value, opts = {}) => `<tr>
-    <td style="padding:${opts.gap ? '6px' : '0'} 0 4px; font-size:12px; line-height:1.45; ${
-      opts.bold ? 'font-weight:700;' : ''
-    } color:${INK};${opts.rule ? ` border-top:1px solid ${RULE}; padding-top:6px;` : ''}">${esc(label)}</td>
-    <td style="padding:${opts.gap ? '6px' : '0'} 0 4px; font-size:${opts.big ? '14px' : '12px'}; line-height:1.45; ${
-      opts.bold ? 'font-weight:700;' : ''
-    } color:${INK}; text-align:right; white-space:nowrap;${
-      opts.rule ? ` border-top:1px solid ${RULE}; padding-top:6px;` : ''
-    }">${esc(value)}</td>
+  /**
+   * One charge. `note` is the working — "2 x $20.00" — set beside the label
+   * in muted type so the customer can check the arithmetic without the line
+   * reading as two separate charges.
+   */
+  const row = (label, amount, note) => `<tr>
+    <td style="padding:8px 12px 8px 0; font-size:13px; line-height:1.4; color:${INK}; border-bottom:1px solid ${BRAND.line};">
+      ${esc(label)}${note ? `<span style="color:${BRAND.muted}; font-size:12px;">&nbsp;&nbsp;${esc(note)}</span>` : ''}
+    </td>
+    <td style="padding:8px 0; font-size:13px; line-height:1.4; color:${INK}; text-align:right; white-space:nowrap; border-bottom:1px solid ${BRAND.line};">
+      ${esc(money(amount, currency))}
+    </td>
+  </tr>`;
+
+  /** A line that is not a charge: subtotal, tax, what has been paid. */
+  const sub = (label, amount, opts = {}) => `<tr>
+    <td style="padding:7px 12px 7px 0; font-size:13px; line-height:1.4; ${opts.bold ? 'font-weight:700;' : ''} color:${
+      opts.bold ? INK : BRAND.muted
+    };">${esc(label)}</td>
+    <td style="padding:7px 0; font-size:13px; line-height:1.4; font-weight:${opts.bold ? '700' : '600'}; color:${INK}; text-align:right; white-space:nowrap;">
+      ${esc(money(amount, currency))}
+    </td>
   </tr>`;
 
   const fare =
     b.rateType === 'hourly'
-      ? row(`Base Fare — ${b.billedHours} hrs x ${money(b.hourlyRate, currency)}`, money(b.baseFare, currency))
-      : row('Base Fare', money(b.baseFare, currency));
+      ? row('Base Fare', b.baseFare, `${b.billedHours} hrs \u00d7 ${money(b.hourlyRate, currency)}`)
+      : row('Base Fare', b.baseFare);
 
   const extras = (b.charges || [])
     .filter((c) => Number(c.amount) > 0)
     .map((c) =>
       row(
-        Number(c.quantity) === 1 ? c.label : `${c.label} — ${c.quantity} x ${money(c.unitRate, currency)}`,
-        money(c.amount, currency)
+        c.label,
+        c.amount,
+        Number(c.quantity) > 1 ? `${c.quantity} \u00d7 ${money(c.unitRate, currency)}` : ''
       )
     )
     .join('');
 
-  const discount = Number(b.discount) > 0 ? row('Discount', money(-Math.abs(b.discount), currency)) : '';
-  const gratuity =
-    Number(b.gratuity) > 0
-      ? row(`Gratuity (${b.gratuityPercent}%)`, money(b.gratuity, currency))
-      : '';
+  const discount = Number(b.discount) > 0 ? row('Discount', -Math.abs(b.discount)) : '';
+
+  // Gratuity and the service charge print here, immediately above the total,
+  // because this is where they are worked out: gratuity on the fare plus the
+  // extras above, the card fee on top of that. The client asked for this
+  // position, and it is also the only one that makes the percentages true.
+  const gratuity = Number(b.gratuity) > 0 ? row('Gratuity', b.gratuity, `${b.gratuityPercent}%`) : '';
   const cardFee =
-    Number(b.cardFee) > 0
-      ? row(`Service Charge (${b.cardFeePercent}%)`, money(b.cardFee, currency))
-      : '';
+    Number(b.cardFee) > 0 ? row('Service Charge', b.cardFee, `${b.cardFeePercent}% card processing`) : '';
 
   // Subtotal only earns its line when tax follows it. With no tax it is the
   // total again, one row higher.
   const taxed =
     Number(b.tax) > 0
-      ? row('Subtotal', money(b.subtotal, currency)) + row(`Tax (${b.taxPercent}%)`, money(b.tax, currency))
+      ? sub('Subtotal', b.subtotal) + sub(`Tax (${b.taxPercent}%)`, b.tax)
       : '';
 
-  const paid = Number(b.amountPaid) > 0 ? row('Amount Paid', money(-Math.abs(b.amountPaid), currency)) : '';
-  const balance =
-    Number(b.amountPaid) > 0
-      ? row('Balance Due', money(b.balanceDue, currency), { bold: true })
-      : '';
+  const hasPaid = Number(b.amountPaid) > 0;
+  const paid = hasPaid ? sub('Amount Paid', -Math.abs(b.amountPaid)) : '';
+  const balance = hasPaid ? sub('Balance Due', b.balanceDue, { bold: true }) : '';
 
   const badge = b.fullyPaid
-    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px auto 0;">
-         <tr><td style="background:#0f7a3d; border-radius:3px; padding:4px 12px; font-size:11px; font-weight:700; letter-spacing:1.2px; color:#ffffff;">PAID IN FULL</td></tr>
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0 0;">
+         <tr><td style="background:#0f7a3d; border-radius:4px; padding:6px 14px; font-size:11px; font-weight:700; letter-spacing:1.4px; color:#ffffff;">PAID IN FULL</td></tr>
        </table>`
     : '';
 
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="width:100%; text-align:left;">
-    ${fare}${extras}${discount}${gratuity}${cardFee}${taxed}
-    ${row('TOTAL', money(b.total, currency), { bold: true, big: true, rule: true })}
-    ${paid}${balance}
-  </table>${badge}`;
+  /*
+   * The total is a black band with gold type — the pairing the section bars
+   * and the site's own headers use. On an invoice the eye should land on one
+   * figure first, and a bold row in the same grey as every other row is not
+   * that figure.
+   */
+  const total = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:14px 0 0; background:${BRAND.black}; border-radius:5px;">
+    <tr>
+      <td style="padding:13px 16px; font-size:12px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:${BRAND.goldLight};">
+        Total Balance
+      </td>
+      <td style="padding:13px 16px; font-size:22px; font-weight:700; color:${BRAND.goldLight}; text-align:right; white-space:nowrap;">
+        ${esc(money(b.total, currency))}
+      </td>
+    </tr>
+  </table>`;
+
+  const after =
+    paid || balance
+      ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:4px 0 0;">${paid}${balance}</table>`
+      : '';
+
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; text-align:left;">
+    ${fare}${extras}${discount}${gratuity}${cardFee}
+  </table>
+  ${taxed ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:2px 0 0;">${taxed}</table>` : ''}
+  ${total}${after}${badge}`;
 }
 
 /** What the "Pmt Type" box says, from the column the office sets. */
@@ -750,7 +784,7 @@ function reservationReceipt(d, { forAdmin = false, quote = null } = {}) {
        * lines. A charge sheet nobody can read is not a charge sheet.
        */
       priced
-        ? `<div style="margin:10px 0 0;">${headedBox('Charges & Fees', chargeSheetHtml(priced, currency))}</div>`
+        ? `<div style="margin:12px 0 0;">${headedBox('Charges & Fees', chargeSheetHtml(priced, currency))}</div>`
         : ''
     }
 
@@ -1579,17 +1613,17 @@ function buildQuoteEmail(booking, quote) {
           : ''
       }
 
-      <table role="presentation" cellpadding="0" cellspacing="0" style="margin:22px 0 0;">
-        <tr><td style="background:${BRAND.gold}; border-radius:6px;">
-          <a href="${url}" style="display:inline-block; padding:16px 40px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Accept this quote</a>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:22px 0 0;">
+        <tr><td style="background:${BRAND.gold}; border-radius:6px; text-align:center;">
+          <a href="${url}" style="display:block; padding:16px 24px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Accept this quote</a>
         </td></tr>
       </table>
 
       ${
         quote.payment_link
-          ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0 0;">
-               <tr><td style="border:2px solid ${BRAND.gold}; border-radius:6px;">
-                 <a href="${esc(quote.payment_link)}" style="display:inline-block; padding:14px 36px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.gold}; text-decoration:none;">Pay ${money(quote.due_now || quote.total, currency)} now</a>
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:10px 0 0;">
+               <tr><td style="border:2px solid ${BRAND.gold}; border-radius:6px; text-align:center;">
+                 <a href="${esc(quote.payment_link)}" style="display:block; padding:14px 24px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.gold}; text-decoration:none;">Pay ${money(quote.due_now || quote.total, currency)} now</a>
                </td></tr>
              </table>`
           : ''
@@ -1612,7 +1646,9 @@ function buildQuoteEmail(booking, quote) {
     <div class="pad" style="padding:20px 24px 0;">
       ${
         priced
-          ? reservationReceipt(booking, { quote })
+          // Labelled like every other block, so the document below is
+          // announced rather than simply appearing under the note.
+          ? `${heading('Your reservation')}${reservationReceipt(booking, { quote })}`
           : panel(`${heading('The trip this covers')}${quoteTripRows(booking)}`)
       }
     </div>
