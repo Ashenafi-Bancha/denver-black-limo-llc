@@ -3172,11 +3172,31 @@ app.get('/api/bookings/:id/quotes', authenticateToken, async (req, res) => {
     const { rows } = await pool.query(
       `SELECT id, token, currency, line_items, total, note, suggested_total, payment_link,
               to_char(valid_until, 'YYYY-MM-DD') AS valid_until,
+              rate_type, base_fare, billed_hours, hourly_rate, charges, discount,
+              gratuity_percent, gratuity, card_fee_percent, card_fee,
               status, sent_at, responded_at, decline_reason
          FROM quotes WHERE booking_id = $1 ORDER BY sent_at DESC;`,
       [req.params.id]
     );
-    res.json(rows.map((r) => ({ ...r, total: Number(r.total) })));
+    // The whole sheet, coerced, so the quote page can open on the figures
+    // that were last sent instead of a blank form. NUMERIC arrives as a
+    // string and a form that puts "240.00" through Number() later is one
+    // concatenation away from a wrong price.
+    res.json(
+      rows.map((r) => ({
+        ...r,
+        total: Number(r.total),
+        base_fare: numOrNull(r.base_fare),
+        billed_hours: numOrNull(r.billed_hours),
+        hourly_rate: numOrNull(r.hourly_rate),
+        discount: numOrNull(r.discount),
+        gratuity: numOrNull(r.gratuity),
+        gratuity_percent: numOrNull(r.gratuity_percent),
+        card_fee: numOrNull(r.card_fee),
+        card_fee_percent: numOrNull(r.card_fee_percent),
+        charges: Array.isArray(r.charges) ? r.charges : [],
+      }))
+    );
   } catch (err) {
     console.error('Quote history error:', err.message);
     res.status(500).json({ error: 'Could not load quotes.' });

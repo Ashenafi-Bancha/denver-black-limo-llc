@@ -1531,9 +1531,14 @@ async function sendDriverDispatchEmail(booking, driver) {
 
 const money = (n, currency = 'USD') => {
   // The sign belongs in front of the symbol: a discount reads "-$11.00",
-  // never "$-11.00".
+  // never "$-11.00". Grouped, because a wedding runs to four figures and
+  // "$1148.16" is read twice before it is believed.
   const v = Number(n || 0);
-  return `${v < 0 ? '-' : ''}${currency === 'USD' ? '$' : `${currency} `}${Math.abs(v).toFixed(2)}`;
+  const digits = Math.abs(v).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return `${v < 0 ? '-' : ''}${currency === 'USD' ? '$' : `${currency} `}${digits}`;
 };
 
 /** The priced lines, as sent. Never recalculated on read. */

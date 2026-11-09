@@ -27,6 +27,23 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api'
 
 type Charge = { kind: string; label: string; quantity: string; unitRate: string }
 
+/** A quote already sent, as the history route returns it. */
+interface SentQuote {
+  id: string
+  total: number
+  note: string | null
+  valid_until: string | null
+  payment_link: string | null
+  rate_type: string | null
+  base_fare: number | null
+  billed_hours: number | null
+  hourly_rate: number | null
+  discount: number | null
+  charges: { kind?: string; label?: string; quantity?: number; unitRate?: number }[]
+  status: string
+  sent_at: string
+}
+
 /** One entry in the booking's payment ledger. */
 interface Payment {
   id: string
@@ -248,6 +265,14 @@ export function AdminQuotePage({
   const [payError, setPayError] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('payment_link')
   const [paymentLink, setPaymentLink] = useState('')
+  /*
+   * Both of these are printed by the quote email and the customer's page,
+   * and neither had anywhere to come from: the hold date never appeared on
+   * a real quote, and "A note from our team" was a panel nothing could
+   * fill.
+   */
+  const [validUntil, setValidUntil] = useState('')
+  const [teamNote, setTeamNote] = useState('')
   const [balanceDueDate, setBalanceDueDate] = useState('')
   const [emailReceipt, setEmailReceipt] = useState(true)
   const [internalNotes, setInternalNotes] = useState('')
@@ -269,15 +294,41 @@ export function AdminQuotePage({
         const [b, k, sent] = await Promise.all([
           fetch(`${API_URL}/bookings/${bookingId}`, { headers }).then((r) => r.json()),
           fetch(`${API_URL}/quotes/charge-kinds`, { headers }).then((r) => r.json()),
-          // Newest first. Only read for the Square link, which lives on the
-          // quote rather than the booking and would otherwise have to be
-          // pasted again every time a price is revised.
+          // Newest first. The whole sheet, not just the link: the page
+          // used to open blank on a booking that had already been quoted,
+          // so adjusting one figure or re-sending meant retyping the fare,
+          // every optional charge and the discount from the email.
           fetch(`${API_URL}/bookings/${bookingId}/quotes`, { headers })
             .then((r) => (r.ok ? r.json() : []))
             .catch(() => []),
         ])
-        const previous = Array.isArray(sent) ? sent.find((q) => q && q.payment_link) : null
-        if (previous) setPaymentLink(previous.payment_link)
+
+        const history: SentQuote[] = Array.isArray(sent) ? sent : []
+        const last = history[0]
+        // The link can outlive the quote it was sent with, so it is taken
+        // from the most recent quote that has one rather than only the last.
+        const linked = history.find((q) => q && q.payment_link)
+        if (linked?.payment_link) setPaymentLink(linked.payment_link)
+
+        if (last) {
+          if (last.rate_type === 'hourly' || last.rate_type === 'flat') setRateType(last.rate_type)
+          if (last.base_fare != null) setBaseFare(String(last.base_fare))
+          if (last.billed_hours) setHours(String(last.billed_hours))
+          if (last.hourly_rate) setHourlyRate(String(last.hourly_rate))
+          if (last.discount) setDiscount(String(last.discount))
+          if (Array.isArray(last.charges) && last.charges.length) {
+            setCharges(
+              last.charges.map((c) => ({
+                kind: c.kind || 'other',
+                label: c.label || '',
+                quantity: String(c.quantity ?? 1),
+                unitRate: String(c.unitRate ?? 0),
+              }))
+            )
+          }
+          if (last.valid_until) setValidUntil(last.valid_until)
+          if (last.note) setTeamNote(last.note)
+        }
         await loadPayments()
         setBooking(b)
         setKinds(k.kinds || [])
@@ -395,7 +446,8 @@ export function AdminQuotePage({
     })),
     discount, gratuityOverride, cardFeeApplies,
     paymentOption, depositRequired, balanceDueDate,
-    paymentMethod, paymentLink,
+    paymentMethod, paymentLink, validUntil,
+    note: teamNote,
     status: bookingStatus,
     paymentStatus,
     internalNotes, customerNotes,
@@ -806,12 +858,18 @@ export function AdminQuotePage({
               </ul>
             )}
 
-            <div className="flex flex-wrap items-end gap-2 px-4 py-3">
-              <div className="w-28">
+            {/*
+              * A grid, not a flex row. Fixed widths beside a flex-1 field
+              * left the reference box 26px wide on a phone — the office
+              * runs this from one, and a Square receipt number will not go
+              * in 26 pixels. Two columns on a phone, four on a desktop.
+              */}
+            <div className="grid grid-cols-2 gap-3 px-4 py-3 sm:grid-cols-4">
+              <div>
                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Amount</label>
                 <MoneyInput value={payAmount} onChange={setPayAmount} />
               </div>
-              <div className="w-32">
+              <div>
                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Kind</label>
                 <select value={payKind} onChange={(e) => setPayKind(e.target.value as typeof payKind)} className={selectClass}>
                   {PAYMENT_KINDS.map((k) => (
@@ -819,7 +877,7 @@ export function AdminQuotePage({
                   ))}
                 </select>
               </div>
-              <div className="w-36">
+              <div>
                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Method</label>
                 <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className={selectClass}>
                   {PAYMENT_METHODS.map((m) => (
@@ -827,12 +885,12 @@ export function AdminQuotePage({
                   ))}
                 </select>
               </div>
-              <div className="min-w-0 flex-1">
+              <div>
                 <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-neutral-500">Reference</label>
                 <input
                   value={payReference}
                   onChange={(e) => setPayReference(e.target.value)}
-                  placeholder="Square receipt, Zelle confirmation…"
+                  placeholder="Square receipt…"
                   className={selectClass}
                 />
               </div>
@@ -840,9 +898,9 @@ export function AdminQuotePage({
                 type="button"
                 onClick={recordPayment}
                 disabled={payBusy}
-                className="rounded bg-brand-black px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-brand-gold-light transition hover:brightness-125 disabled:opacity-40"
+                className="col-span-2 rounded bg-brand-black px-4 py-2.5 text-xs font-bold uppercase tracking-[0.14em] text-brand-gold-light transition hover:brightness-125 disabled:opacity-40 sm:col-span-4"
               >
-                {payBusy ? 'Saving…' : 'Record'}
+                {payBusy ? 'Saving…' : 'Record this payment'}
               </button>
             </div>
 
@@ -879,7 +937,41 @@ export function AdminQuotePage({
             </div>
             <p className="mt-1 text-[11px] text-neutral-400">
               Paste the link the customer should pay through. It is included in the quote email.
+              {paymentOption === 'deposit' && depositRequired
+                ? ' If the link takes a fixed amount, make sure it matches what you are asking for.'
+                : ''}
             </p>
+          </div>
+
+          {/* Both of these print on the customer's quote. Neither had a
+              field, so the hold date never appeared and the note panel in
+              the email was unreachable. */}
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-semibold text-neutral-700">Hold this price until</label>
+              <input
+                type="date"
+                value={validUntil}
+                onChange={(e) => setValidUntil(e.target.value)}
+                className={`${selectClass} mt-1`}
+              />
+              <p className="mt-1 text-[11px] text-neutral-400">
+                Printed on the quote as a deadline. Leave empty for no date.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-semibold text-neutral-700">Note from our team</label>
+              <textarea
+                value={teamNote}
+                onChange={(e) => setTeamNote(e.target.value)}
+                rows={2}
+                placeholder="e.g. Your chauffeur will meet you at baggage claim with a name board."
+                className={`${selectClass} mt-1 resize-y`}
+              />
+              <p className="mt-1 text-[11px] text-neutral-400">
+                Shown to the customer in its own panel on the quote email.
+              </p>
+            </div>
           </div>
         </Card>
 
