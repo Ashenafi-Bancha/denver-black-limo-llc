@@ -73,6 +73,8 @@ interface Breakdown {
 interface Booking {
   id: string
   reference?: string
+  /** The last quote's total, so a balance can be seen before re-pricing. */
+  quote_total?: number | null
   status?: string
   name: string
   email: string
@@ -102,7 +104,11 @@ const PAYMENT_METHODS = [
 
 const BOOKING_STATUSES = ['Pending', 'Confirmed', 'Completed', 'Cancelled']
 const PAYMENT_STATUSES = [
-  'Pending Quote', 'Quote Sent', 'Deposit Requested', 'Deposit Paid',
+  'Pending Quote', 'Quote Sent', 'Deposit Requested',
+  // What a booking is between the deposit arriving and the balance being
+  // settled. The server derives it from the payment ledger; 'Deposit Paid'
+  // stays in the list only so bookings already carrying it still display.
+  'Partially Paid', 'Deposit Paid',
   'Balance Due', 'Balance Payment Requested', 'Fully Paid',
 ]
 
@@ -249,7 +255,7 @@ export function AdminQuotePage({
 
   const [quote, setQuote] = useState<Breakdown | null>(null)
   const [pricing, setPricing] = useState(false)
-  const [busy, setBusy] = useState<'save' | 'confirm' | 'send' | null>(null)
+  const [busy, setBusy] = useState<'save' | 'confirm' | 'send' | 'balance' | null>(null)
   const [done, setDone] = useState('')
   const [failed, setFailed] = useState('')
 
@@ -396,7 +402,7 @@ export function AdminQuotePage({
   })
 
   const run = async (
-    which: 'save' | 'confirm' | 'send',
+    which: 'save' | 'confirm' | 'send' | 'balance',
     url: string,
     method: 'POST' | 'PATCH',
     success: string
@@ -441,6 +447,14 @@ export function AdminQuotePage({
 
   const ready = (quote?.total ?? 0) > 0
   const remaining = (quote?.total ?? 0) - (quote?.amountPaid ?? 0)
+  /*
+   * What is actually still owed on the booking as saved, as opposed to the
+   * preview the office may be mid-way through editing. The quote sheet opens
+   * with an empty fare, so a figure derived from the preview is zero on load
+   * and the balance action would never appear on the one booking that needs
+   * it.
+   */
+  const outstanding = Math.max(0, Number((((booking?.quote_total ?? 0) - paidTotal)).toFixed(2)))
 
   return (
     <div className="mx-auto min-w-0 max-w-3xl pb-10">
@@ -937,6 +951,31 @@ export function AdminQuotePage({
               run('send', `${API_URL}/bookings/${bookingId}/quote`, 'POST', 'Quote sent to the customer.')
             }
           />
+
+          {/*
+            * Only offered once there is something to chase: a total, money
+            * received, and a gap between them. Hidden otherwise rather than
+            * disabled, because an office that has not taken a deposit has no
+            * balance to ask for and the button would only raise a question.
+            */}
+          {paidTotal > 0 && outstanding > 0 && (
+            <Action
+              icon={Send}
+              title="Request the Remaining Balance"
+              subtitle={`Email ${usd(outstanding)} still owed, with the payment link.`}
+              tone="outline"
+              busy={busy === 'balance'}
+              disabled={busy !== null}
+              onClick={() =>
+                run(
+                  'balance',
+                  `${API_URL}/bookings/${bookingId}/balance-request`,
+                  'POST',
+                  'Balance request sent to the customer.'
+                )
+              }
+            />
+          )}
 
           {(done || failed) && (
             <p

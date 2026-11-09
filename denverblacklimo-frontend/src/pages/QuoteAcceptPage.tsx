@@ -85,6 +85,8 @@ interface Quote {
   respondedAt: string | null
   paymentLink: string | null
   depositRequired: number | null
+  depositMinimum: number | null
+  depositChosen: number | null
   paymentOption: string
   agreementToken: string | null
   agreementSigned: boolean
@@ -207,6 +209,7 @@ export function QuoteAcceptPage() {
   const [reason, setReason] = useState('')
   const [terms, setTerms] = useState(false)
   const [option, setOption] = useState<'full' | 'deposit'>('full')
+  const [depositInput, setDepositInput] = useState('')
   const [done, setDone] = useState<{
     status: string
     agreementToken: string | null
@@ -225,6 +228,8 @@ export function QuoteAcceptPage() {
           setQuote(json)
           // The office may already have decided this is a deposit booking.
           if (json.paymentOption === 'deposit') setOption('deposit')
+          const floor = json.depositChosen ?? json.depositMinimum ?? json.depositRequired
+          if (floor != null && floor > 0) setDepositInput(String(floor))
         }
       } catch (e) {
         if (!cancelled) setLoadError(e instanceof Error ? e.message : 'This quote link is not valid.')
@@ -245,6 +250,7 @@ export function QuoteAcceptPage() {
         body: JSON.stringify({
           accept,
           paymentOption: accept ? option : undefined,
+          depositAmount: accept && option === 'deposit' ? chosenDeposit : undefined,
           reason: accept ? undefined : reason.trim() || undefined,
         }),
       })
@@ -300,9 +306,16 @@ export function QuoteAcceptPage() {
   // show the figures the customer was actually given.
   const structured = Boolean(c && (c.baseFare !== null || (c.items && c.items.length)))
 
-  const deposit = quote.depositRequired
-  const depositOffered = deposit !== null && deposit > 0 && deposit < quote.total
-  const dueNow = done?.dueNow ?? (option === 'deposit' && depositOffered ? deposit! : quote.total)
+  // The office's figure is a floor, not the amount. The customer may put
+  // down more against a trip weeks away, or settle the lot.
+  const minimum = quote.depositMinimum ?? quote.depositRequired
+  const depositOffered = minimum !== null && minimum > 0 && minimum < quote.total
+  const typed = Number(depositInput)
+  const chosenDeposit = Number.isFinite(typed) && typed > 0 ? typed : minimum || 0
+  const depositValid =
+    depositOffered && chosenDeposit >= (minimum ?? 0) && chosenDeposit <= quote.total
+  const dueNow =
+    done?.dueNow ?? (option === 'deposit' && depositValid ? chosenDeposit : quote.total)
   const remaining = Math.max(0, Number((quote.total - dueNow).toFixed(2)))
 
   // Ticking the terms box is what moves them from reading to deciding, so the
@@ -603,44 +616,113 @@ export function QuoteAcceptPage() {
               <Bar>Payment Choices</Bar>
               <div className="px-5 py-5 md:px-8 md:py-6">
                 {depositOffered ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {[
-                      { key: 'full' as const, title: 'Pay in Full', amount: quote.total, sub: 'Nothing left to pay.' },
-                      {
-                        key: 'deposit' as const,
-                        title: 'Pay Deposit',
-                        amount: deposit!,
-                        sub: `${money(quote.total - deposit!, quote.currency)} due before the trip.`,
-                      },
-                    ].map((o) => (
-                      <button
-                        key={o.key}
-                        type="button"
-                        onClick={() => setOption(o.key)}
-                        aria-pressed={option === o.key}
-                        className={`rounded border p-4 text-left transition ${
-                          option === o.key
-                            ? 'border-brand-gold bg-brand-gold/8 ring-1 ring-brand-gold'
-                            : 'border-neutral-300 hover:border-neutral-400'
-                        }`}
-                      >
-                        <span className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-neutral-900">{o.title}</span>
-                          <span
-                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                              option === o.key ? 'border-brand-gold bg-brand-gold' : 'border-neutral-400'
-                            }`}
-                          >
-                            {option === o.key && <Check className="h-2.5 w-2.5 text-brand-black" />}
+                  <>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {[
+                        {
+                          key: 'full' as const,
+                          title: 'Pay in Full',
+                          amount: quote.total,
+                          sub: 'Nothing left to pay.',
+                        },
+                        {
+                          key: 'deposit' as const,
+                          title: 'Pay a Deposit',
+                          amount: depositValid ? chosenDeposit : minimum!,
+                          sub: `Minimum ${money(minimum!, quote.currency)}. The rest before your trip.`,
+                        },
+                      ].map((o) => (
+                        <button
+                          key={o.key}
+                          type="button"
+                          onClick={() => setOption(o.key)}
+                          aria-pressed={option === o.key}
+                          className={`rounded border p-4 text-left transition ${
+                            option === o.key
+                              ? 'border-brand-gold bg-brand-gold/8 ring-1 ring-brand-gold'
+                              : 'border-neutral-300 hover:border-neutral-400'
+                          }`}
+                        >
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="text-sm font-semibold text-neutral-900">{o.title}</span>
+                            <span
+                              className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                                option === o.key ? 'border-brand-gold bg-brand-gold' : 'border-neutral-400'
+                              }`}
+                            >
+                              {option === o.key && <Check className="h-2.5 w-2.5 text-brand-black" />}
+                            </span>
                           </span>
-                        </span>
-                        <span className="mt-1 block font-display text-2xl text-neutral-900">
-                          {money(o.amount, quote.currency)}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-neutral-500">{o.sub}</span>
-                      </button>
-                    ))}
-                  </div>
+                          <span className="mt-1 block font-display text-2xl text-neutral-900">
+                            {money(o.amount, quote.currency)}
+                          </span>
+                          <span className="mt-0.5 block text-xs text-neutral-500">{o.sub}</span>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* The amount is theirs to set, within the floor the
+                        office asked for and the total. Shown only once they
+                        have chosen a deposit, so a customer paying in full
+                        is never asked to think about it. */}
+                    {option === 'deposit' && (
+                      <div className="mt-3 rounded border border-neutral-200 bg-neutral-50 p-4">
+                        <label
+                          htmlFor="deposit-amount"
+                          className="block text-xs font-semibold uppercase tracking-[0.14em] text-neutral-600"
+                        >
+                          How much would you like to pay now?
+                        </label>
+                        <div className="mt-2 flex flex-wrap items-center gap-3">
+                          <div className="flex items-center rounded border border-neutral-300 bg-white px-3 py-2 focus-within:border-brand-gold-dark">
+                            <span className="mr-1 text-neutral-500">$</span>
+                            <input
+                              id="deposit-amount"
+                              type="text"
+                              inputMode="decimal"
+                              value={depositInput}
+                              onChange={(e) => setDepositInput(e.target.value.replace(/[^0-9.]/g, ''))}
+                              className="w-28 bg-transparent text-lg font-semibold text-neutral-900 outline-none"
+                              placeholder={String(minimum)}
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setDepositInput(String(minimum))}
+                            className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600 transition hover:border-neutral-500"
+                          >
+                            Minimum {money(minimum!, quote.currency)}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setDepositInput(String(Math.round((quote.total / 2) * 100) / 100))}
+                            className="rounded-full border border-neutral-300 px-3 py-1.5 text-xs font-semibold text-neutral-600 transition hover:border-neutral-500"
+                          >
+                            Half {money(Math.round((quote.total / 2) * 100) / 100, quote.currency)}
+                          </button>
+                        </div>
+
+                        {depositValid ? (
+                          <p className="mt-3 text-sm text-neutral-700">
+                            You pay <b className="text-neutral-900">{money(chosenDeposit, quote.currency)}</b> now
+                            {remaining > 0 ? (
+                              <>
+                                , and <b className="text-neutral-900">{money(remaining, quote.currency)}</b> before
+                                your trip.
+                              </>
+                            ) : (
+                              <> — that settles the booking in full.</>
+                            )}
+                          </p>
+                        ) : (
+                          <p className="mt-3 text-sm font-medium text-red-600">
+                            Enter between {money(minimum!, quote.currency)} and{' '}
+                            {money(quote.total, quote.currency)}.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="flex items-baseline justify-between gap-4 rounded border border-neutral-200 bg-neutral-50 p-4">
                     <span className="text-sm font-semibold text-neutral-900">Pay in Full</span>
@@ -678,7 +760,10 @@ export function QuoteAcceptPage() {
 
                 <button
                   onClick={() => respond(true)}
-                  disabled={busy !== null || quote.expired || !terms}
+                  // An amount outside the range would be clamped by the
+                  // server anyway; refusing here means the figure on screen
+                  // is the figure they agree to.
+                  disabled={busy !== null || quote.expired || !terms || (option === 'deposit' && !depositValid)}
                   className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full bg-brand-black px-8 py-4 text-sm font-bold uppercase tracking-[0.16em] text-brand-gold-light transition hover:brightness-125 disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500"
                 >
                   {busy === 'accept' ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

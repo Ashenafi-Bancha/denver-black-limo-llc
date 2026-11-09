@@ -185,6 +185,7 @@ const {
   sendDriverDispatchEmail,
   sendAffiliateFarmoutEmail,
   sendQuoteEmail,
+  sendBalanceRequestEmail,
   sendQuoteResponseEmails,
   sendInquiryEmails,
   sendAdminReply,
@@ -1049,7 +1050,10 @@ async function quotingConfig() {
   return {
     // 20% is the figure on the client's mock-up; it is a default, not a rule.
     gratuityPercent: num(rates.gratuityPercent, 20),
-    cardFeePercent: num(rates.cardFeePercent, 5),
+    // 4%, confirmed by the client. Both are defaults the rate card in
+    // settings overrides, and each quote stores the percentages it was sent
+    // with, so changing this never rewrites a quote already in an inbox.
+    cardFeePercent: num(rates.cardFeePercent, 4),
     taxPercent: num(rates.taxPercent, 0),
     minimumHours: num(rates.minimumHours, 0),
   };
@@ -1091,7 +1095,7 @@ app.patch('/api/bookings/:id/payment', authenticateToken, async (req, res) => {
       [
         oneOf(body.status, ['Pending', 'Reviewed', 'Quoted', 'Confirmed', 'Completed', 'Cancelled']),
         oneOf(body.paymentStatus, [
-          'Pending Quote', 'Quote Sent', 'Deposit Requested', 'Deposit Paid',
+          'Pending Quote', 'Quote Sent', 'Deposit Requested', 'Deposit Paid', 'Partially Paid',
           'Balance Due', 'Balance Payment Requested', 'Fully Paid',
         ]),
         oneOf(body.paymentMethod, ['payment_link', 'venmo', 'zelle', 'cash', 'credit_card']),
@@ -1185,7 +1189,13 @@ app.post('/api/bookings/:id/payments', authenticateToken, async (req, res) => {
     const total = Number(rows[0].total) || 0;
 
     // Derived, never typed: the status and the ledger are the same fact.
-    const status = total > 0 && paid >= total ? 'Fully Paid' : paid > 0 ? 'Deposit Paid' : 'Quote Sent';
+    // "Partially Paid" is the client's own wording for money received
+    // against a booking that is not settled — the state a deposit leaves a
+    // trip in, which the office and the customer both need named. Derived
+    // from the ledger rather than typed, so the status and the rows can
+    // never tell two different stories.
+    const status =
+      total > 0 && paid >= total ? 'Fully Paid' : paid > 0 ? 'Partially Paid' : 'Quote Sent';
     await pool.query(
       'UPDATE bookings SET payment_status = $1, updated_at = now() WHERE id = $2;',
       [status, req.params.id]
@@ -1196,6 +1206,82 @@ app.post('/api/bookings/:id/payments', authenticateToken, async (req, res) => {
   } catch (err) {
     console.error('Payment record error:', err.message);
     res.status(500).json({ error: 'Could not record that payment.' });
+  }
+});
+
+/**
+ * Asks the customer for what is left (Protected).
+ *
+ * A deposit taken weeks ahead leaves the customer with an email that states
+ * a total and says nothing about the remainder. The office presses this
+ * nearer the day. Deliberately manual: the system does not know when a
+ * balance should be chased, and a reminder that arrives on its own schedule
+ * is how a good customer gets nagged the morning of their trip.
+ *
+ * The figures come from the ledger and the booking, never from the request.
+ */
+app.post('/api/bookings/:id/balance-request', authenticateToken, async (req, res) => {
+  try {
+    if (!UUID_RE.test(req.params.id)) return res.status(404).json({ error: 'Booking not found' });
+
+    const { rows } = await pool.query(
+      `SELECT b.*, to_char(b.balance_due_date, 'YYYY-MM-DD') AS balance_due_date_text,
+              (SELECT COALESCE(SUM(amount), 0) FROM booking_payments WHERE booking_id = b.id) AS paid,
+              (SELECT payment_link FROM quotes
+                WHERE booking_id = b.id AND payment_link IS NOT NULL
+                ORDER BY sent_at DESC LIMIT 1) AS payment_link
+         FROM bookings b WHERE b.id = $1;`,
+      [req.params.id]
+    );
+    if (!rows.length) return res.status(404).json({ error: 'Booking not found' });
+
+    const booking = { ...rows[0], reference: bookingRef(rows[0].id) };
+    if (!booking.email) {
+      return res.status(400).json({ error: 'This booking has no email address.' });
+    }
+
+    const total = Number(booking.quote_total) || 0;
+    const paid = Number(booking.paid) || 0;
+    const balanceDue = Math.round((total - paid) * 100) / 100;
+
+    // Three refusals rather than one, because each is a different mistake
+    // and "could not send" would leave the office guessing which.
+    if (total <= 0) {
+      return res.status(400).json({ error: 'Send a quote first — this booking has no total yet.' });
+    }
+    if (paid <= 0) {
+      return res.status(400).json({ error: 'Nothing has been received yet. Record the deposit first.' });
+    }
+    if (balanceDue <= 0) {
+      return res.status(400).json({ error: 'This booking is already paid in full.' });
+    }
+
+    const sent = await sendBalanceRequestEmail(booking, {
+      total,
+      paid,
+      balanceDue,
+      paymentLink: booking.payment_link || null,
+      dueDate: booking.balance_due_date_text || null,
+      currency: 'USD',
+    });
+    if (!sent.ok) {
+      return res.status(502).json({ error: sent.error || 'The balance request could not be emailed.' });
+    }
+
+    // Only moved once the email is gone, for the same reason the quote route
+    // writes after sending: a booking marked as chased when nothing left the
+    // building is worse than one that looks unchased.
+    await pool.query(
+      `UPDATE bookings SET payment_status = 'Balance Payment Requested', updated_at = now()
+        WHERE id = $1;`,
+      [req.params.id]
+    );
+
+    console.log(`Balance requested: ${booking.reference} ${money(balanceDue)} of ${money(total)}`);
+    res.json({ ok: true, total, paid, balanceDue, paymentStatus: 'Balance Payment Requested' });
+  } catch (err) {
+    console.error('Balance request error:', err.message);
+    res.status(500).json({ error: 'Could not send the balance request.' });
   }
 });
 
@@ -2881,7 +2967,7 @@ async function loadQuote(token) {
             b.vehicle_preference, b.agreement_token, b.agreement_signed_at, b.status AS booking_status,
             b.trip_type, b.return_date, b.return_time, b.return_pickup_location,
             b.airline_name, b.flight_number, b.airport_direction, b.special_requests,
-            b.deposit_required, b.payment_option, b.payment_method, b.payment_status,
+            b.deposit_required, b.deposit_chosen, b.payment_option, b.payment_method, b.payment_status,
             b.id AS booking_id
        FROM quotes q
        JOIN bookings b ON b.id = q.booking_id
@@ -3045,7 +3131,7 @@ app.post('/api/bookings/:id/quote', authenticateToken, async (req, res) => {
                 -- Only moved forward. A quote re-sent to a customer who has
                 -- already paid a deposit must not drag them back to "Quote
                 -- Sent" and have the office chase money it already has.
-                WHEN payment_status IN ('Deposit Paid', 'Balance Due',
+                WHEN payment_status IN ('Deposit Paid', 'Partially Paid', 'Balance Due',
                                         'Balance Payment Requested', 'Fully Paid')
                   THEN payment_status
                 WHEN $2::boolean THEN 'Deposit Requested'
@@ -3165,8 +3251,14 @@ app.get('/api/quote/:token', async (req, res) => {
       // link is one the office pasted in from Square — nothing here creates
       // it, and nothing here learns when it has been paid.
       paymentLink: quote.payment_link || null,
+      // The office's figure is the floor, not the amount: the customer may
+      // put down more, or settle the lot.
+      depositMinimum:
+        booking.deposit_required == null ? null : Number(booking.deposit_required),
       depositRequired:
         booking.deposit_required == null ? null : Number(booking.deposit_required),
+      depositChosen:
+        booking.deposit_chosen == null ? null : Number(booking.deposit_chosen),
       paymentOption: booking.payment_option || 'full',
       // Offered so an accepted quote can lead straight into signing.
       agreementToken: quote.status === 'Accepted' && !booking.agreement_signed_at ? booking.agreement_token : null,
@@ -3209,6 +3301,23 @@ app.post('/api/quote/:token/respond', rateLimit({
     // no payment to make.
     const chosenOption =
       accepted && req.body && req.body.paymentOption === 'deposit' ? 'deposit' : null;
+
+    /*
+     * How much they said they would pay now. Clamped on the server, because
+     * this figure appears on an invoice and a number that arrived in a
+     * request body is one a browser could have edited: never below the
+     * minimum the office set, never above the total, and rounded to cents so
+     * "100.005" cannot become a third decimal on a receipt.
+     */
+    let chosenDeposit = null;
+    if (chosenOption === 'deposit') {
+      const floor = Number(booking.deposit_required) || 0;
+      const asked = Number(req.body.depositAmount);
+      const total = Number(quote.total) || 0;
+      chosenDeposit = Number.isFinite(asked) && asked > 0 ? asked : floor || total;
+      chosenDeposit = Math.min(Math.max(chosenDeposit, floor), total);
+      chosenDeposit = Math.round(chosenDeposit * 100) / 100;
+    }
     const reason = String((req.body && req.body.reason) || '').trim().slice(0, 500) || null;
     const ip = String(req.ip || '').slice(0, 64);
     const agent = String(req.get('user-agent') || '').slice(0, 400);
@@ -3231,18 +3340,19 @@ app.post('/api/quote/:token/respond', rateLimit({
           SET quote_status = $1,
               status = CASE WHEN $2 THEN 'Confirmed' ELSE status END,
               payment_option = COALESCE($4, payment_option),
+              deposit_chosen = COALESCE($5, deposit_chosen),
               -- Accepting is not paying. The office still has to see the
               -- money arrive in Square and record it, so the furthest this
               -- can move the booking is "we have asked for it".
               payment_status = CASE
                 WHEN NOT $2 THEN payment_status
-                WHEN payment_status IN ('Deposit Paid', 'Fully Paid') THEN payment_status
+                WHEN payment_status IN ('Deposit Paid', 'Partially Paid', 'Fully Paid') THEN payment_status
                 WHEN COALESCE($4, payment_option) = 'deposit' THEN 'Deposit Requested'
                 ELSE 'Quote Sent'
               END,
               updated_at = now()
         WHERE id = $3;`,
-      [accepted ? 'Accepted' : 'Declined', accepted, booking.id, chosenOption]
+      [accepted ? 'Accepted' : 'Declined', accepted, booking.id, chosenOption, chosenDeposit]
     );
 
     console.log(`Quote ${accepted ? 'ACCEPTED' : 'declined'}: ${booking.reference} by ${booking.name} (${ip})`);
@@ -3250,9 +3360,7 @@ app.post('/api/quote/:token/respond', rateLimit({
     // amount. A deposit they chose, otherwise the lot.
     const option = chosenOption || booking.payment_option || 'full';
     const dueNow =
-      option === 'deposit' && booking.deposit_required != null
-        ? Number(booking.deposit_required)
-        : Number(quote.total);
+      option === 'deposit' && chosenDeposit != null ? chosenDeposit : Number(quote.total);
 
     res.json({
       ok: true,
@@ -3295,7 +3403,11 @@ app.get('/api/bookings/:id', authenticateToken, async (req, res) => {
               airline_name, flight_number, terminal, airport_direction,
               special_requests, internal_notes, details,
               payment_status, payment_method, payment_option,
-              deposit_required,
+              -- The total of the last quote sent. The page needs it to know
+              -- whether a balance exists before the office has retyped a
+              -- fare, which is otherwise the only thing that produces one.
+              quote_total,
+              deposit_required, deposit_chosen,
               -- A calendar day, formatted here rather than serialized as a
               -- Date: node-pg reads a DATE at the server's local midnight,
               -- which lands a day out for any server that is not on UTC.
@@ -3310,6 +3422,8 @@ app.get('/api/bookings/:id', authenticateToken, async (req, res) => {
       // NUMERIC arrives as the string "150.00"; the quote page does
       // arithmetic with it.
       deposit_required: numOrNull(rows[0].deposit_required),
+      deposit_chosen: numOrNull(rows[0].deposit_chosen),
+      quote_total: numOrNull(rows[0].quote_total),
       reference: bookingRef(rows[0].id),
     });
   } catch (err) {

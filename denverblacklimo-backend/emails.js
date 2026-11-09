@@ -1806,6 +1806,114 @@ function buildQuoteEmail(booking, quote) {
   });
 }
 
+/**
+ * The balance, asked for nearer the day.
+ *
+ * A customer who paid a deposit weeks ago has an email in their inbox that
+ * says what they owe in total and nothing about what is left. This is the
+ * second ask: what was received, what remains, and where to pay it. It is
+ * deliberately short — the reservation and the terms were agreed when the
+ * quote was accepted, and repeating the whole sheet here would bury the one
+ * figure that matters.
+ */
+function buildBalanceRequestEmail(booking, { total, paid, balanceDue, paymentLink, dueDate, currency = 'USD' }) {
+  const firstName = booking.name ? String(booking.name).split(' ')[0] : 'there';
+
+  const line = (label, value, strong) => `<tr>
+    <td style="padding:7px 0; font-size:13px; color:${strong ? INK : BRAND.muted}; ${strong ? 'font-weight:700;' : ''} border-top:1px solid ${BRAND.line};">${esc(label)}</td>
+    <td style="padding:7px 0; font-size:${strong ? '15px' : '13px'}; color:${INK}; ${strong ? 'font-weight:700;' : ''} text-align:right; white-space:nowrap; border-top:1px solid ${BRAND.line};">${esc(money(value, currency))}</td>
+  </tr>`;
+
+  const content = `
+    <div class="pad" style="padding:30px 24px 0;">
+      <p style="margin:0 0 6px; font-size:11px; font-weight:700; letter-spacing:1.6px; color:${BRAND.gold}; text-transform:uppercase;">Balance due</p>
+      <h1 class="h1" style="margin:0 0 10px; font-size:22px; line-height:1.3; color:${INK}; font-weight:700;">
+        ${esc(firstName)}, your balance is ready to settle
+      </h1>
+      <p style="margin:0 0 20px; font-size:14px; line-height:1.6; color:${BRAND.muted};">
+        Thank you for your deposit on reservation
+        <b style="color:${INK};">${esc(booking.reference || '')}</b>${
+          booking.pickup_date ? `, for ${esc(longDate(booking.pickup_date))}` : ''
+        }. Here is what is left to pay.
+      </p>
+
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; border:2px solid ${BRAND.gold}; border-radius:8px;">
+        <tr><td style="padding:18px 22px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%;">
+            <tr>
+              <td style="padding:0 0 7px; font-size:13px; color:${BRAND.muted};">Trip total</td>
+              <td style="padding:0 0 7px; font-size:13px; color:${INK}; text-align:right; white-space:nowrap;">${esc(money(total, currency))}</td>
+            </tr>
+            ${line('Already received', -Math.abs(paid))}
+          </table>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:12px 0 0; background:${BRAND.black}; border-radius:5px;">
+            <tr>
+              <td style="padding:13px 16px; font-size:12px; font-weight:700; letter-spacing:1.6px; text-transform:uppercase; color:${BRAND.goldLight};">Balance due</td>
+              <td style="padding:13px 16px; font-size:22px; font-weight:700; color:${BRAND.goldLight}; text-align:right; white-space:nowrap;">${esc(money(balanceDue, currency))}</td>
+            </tr>
+          </table>
+          ${
+            dueDate
+              ? `<p style="margin:12px 0 0; font-size:12px; color:${BRAND.muted};">
+                   Please settle by <b style="color:${INK};">${esc(longDate(dueDate))}</b>.
+                 </p>`
+              : ''
+          }
+        </td></tr>
+      </table>
+
+      ${
+        paymentLink
+          ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="width:100%; margin:20px 0 0;">
+               <tr><td style="background:${BRAND.gold}; border-radius:6px; text-align:center;">
+                 <a href="${esc(paymentLink)}" style="display:block; padding:16px 24px; font-size:14px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:${BRAND.black}; text-decoration:none;">Pay ${esc(money(balanceDue, currency))} now</a>
+               </td></tr>
+             </table>
+             <p class="url" style="margin:8px 0 0; font-size:11px; line-height:1.5; color:${BRAND.muted}; word-break:break-all;">
+               If the button does not work: ${esc(paymentLink)}
+             </p>`
+          : `<p style="margin:20px 0 0; font-size:14px; line-height:1.6; color:${INK};">
+               Call or text
+               <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>
+               and we will take the balance over the phone.
+             </p>`
+      }
+
+      <p style="margin:18px 0 0; font-size:13px; line-height:1.6; color:${BRAND.muted};">
+        Nothing else changes about your booking &mdash; the trip, the price and the terms are exactly as you accepted
+        them. Any question at all, call or text
+        <a href="${BRAND.phoneHref}" style="color:${BRAND.gold}; text-decoration:none; font-weight:600;">${BRAND.phone}</a>.
+      </p>
+    </div>
+
+    <div class="pad" style="padding:20px 24px 0;">
+      ${panel(`${heading('Your trip')}${quoteTripRows(booking)}`)}
+    </div>
+
+    <div class="pad" style="padding:22px 24px 30px;">
+      <p style="margin:0; font-size:12px; line-height:1.6; color:${BRAND.muted};">
+        This request is personal to reservation <b style="color:${INK};">${esc(booking.reference || '')}</b>.
+        Please do not forward it.
+      </p>
+    </div>`;
+
+  return shell({
+    title: 'Balance Due',
+    preheader: `${money(balanceDue, currency)} left on ${booking.reference || 'your reservation'}.`,
+    contentHtml: content,
+  });
+}
+
+/** Emails the remaining balance. Sent by the office, never automatically. */
+async function sendBalanceRequestEmail(booking, figures) {
+  return deliver({
+    to: booking.email,
+    subject: `Balance Due ${booking.reference ? `${booking.reference} ` : ''}— Denver Black Limo LLC`,
+    html: buildBalanceRequestEmail(booking, figures),
+    label: 'balance request',
+  });
+}
+
 /** Sent to the customer the moment they accept, so they have it in writing. */
 function buildQuoteAcceptedCustomerEmail(booking, quote) {
   const firstName = booking.name ? String(booking.name).split(' ')[0] : 'there';
@@ -2150,6 +2258,8 @@ module.exports = {
   sendAffiliateFarmoutEmail,
   buildAffiliateFarmoutEmail,
   sendQuoteEmail,
+  sendBalanceRequestEmail,
+  buildBalanceRequestEmail,
   sendQuoteResponseEmails,
   buildQuoteEmail,
   sendInquiryEmails,
